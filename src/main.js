@@ -1,7 +1,23 @@
+import * as THREE from 'three';
 import { setupScene } from './sceneSetup.js';
 import { loadAssets } from './loadAssets.js';
-import { initializeOrbits, setupOrbitLines, updateSatellites } from './orbit.js';
-import { setupUI, simulationSpeed } from './ui.js';
+import {
+  initializeOrbits,
+  setupOrbitLines,
+  updateSatellites,
+  createManualOrbit,
+  updateManualSatellites,
+  MAX_MANUAL_SATELLITES
+} from './orbit.js';
+import {
+  setupUI,
+  initSatellitePreview,
+  renderSatellitePreview,
+  simulationSpeed,
+  isPaused,
+  orbitLinesVisible,
+  satelliteMode
+} from './ui.js';
 
 // ============================================================
 // CONFIGURATION CONSTANTS
@@ -43,28 +59,122 @@ async function main() {
   // 2. Load all GLB assets (Earth with Sketchfab textures + 2 satellites)
   const { earth, satellite1, satellite2 } = await loadAssets(scene);
 
-  // Bundle satellites into an array for the orbit updater
-  const satellites = [satellite1, satellite2];
+  // Automatic mode satellites and orbits
+  const autoSatellites = [satellite1, satellite2];
+  const autoOrbitLines = setupOrbitLines(scene);
+  const autoOrbitStates = initializeOrbits();
 
-  // 3. Orbit visualisation lines (store references for toggle)
-  const orbitLines = setupOrbitLines(scene);
+  // Manual mode satellites and orbits
+  const manualSatellites = [];
+  const manualOrbitStates = [];
+  const manualOrbitLines = [];
 
-  // 4. Orbit state machines
-  const orbitStates = initializeOrbits();
+  // Initialize the mini 3D satellite preview in the control panel
+  initSatellitePreview(satellite1);
 
-  // 5. Setup UI Control Panel (Speed 1x/2x/4x & Orbit Lines Toggle)
+  // Function to create a manually placed satellite from user drop position
+  function handleDropSatellite(dropPosition) {
+    if (manualSatellites.length >= MAX_MANUAL_SATELLITES) {
+      alert('Maximum 2 satellites allowed.');
+      return;
+    }
+
+    const satIndex = manualSatellites.length;
+    // 1st manual satellite uses satellite.glb, 2nd uses satellite2.glb
+    const sourceModel = satIndex === 0 ? satellite1 : satellite2;
+    const newSatellite = sourceModel.clone(true);
+
+    // Enforce castShadow = false on all meshes of manual satellite
+    newSatellite.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = false;
+      }
+    });
+
+    // Create elliptical orbit passing through dropPosition
+    const { orbitState, orbitLine, initialPosition } = createManualOrbit(dropPosition, satIndex);
+
+    newSatellite.position.copy(initialPosition);
+    newSatellite.visible = true;
+    orbitLine.visible = orbitLinesVisible;
+
+    scene.add(newSatellite);
+    scene.add(orbitLine);
+
+    manualSatellites.push(newSatellite);
+    manualOrbitStates.push(orbitState);
+    manualOrbitLines.push(orbitLine);
+
+    console.log(`Manual satellite ${satIndex + 1} placed at:`, initialPosition);
+  }
+
+  // Function to switch between AUTOMATIC and MANUAL satellite modes
+  function handleModeChange(mode) {
+    if (mode === 'AUTOMATIC') {
+      // Restore automatic satellites and orbit lines
+      autoSatellites.forEach((sat) => {
+        sat.visible = true;
+      });
+      autoOrbitLines.forEach((line) => {
+        line.visible = orbitLinesVisible;
+      });
+
+      // Hide manual satellites and manual orbit lines
+      manualSatellites.forEach((sat) => {
+        sat.visible = false;
+      });
+      manualOrbitLines.forEach((line) => {
+        line.visible = false;
+      });
+    } else {
+      // MANUAL MODE:
+      // Hide automatic satellites and automatic orbit lines
+      autoSatellites.forEach((sat) => {
+        sat.visible = false;
+      });
+      autoOrbitLines.forEach((line) => {
+        line.visible = false;
+      });
+
+      // Show manual satellites and manual orbit lines
+      manualSatellites.forEach((sat) => {
+        sat.visible = true;
+      });
+      manualOrbitLines.forEach((line) => {
+        line.visible = orbitLinesVisible;
+      });
+    }
+  }
+
+  // 3. Setup UI Control Panel (Speed, Orbit Lines, Pause, Mode, Drag-and-Drop)
   setupUI({
     onSpeedChange: (speed) => {
       console.log(`Simulation running at ${speed}× speed`);
     },
     onToggleOrbitLines: (visible) => {
-      orbitLines.forEach((line) => {
-        line.visible = visible;
-      });
-    }
+      if (satelliteMode === 'AUTOMATIC') {
+        autoOrbitLines.forEach((line) => {
+          line.visible = visible;
+        });
+      } else {
+        manualOrbitLines.forEach((line) => {
+          line.visible = visible;
+        });
+      }
+    },
+    onTogglePause: (paused) => {
+      console.log(`Simulation ${paused ? 'PAUSED' : 'RESUMED'}`);
+    },
+    onModeChange: handleModeChange,
+    onDropSatellite: handleDropSatellite,
+    getManualCount: () => manualSatellites.length,
+    camera,
+    scene,
+    controls,
+    ghostModelTemplate: satellite1
   });
 
-  // 6. Animation loop variables
+  // 4. Animation loop variables
   let lastTime = performance.now();
 
   function animate() {
@@ -74,21 +184,28 @@ async function main() {
     const deltaTime = (currentTime - lastTime) / 1000; // actual elapsed seconds
     lastTime = currentTime;
 
-    // Simulation delta scaled by user-selected speed (1x, 2x, 4x)
-    const simulationDelta = deltaTime * simulationSpeed;
+    // Simulation delta scaled by user-selected speed (1x, 2x, 4x), or 0 if paused
+    const simulationDelta = isPaused ? 0 : deltaTime * simulationSpeed;
 
     // Update camera controls (damping)
     controls.update();
 
-    // Move satellites along their respective orbits using simulationDelta
-    updateSatellites(satellites, orbitStates, simulationDelta);
+    // Update satellites according to active mode
+    if (satelliteMode === 'AUTOMATIC') {
+      updateSatellites(autoSatellites, autoOrbitStates, simulationDelta);
+    } else {
+      updateManualSatellites(manualSatellites, manualOrbitStates, simulationDelta);
+    }
 
     // Continuous slow Earth rotation around its own vertical axis
     if (earth) {
       earth.rotation.y += EARTH_ROTATION_SPEED * simulationDelta;
     }
 
-    // Update real-time FPS display (unaffected by simulation speed)
+    // Render mini 3D preview in control panel if manual mode is active
+    renderSatellitePreview();
+
+    // Update real-time FPS display (unaffected by simulation speed or pause)
     updateFpsCounter(currentTime);
 
     // Render current frame
@@ -97,7 +214,7 @@ async function main() {
 
   // Start the render loop
   animate();
-  console.log('🌍 Space environment simulation running with Earth rotation & UI controls');
+  console.log('🌍 Space environment simulation running with Pause, Mode selector, and Manual Satellite Drag-and-Drop');
 }
 
 // ============================================================
