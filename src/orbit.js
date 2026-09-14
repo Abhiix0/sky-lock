@@ -13,17 +13,19 @@ export const ORBIT_2_RADIUS      = 26;    // 2.6× Earth radius
 export const ORBIT_2_SPEED       = 0.2;   // radians per second
 export const ORBIT_2_INCLINATION = 65;    // degrees
 
-// Manual orbit constants
+// Manual orbit constraints
 export const MAX_MANUAL_SATELLITES      = 2;
 export const MANUAL_ORBIT_ECCENTRICITY  = 0.25;
 export const MIN_SATELLITE_DISTANCE     = EARTH_RADIUS * 1.15; // 11.5
 export const MAX_SATELLITE_DISTANCE     = 38.0;
 
 /**
- * Optional rotation offset (radians) applied after lookAt() to fix
- * models whose "front" axis doesn't match Three.js's default +Z.
+ * Optional rotation offset applied to align native GLB forward axis.
  */
 export const SATELLITE_ROTATION_OFFSET = { x: 0, y: 0, z: 0 };
+const _offsetQuat = new THREE.Quaternion().setFromEuler(
+  new THREE.Euler(SATELLITE_ROTATION_OFFSET.x, SATELLITE_ROTATION_OFFSET.y, SATELLITE_ROTATION_OFFSET.z)
+);
 
 // ---- Orbit line visuals ----
 const ORBIT_LINE_COLOR_1   = 0x6699cc;  // steel blue (automatic 1)
@@ -33,18 +35,19 @@ const MANUAL_LINE_COLOR_2  = 0xffaa33;  // vibrant amber (manual 2)
 const ORBIT_LINE_OPACITY   = 0.65;
 const ORBIT_LINE_SEGMENTS  = 128;
 
-// ---- Internal reusable vectors (avoids GC pressure in hot animation loop) ----
+// ---- Internal reusable math objects (prevents GC pressure in animation loop) ----
 const _position = new THREE.Vector3();
 const _tangent = new THREE.Vector3();
-const _lookTarget = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _forward = new THREE.Vector3();
+const _basisMatrix = new THREE.Matrix4();
+const _targetQuat = new THREE.Quaternion();
 
 // ============================================================
 // AUTOMATIC ORBIT LINES
 // ============================================================
 
-/**
- * Create a closed ring visualizing an automatic circular orbit path.
- */
 function createOrbitLine(radius, inclinationDeg, color) {
   const points = [];
   const incRad = THREE.MathUtils.degToRad(inclinationDeg);
@@ -67,9 +70,6 @@ function createOrbitLine(radius, inclinationDeg, color) {
   return new THREE.LineLoop(geometry, material);
 }
 
-/**
- * Add both automatic orbit-path rings to the scene.
- */
 export function setupOrbitLines(scene) {
   const line1 = createOrbitLine(ORBIT_1_RADIUS, ORBIT_1_INCLINATION, ORBIT_LINE_COLOR_1);
   const line2 = createOrbitLine(ORBIT_2_RADIUS, ORBIT_2_INCLINATION, ORBIT_LINE_COLOR_2);
@@ -84,12 +84,19 @@ export function setupOrbitLines(scene) {
 // AUTOMATIC ORBIT STATE
 // ============================================================
 
-class OrbitState {
+export class OrbitState {
   constructor(radius, speed, inclinationDeg, initialAngleDeg) {
     this.radius      = radius;
     this.speed       = speed;
     this.inclination = THREE.MathUtils.degToRad(inclinationDeg);
     this.angle       = THREE.MathUtils.degToRad(initialAngleDeg);
+
+    // Constant orbital plane normal vector N = (0, -cos(inc), sin(inc))
+    this.normal = new THREE.Vector3(
+      0,
+      -Math.cos(this.inclination),
+      Math.sin(this.inclination)
+    ).normalize();
   }
 
   update(deltaTime) {
@@ -102,6 +109,32 @@ class OrbitState {
     outVec.z = Math.sin(this.angle) * this.radius * Math.cos(this.inclination);
     return outVec;
   }
+
+  getTangent(outVec) {
+    // Velocity direction dPos/dAngle = (-r*sin(A), r*cos(A)*sin(inc), r*cos(A)*cos(inc))
+    outVec.x = -Math.sin(this.angle);
+    outVec.y = Math.cos(this.angle) * Math.sin(this.inclination);
+    outVec.z = Math.cos(this.angle) * Math.cos(this.inclination);
+    return outVec.normalize();
+  }
+
+  /**
+   * Calculates a rock-solid, flip-free target orientation quaternion
+   * where Forward is direction of travel, and Up is the constant orbit normal.
+   */
+  getOrientation(outQuat) {
+    this.getTangent(_forward);
+    _up.copy(this.normal);
+    // Right = Up x Forward (Ensures right-handed coordinate system: X x Y = Z)
+    _right.crossVectors(_up, _forward).normalize();
+    _up.crossVectors(_forward, _right).normalize();
+
+    // Reconstruct exact orthonormal basis (det = +1)
+    _basisMatrix.makeBasis(_right, _up, _forward);
+    outQuat.setFromRotationMatrix(_basisMatrix);
+    outQuat.multiply(_offsetQuat);
+    return outQuat;
+  }
 }
 
 export function initializeOrbits() {
@@ -111,43 +144,19 @@ export function initializeOrbits() {
   ];
 }
 
-export function updateSatellites(satellites, orbitStates, deltaTime) {
-  for (let i = 0; i < satellites.length; i++) {
-    const satellite = satellites[i];
-    const orbit     = orbitStates[i];
-
-    if (!satellite.visible) continue;
-
-    orbit.update(deltaTime);
-    orbit.getPosition(_position);
-
-    satellite.position.copy(_position);
-
-    // Orient toward Earth
-    satellite.lookAt(0, 0, 0);
-
-    satellite.rotation.x += SATELLITE_ROTATION_OFFSET.x;
-    satellite.rotation.y += SATELLITE_ROTATION_OFFSET.y;
-    satellite.rotation.z += SATELLITE_ROTATION_OFFSET.z;
-  }
-}
-
 // ============================================================
-// MANUAL ELLIPTICAL ORBIT SYSTEM
+// MANUAL ELLIPTICAL ORBIT STATE
 // ============================================================
 
-/**
- * Parametric state for a manually created elliptical orbit.
- * Passes directly through the drop position at angle = 0.
- */
 export class ManualOrbitState {
-  constructor(u, v, a, b, speed) {
-    this.u = u;         // Unit vector along major axis (toward drop point)
-    this.v = v;         // Unit vector in orbit plane perpendicular to u
-    this.a = a;         // Semi-major axis (distance to drop point)
-    this.b = b;         // Semi-minor axis (a * sqrt(1 - e^2))
-    this.speed = speed; // Angular speed (rad/s)
-    this.angle = 0;     // Initial angle is 0, so initial position == drop point!
+  constructor(u, v, a, b, speed, normal) {
+    this.u = u;         // Major axis unit vector (toward drop position)
+    this.v = v;         // Minor axis unit vector in orbit plane
+    this.a = a;         // Semi-major axis
+    this.b = b;         // Semi-minor axis
+    this.speed = speed; // Angular velocity (rad/s)
+    this.angle = 0;     // Initial angle is 0 => pos(0) == drop position!
+    this.normal = normal; // Constant orbit plane normal
   }
 
   update(deltaTime) {
@@ -173,11 +182,24 @@ export class ManualOrbitState {
       .normalize();
     return outVec;
   }
+
+  /**
+   * Calculates flip-free target orientation quaternion along direction of travel.
+   */
+  getOrientation(outQuat) {
+    this.getTangent(_forward);
+    _up.copy(this.normal);
+    // Right = Up x Forward (Ensures right-handed coordinate system: X x Y = Z)
+    _right.crossVectors(_up, _forward).normalize();
+    _up.crossVectors(_forward, _right).normalize();
+
+    _basisMatrix.makeBasis(_right, _up, _forward);
+    outQuat.setFromRotationMatrix(_basisMatrix);
+    outQuat.multiply(_offsetQuat);
+    return outQuat;
+  }
 }
 
-/**
- * Generate a visual LineLoop for a manual elliptical orbit.
- */
 function createManualOrbitLine(u, v, a, b, color) {
   const points = [];
   for (let i = 0; i <= ORBIT_LINE_SEGMENTS; i++) {
@@ -198,10 +220,6 @@ function createManualOrbitLine(u, v, a, b, color) {
   return new THREE.LineLoop(geometry, material);
 }
 
-/**
- * Create a new manual elliptical orbit from a user drop position.
- * Returns { orbitState, orbitLine, initialPosition }.
- */
 export function createManualOrbit(dropPosition, satelliteIndex) {
   const P = dropPosition.clone();
   let r = P.length();
@@ -218,63 +236,34 @@ export function createManualOrbit(dropPosition, satelliteIndex) {
   // Major axis unit vector (toward P)
   const u = P.clone().normalize();
 
-  // Pick an inclination reference axis to determine the orbital plane
-  // Different reference vectors for satellite 1 and 2 ensure distinct orbital planes
+  // Reference axis to determine the orbital plane
   let refAxis = satelliteIndex === 0
     ? new THREE.Vector3(0.2, 0.95, 0.2).normalize()
     : new THREE.Vector3(-0.35, 0.85, -0.4).normalize();
 
-  // Fallback if reference axis is nearly parallel to u
   if (Math.abs(u.dot(refAxis)) > 0.85) {
     refAxis = new THREE.Vector3(0.9, 0.1, 0.3).normalize();
   }
 
-  // Orbital plane normal vector N
+  // Constant orbital plane normal N
   const N = P.clone().cross(refAxis).normalize();
 
   // Minor axis unit vector v in the plane
   const v = N.clone().cross(u).normalize();
 
-  // Ellipse dimensions
+  // Ellipse axes
   const a = r;
   const b = a * Math.sqrt(1 - MANUAL_ORBIT_ECCENTRICITY * MANUAL_ORBIT_ECCENTRICITY);
 
-  // Speed inversely proportional to sqrt(a)
   const speed = 0.28 * Math.sqrt(20 / a);
 
   const color = satelliteIndex === 0 ? MANUAL_LINE_COLOR_1 : MANUAL_LINE_COLOR_2;
   const orbitLine = createManualOrbitLine(u, v, a, b, color);
-  const orbitState = new ManualOrbitState(u, v, a, b, speed);
+  const orbitState = new ManualOrbitState(u, v, a, b, speed, N);
 
   return {
     orbitState,
     orbitLine,
     initialPosition: P
   };
-}
-
-/**
- * Update all active manual satellites along their elliptical orbits.
- */
-export function updateManualSatellites(satellites, orbitStates, deltaTime) {
-  for (let i = 0; i < satellites.length; i++) {
-    const satellite = satellites[i];
-    const orbit = orbitStates[i];
-
-    if (!satellite || !orbit || !satellite.visible) continue;
-
-    orbit.update(deltaTime);
-    orbit.getPosition(_position);
-
-    satellite.position.copy(_position);
-
-    // Orient along direction of travel
-    orbit.getTangent(_tangent);
-    _lookTarget.copy(satellite.position).add(_tangent);
-    satellite.lookAt(_lookTarget);
-
-    satellite.rotation.x += SATELLITE_ROTATION_OFFSET.x;
-    satellite.rotation.y += SATELLITE_ROTATION_OFFSET.y;
-    satellite.rotation.z += SATELLITE_ROTATION_OFFSET.z;
-  }
 }

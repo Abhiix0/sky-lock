@@ -62,7 +62,99 @@ export function renderSatellitePreview() {
 }
 
 /**
- * Setup UI control panel, event handlers, and drag-and-drop interaction.
+ * Dynamically render the Live Satellite Status list with individual controls.
+ */
+export function renderSatelliteStatusList(satellites, { onSatelliteSpeedChange, onSatelliteTogglePause, onSatelliteRemove }) {
+  const listContainer = document.getElementById('satellites-list');
+  if (!listContainer) return;
+
+  listContainer.innerHTML = '';
+
+  if (!satellites || satellites.length === 0) {
+    const emptyMsg = document.createElement('div');
+    emptyMsg.className = 'no-satellites-msg';
+    emptyMsg.textContent = 'No active satellites';
+    listContainer.appendChild(emptyMsg);
+    return;
+  }
+
+  satellites.forEach((sat) => {
+    const card = document.createElement('div');
+    card.className = 'satellite-card';
+    card.setAttribute('data-sat-id', sat.id);
+
+    const isSatPaused = sat.paused;
+    const statusText = isSatPaused ? 'PAUSED' : 'ACTIVE';
+    const statusClass = isSatPaused ? 'paused' : 'active';
+    const pauseBtnText = isSatPaused ? 'RESUME' : 'PAUSE';
+    const pauseBtnClass = isSatPaused ? 'paused' : '';
+
+    card.innerHTML = `
+      <div class="sat-card-header">
+        <span class="sat-id-tag">${sat.id}</span>
+        <span class="sat-status-badge ${statusClass}">
+          <span class="status-dot">●</span> ${statusText}
+        </span>
+      </div>
+      <div class="sat-control-row">
+        <span class="sat-control-label">Speed</span>
+        <div class="sat-speed-group">
+          <button class="sat-speed-btn ${sat.individualSpeed === 0.5 ? 'active' : ''}" data-speed="0.5">0.5×</button>
+          <button class="sat-speed-btn ${sat.individualSpeed === 1 ? 'active' : ''}" data-speed="1">1×</button>
+          <button class="sat-speed-btn ${sat.individualSpeed === 2 ? 'active' : ''}" data-speed="2">2×</button>
+        </div>
+      </div>
+      <div class="sat-actions-row">
+        <button class="sat-action-btn pause-action ${pauseBtnClass}">${pauseBtnText}</button>
+        <button class="sat-action-btn remove-action">REMOVE</button>
+      </div>
+    `;
+
+    // Speed buttons listener
+    const speedBtns = card.querySelectorAll('.sat-speed-btn');
+    speedBtns.forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const speed = parseFloat(btn.getAttribute('data-speed'));
+        if (isNaN(speed)) return;
+        sat.individualSpeed = speed;
+        speedBtns.forEach((b) => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (typeof onSatelliteSpeedChange === 'function') {
+          onSatelliteSpeedChange(sat, speed);
+        }
+      });
+    });
+
+    // Pause button listener
+    const pauseBtn = card.querySelector('.pause-action');
+    if (pauseBtn) {
+      pauseBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sat.paused = !sat.paused;
+        if (typeof onSatelliteTogglePause === 'function') {
+          onSatelliteTogglePause(sat, sat.paused);
+        }
+      });
+    }
+
+    // Remove button listener
+    const removeBtn = card.querySelector('.remove-action');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (typeof onSatelliteRemove === 'function') {
+          onSatelliteRemove(sat);
+        }
+      });
+    }
+
+    listContainer.appendChild(card);
+  });
+}
+
+/**
+ * Setup UI control panel, event handlers, hover tooltip, and drag-and-drop.
  */
 export function setupUI({
   onSpeedChange,
@@ -71,12 +163,13 @@ export function setupUI({
   onModeChange,
   onDropSatellite,
   getManualCount,
+  getActiveSatellites,
   camera,
   scene,
   controls,
   ghostModelTemplate
 }) {
-  // 1. Speed Buttons
+  // 1. Global Speed Buttons
   const speedButtons = document.querySelectorAll('.speed-btn');
   speedButtons.forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -115,7 +208,7 @@ export function setupUI({
     });
   }
 
-  // 3. Pause / Resume Toggle
+  // 3. Global Pause / Resume Toggle
   const pauseToggleBtn = document.getElementById('pause-toggle');
   if (pauseToggleBtn) {
     pauseToggleBtn.addEventListener('click', () => {
@@ -165,10 +258,88 @@ export function setupUI({
     modeManualBtn.addEventListener('click', () => setMode('MANUAL'));
   }
 
-  // 5. Drag-and-Drop Placement from Simulation Panel into 3D Scene
+  // 5. Hover Satellite -> Show ID Tooltip
+  const tooltip = document.getElementById('satellite-tooltip');
+  const hoverRaycaster = new THREE.Raycaster();
+  const hoverMouse = new THREE.Vector2();
+
+  window.addEventListener('pointermove', (e) => {
+    if (isDragging) {
+      if (tooltip) tooltip.style.display = 'none';
+      return;
+    }
+
+    hoverMouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    hoverMouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+    hoverRaycaster.setFromCamera(hoverMouse, camera);
+
+    const activeList = typeof getActiveSatellites === 'function' ? getActiveSatellites() : [];
+    const activeModels = activeList.map((s) => s.model).filter((m) => m && m.visible);
+
+    const intersects = hoverRaycaster.intersectObjects(activeModels, true);
+
+    let satId = null;
+
+    if (intersects.length > 0) {
+      let obj = intersects[0].object;
+      while (obj) {
+        if (obj.userData) {
+          if (obj.userData.satelliteId) {
+            satId = obj.userData.satelliteId;
+            break;
+          }
+          if (obj.userData.satelliteState && obj.userData.satelliteState.id) {
+            satId = obj.userData.satelliteState.id;
+            break;
+          }
+        }
+        obj = obj.parent;
+      }
+    }
+
+    // Proximity fallback: check distance from ray to satellite position for smooth hover
+    if (!satId) {
+      const _satWorldPos = new THREE.Vector3();
+      const _camToSat = new THREE.Vector3();
+      const _camDir = new THREE.Vector3();
+      camera.getWorldDirection(_camDir);
+
+      let closestDist = Infinity;
+      const HOVER_TOLERANCE = 2.5; // world units
+
+      for (const sat of activeList) {
+        if (!sat.model || !sat.model.visible) continue;
+        sat.model.getWorldPosition(_satWorldPos);
+
+        _camToSat.subVectors(_satWorldPos, camera.position);
+        if (_camToSat.dot(_camDir) > 0) {
+          const rayDist = hoverRaycaster.ray.distanceToPoint(_satWorldPos);
+          if (rayDist < HOVER_TOLERANCE && rayDist < closestDist) {
+            closestDist = rayDist;
+            satId = sat.id;
+          }
+        }
+      }
+    }
+
+    if (satId && tooltip) {
+      tooltip.textContent = satId;
+      tooltip.style.display = 'block';
+      tooltip.style.left = `${e.clientX}px`;
+      tooltip.style.top = `${e.clientY}px`;
+      return;
+    }
+
+    if (tooltip) {
+      tooltip.style.display = 'none';
+    }
+  });
+
+  // 6. Drag-and-Drop Placement from Simulation Panel into 3D Scene
   const previewContainer = document.getElementById('satellite-preview-container');
-  const raycaster = new THREE.Raycaster();
-  const mouse = new THREE.Vector2();
+  const dragRaycaster = new THREE.Raycaster();
+  const dragMouse = new THREE.Vector2();
   const dropPoint = new THREE.Vector3();
   const planeNormal = new THREE.Vector3();
   const plane = new THREE.Plane();
@@ -196,10 +367,8 @@ export function setupUI({
 
   if (previewContainer) {
     previewContainer.addEventListener('pointerdown', (e) => {
-      // Allow only primary mouse button or touch
       if (e.button !== 0 && e.pointerType === 'mouse') return;
 
-      // Check max manual satellites constraint
       const currentCount = typeof getManualCount === 'function' ? getManualCount() : 0;
       if (currentCount >= MAX_MANUAL_SATELLITES) {
         alert('Maximum 2 satellites allowed.');
@@ -209,10 +378,8 @@ export function setupUI({
       isDragging = true;
       previewContainer.classList.add('dragging');
 
-      // Temporarily disable orbit controls so dragging doesn't rotate camera
       if (controls) controls.enabled = false;
 
-      // Instantiate or show ghost satellite in 3D scene
       if (!ghostSatellite) {
         ghostSatellite = createGhostSatellite();
       }
@@ -227,18 +394,17 @@ export function setupUI({
   function updateGhostPosition(clientX, clientY) {
     if (!isDragging || !ghostSatellite || !camera) return;
 
-    mouse.x = (clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+    dragMouse.x = (clientX / window.innerWidth) * 2 - 1;
+    dragMouse.y = -(clientY / window.innerHeight) * 2 + 1;
 
-    raycaster.setFromCamera(mouse, camera);
+    dragRaycaster.setFromCamera(dragMouse, camera);
 
-    // Plane passing through Earth (0,0,0) facing the camera
+    // Plane passing through Earth (0,0,0) facing camera
     camera.getWorldDirection(planeNormal).negate();
     plane.setFromNormalAndCoplanarPoint(planeNormal, new THREE.Vector3(0, 0, 0));
 
-    const hit = raycaster.ray.intersectPlane(plane, dropPoint);
+    const hit = dragRaycaster.ray.intersectPlane(plane, dropPoint);
     if (hit) {
-      // Clamp placement radius so satellite is never inside Earth
       let dist = dropPoint.length();
       if (dist < MIN_SATELLITE_DISTANCE) {
         dropPoint.normalize().multiplyScalar(MIN_SATELLITE_DISTANCE);
@@ -263,15 +429,12 @@ export function setupUI({
     isDragging = false;
     if (previewContainer) previewContainer.classList.remove('dragging');
 
-    // Restore orbit controls
     if (controls) controls.enabled = true;
 
-    // Hide ghost satellite
     if (ghostSatellite) {
       ghostSatellite.visible = false;
     }
 
-    // Check if drop location is over the 3D viewport (not dropped inside the control panel)
     const panel = document.getElementById('control-panel');
     let droppedInPanel = false;
     if (panel) {

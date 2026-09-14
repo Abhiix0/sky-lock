@@ -4,15 +4,14 @@ import { loadAssets } from './loadAssets.js';
 import {
   initializeOrbits,
   setupOrbitLines,
-  updateSatellites,
   createManualOrbit,
-  updateManualSatellites,
   MAX_MANUAL_SATELLITES
 } from './orbit.js';
 import {
   setupUI,
   initSatellitePreview,
   renderSatellitePreview,
+  renderSatelliteStatusList,
   simulationSpeed,
   isPaused,
   orbitLinesVisible,
@@ -25,9 +24,12 @@ import {
 
 /**
  * Earth continuous rotation speed (radians/second at 1x simulation speed).
- * Noticeably slower than satellite orbital movement.
  */
 export const EARTH_ROTATION_SPEED = 0.08;
+
+// Internal reusable math objects
+const _position = new THREE.Vector3();
+const _targetQuat = new THREE.Quaternion();
 
 // ============================================================
 // FPS COUNTER
@@ -59,162 +61,278 @@ async function main() {
   // 2. Load all GLB assets (Earth with Sketchfab textures + 2 satellites)
   const { earth, satellite1, satellite2 } = await loadAssets(scene);
 
-  // Automatic mode satellites and orbits
-  const autoSatellites = [satellite1, satellite2];
-  const autoOrbitLines = setupOrbitLines(scene);
-  const autoOrbitStates = initializeOrbits();
-
-  // Manual mode satellites and orbits
+  // Satellite collections
+  let autoSatellites = [];
   const manualSatellites = [];
-  const manualOrbitStates = [];
-  const manualOrbitLines = [];
 
-  // Initialize the mini 3D satellite preview in the control panel
+  // Helper to attach satellite state directly to the 3D model hierarchy
+  function attachStateToHierarchy(model, state) {
+    model.userData.satelliteId = state.id;
+    Object.defineProperty(model.userData, 'satelliteState', {
+      value: state,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    });
+
+    model.traverse((child) => {
+      child.userData.satelliteId = state.id;
+      Object.defineProperty(child.userData, 'satelliteState', {
+        value: state,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      });
+      if (child.isMesh) {
+        child.castShadow = false;
+      }
+    });
+  }
+
+  // Build automatic satellite instances
+  function buildAutomaticSatellites() {
+    // Clear any previous automatic satellites
+    autoSatellites.forEach((sat) => {
+      scene.remove(sat.model);
+      scene.remove(sat.orbitLine);
+    });
+
+    const lines = setupOrbitLines(scene);
+    const orbits = initializeOrbits();
+
+    const sat1Data = {
+      id: 'S-1',
+      model: satellite1,
+      orbit: orbits[0],
+      orbitLine: lines[0],
+      individualSpeed: 1.0,
+      paused: false,
+      isManual: false
+    };
+
+    const sat2Data = {
+      id: 'S-2',
+      model: satellite2,
+      orbit: orbits[1],
+      orbitLine: lines[1],
+      individualSpeed: 1.0,
+      paused: false,
+      isManual: false
+    };
+
+    // Apply stable initial positions and orientations immediately
+    [sat1Data, sat2Data].forEach((sat) => {
+      sat.orbit.getPosition(_position);
+      sat.model.position.copy(_position);
+      sat.orbit.getOrientation(_targetQuat);
+      sat.model.quaternion.copy(_targetQuat);
+      attachStateToHierarchy(sat.model, sat);
+      sat.model.visible = (satelliteMode === 'AUTOMATIC');
+      sat.orbitLine.visible = (satelliteMode === 'AUTOMATIC' && orbitLinesVisible);
+    });
+
+    autoSatellites = [sat1Data, sat2Data];
+  }
+
+  buildAutomaticSatellites();
+
+  // Return currently active satellite list based on mode
+  function getActiveSatellites() {
+    return satelliteMode === 'AUTOMATIC' ? autoSatellites : manualSatellites;
+  }
+
+  // Refresh the UI Satellite Status cards
+  function refreshStatusList() {
+    renderSatelliteStatusList(getActiveSatellites(), {
+      onSatelliteSpeedChange: (sat, speed) => {
+        sat.individualSpeed = speed;
+        console.log(`${sat.id} individual speed set to ${speed}×`);
+      },
+      onSatelliteTogglePause: (sat, paused) => {
+        sat.paused = paused;
+        console.log(`${sat.id} ${paused ? 'PAUSED' : 'RESUMED'}`);
+        refreshStatusList();
+      },
+      onSatelliteRemove: (sat) => {
+        console.log(`Removing ${sat.id}`);
+        scene.remove(sat.model);
+        scene.remove(sat.orbitLine);
+        if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
+        if (sat.orbitLine.material) sat.orbitLine.material.dispose();
+
+        if (satelliteMode === 'AUTOMATIC') {
+          const idx = autoSatellites.indexOf(sat);
+          if (idx !== -1) autoSatellites.splice(idx, 1);
+        } else {
+          const idx = manualSatellites.indexOf(sat);
+          if (idx !== -1) manualSatellites.splice(idx, 1);
+        }
+        refreshStatusList();
+      }
+    });
+  }
+
+  // Initialize 3D preview in the control panel
   initSatellitePreview(satellite1);
 
-  // Function to create a manually placed satellite from user drop position
+  // Handle manual drag-and-drop placement
   function handleDropSatellite(dropPosition) {
     if (manualSatellites.length >= MAX_MANUAL_SATELLITES) {
       alert('Maximum 2 satellites allowed.');
       return;
     }
 
-    const satIndex = manualSatellites.length;
-    // 1st manual satellite uses satellite.glb, 2nd uses satellite2.glb
+    // Determine unique ID ('S-1' or 'S-2')
+    const usedIds = manualSatellites.map((s) => s.id);
+    const newId = !usedIds.includes('S-1') ? 'S-1' : 'S-2';
+    const satIndex = newId === 'S-1' ? 0 : 1;
+
+    // First manual satellite uses satellite1, second uses satellite2
     const sourceModel = satIndex === 0 ? satellite1 : satellite2;
-    const newSatellite = sourceModel.clone(true);
+    const newModel = sourceModel.clone(true);
 
-    // Enforce castShadow = false on all meshes of manual satellite
-    newSatellite.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = false;
-      }
-    });
-
-    // Create elliptical orbit passing through dropPosition
+    // Generate elliptical orbit passing through dropPosition
     const { orbitState, orbitLine, initialPosition } = createManualOrbit(dropPosition, satIndex);
 
-    newSatellite.position.copy(initialPosition);
-    newSatellite.visible = true;
-    orbitLine.visible = orbitLinesVisible;
+    const satData = {
+      id: newId,
+      model: newModel,
+      orbit: orbitState,
+      orbitLine: orbitLine,
+      individualSpeed: 1.0,
+      paused: false,
+      isManual: true
+    };
 
-    scene.add(newSatellite);
+    // Set position and orientation immediately at drop location
+    newModel.position.copy(initialPosition);
+    orbitState.getOrientation(_targetQuat);
+    newModel.quaternion.copy(_targetQuat);
+
+    attachStateToHierarchy(newModel, satData);
+
+    newModel.visible = (satelliteMode === 'MANUAL');
+    orbitLine.visible = (satelliteMode === 'MANUAL' && orbitLinesVisible);
+
+    scene.add(newModel);
     scene.add(orbitLine);
 
-    manualSatellites.push(newSatellite);
-    manualOrbitStates.push(orbitState);
-    manualOrbitLines.push(orbitLine);
+    manualSatellites.push(satData);
 
-    console.log(`Manual satellite ${satIndex + 1} placed at:`, initialPosition);
+    console.log(`Placed ${newId} in orbit at:`, initialPosition);
+    refreshStatusList();
   }
 
-  // Function to switch between AUTOMATIC and MANUAL satellite modes
+  // Handle switching between AUTOMATIC and MANUAL mode
   function handleModeChange(mode) {
     if (mode === 'AUTOMATIC') {
-      // Restore automatic satellites and orbit lines
+      // Re-create standard 2-satellite automatic configuration if needed
+      if (autoSatellites.length < 2) {
+        buildAutomaticSatellites();
+      }
+
       autoSatellites.forEach((sat) => {
-        sat.visible = true;
-      });
-      autoOrbitLines.forEach((line) => {
-        line.visible = orbitLinesVisible;
+        sat.model.visible = true;
+        sat.orbitLine.visible = orbitLinesVisible;
       });
 
-      // Hide manual satellites and manual orbit lines
       manualSatellites.forEach((sat) => {
-        sat.visible = false;
-      });
-      manualOrbitLines.forEach((line) => {
-        line.visible = false;
+        sat.model.visible = false;
+        sat.orbitLine.visible = false;
       });
     } else {
-      // MANUAL MODE:
-      // Hide automatic satellites and automatic orbit lines
+      // MANUAL MODE
       autoSatellites.forEach((sat) => {
-        sat.visible = false;
-      });
-      autoOrbitLines.forEach((line) => {
-        line.visible = false;
+        sat.model.visible = false;
+        sat.orbitLine.visible = false;
       });
 
-      // Show manual satellites and manual orbit lines
       manualSatellites.forEach((sat) => {
-        sat.visible = true;
-      });
-      manualOrbitLines.forEach((line) => {
-        line.visible = orbitLinesVisible;
+        sat.model.visible = true;
+        sat.orbitLine.visible = orbitLinesVisible;
       });
     }
+
+    refreshStatusList();
   }
 
-  // 3. Setup UI Control Panel (Speed, Orbit Lines, Pause, Mode, Drag-and-Drop)
+  // 3. Setup UI Control Panel
   setupUI({
     onSpeedChange: (speed) => {
-      console.log(`Simulation running at ${speed}× speed`);
+      console.log(`Global simulation speed: ${speed}×`);
     },
     onToggleOrbitLines: (visible) => {
-      if (satelliteMode === 'AUTOMATIC') {
-        autoOrbitLines.forEach((line) => {
-          line.visible = visible;
-        });
-      } else {
-        manualOrbitLines.forEach((line) => {
-          line.visible = visible;
-        });
-      }
+      const activeList = getActiveSatellites();
+      activeList.forEach((sat) => {
+        sat.orbitLine.visible = visible;
+      });
     },
     onTogglePause: (paused) => {
-      console.log(`Simulation ${paused ? 'PAUSED' : 'RESUMED'}`);
+      console.log(`Global simulation ${paused ? 'PAUSED' : 'RESUMED'}`);
     },
     onModeChange: handleModeChange,
     onDropSatellite: handleDropSatellite,
     getManualCount: () => manualSatellites.length,
+    getActiveSatellites,
     camera,
     scene,
     controls,
     ghostModelTemplate: satellite1
   });
 
-  // 4. Animation loop variables
+  // Initial live status rendering
+  refreshStatusList();
+
+  // 4. Animation loop
   let lastTime = performance.now();
 
   function animate() {
     requestAnimationFrame(animate);
 
     const currentTime = performance.now();
-    const deltaTime = (currentTime - lastTime) / 1000; // actual elapsed seconds
+    const deltaTime = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
 
-    // Simulation delta scaled by user-selected speed (1x, 2x, 4x), or 0 if paused
+    // Simulation delta: 0 if global paused, otherwise deltaTime * simulationSpeed
     const simulationDelta = isPaused ? 0 : deltaTime * simulationSpeed;
 
-    // Update camera controls (damping)
+    // Update OrbitControls (smooth damping)
     controls.update();
 
-    // Update satellites according to active mode
-    if (satelliteMode === 'AUTOMATIC') {
-      updateSatellites(autoSatellites, autoOrbitStates, simulationDelta);
-    } else {
-      updateManualSatellites(manualSatellites, manualOrbitStates, simulationDelta);
-    }
+    // Update active satellites
+    const currentActive = getActiveSatellites();
+    currentActive.forEach((sat) => {
+      if (sat.paused) return; // Individual pause!
 
-    // Continuous slow Earth rotation around its own vertical axis
+      const satDelta = simulationDelta * sat.individualSpeed;
+      if (satDelta <= 0) return;
+
+      sat.orbit.update(satDelta);
+      sat.orbit.getPosition(_position);
+      sat.model.position.copy(_position);
+
+      // Stable, flip-free orientation along direction of travel
+      sat.orbit.getOrientation(_targetQuat);
+      sat.model.quaternion.slerp(_targetQuat, 0.25);
+    });
+
+    // Continuous slow Earth rotation
     if (earth) {
       earth.rotation.y += EARTH_ROTATION_SPEED * simulationDelta;
     }
 
-    // Render mini 3D preview in control panel if manual mode is active
+    // Render mini 3D preview in control panel (when in Manual mode)
     renderSatellitePreview();
 
-    // Update real-time FPS display (unaffected by simulation speed or pause)
+    // Real-time FPS display
     updateFpsCounter(currentTime);
 
-    // Render current frame
+    // Render 3D scene
     renderer.render(scene, camera);
   }
 
-  // Start the render loop
   animate();
-  console.log('🌍 Space environment simulation running with Pause, Mode selector, and Manual Satellite Drag-and-Drop');
+  console.log('🌍 Simulation running with stable orientation, individual controls, and live status.');
 }
 
 // ============================================================
