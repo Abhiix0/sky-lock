@@ -14,7 +14,7 @@ export const CAMERA_INITIAL_POSITION = { x: 32, y: 24, z: 38 };
 
 // Lighting
 export const SUN_INTENSITY    = 3.0;
-export const SUN_POSITION     = { x: 100, y: 50, z: 100 };
+export const SUN_POSITION     = { x: 20, y: 10, z: 15 };
 export const AMBIENT_INTENSITY = 0.15;
 
 /**
