@@ -278,18 +278,35 @@ export async function loadAssets(scene) {
   // ------------------------------------------------------------------
   const earth = normalizeModel(earthGltf.scene, EARTH_RADIUS * 2, 'Earth');
   earth.position.set(0, 0, 0);
+  earth.traverse((child) => {
+    if (child.isMesh) {
+      child.receiveShadow = true;
+    }
+  });
   scene.add(earth);
 
   // ------------------------------------------------------------------
   // Satellite 1 — normalize to diameter = SATELLITE_SIZE * 2
+  // Disable castShadow on all satellite meshes so no shadow is cast on Earth
   // ------------------------------------------------------------------
   const satellite1 = normalizeModel(sat1Gltf.scene, SATELLITE_SIZE * 2, 'Satellite 1');
+  satellite1.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = false;
+    }
+  });
   scene.add(satellite1);
 
   // ------------------------------------------------------------------
   // Satellite 2 — loaded from a separate file, normalized independently
+  // Disable castShadow on all satellite meshes so no shadow is cast on Earth
   // ------------------------------------------------------------------
   const satellite2 = normalizeModel(sat2Gltf.scene, SATELLITE_SIZE * 2, 'Satellite 2');
+  satellite2.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = false;
+    }
+  });
   scene.add(satellite2);
 
   // ------------------------------------------------------------------
