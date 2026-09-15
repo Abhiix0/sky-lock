@@ -95,6 +95,8 @@ async function main() {
     autoSatellites.forEach((sat) => {
       scene.remove(sat.model);
       scene.remove(sat.orbitLine);
+      if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
+      if (sat.orbitLine.material) sat.orbitLine.material.dispose();
     });
 
     const lines = setupOrbitLines(scene);
@@ -129,6 +131,7 @@ async function main() {
       attachStateToHierarchy(sat.model, sat);
       sat.model.visible = (satelliteMode === 'AUTOMATIC');
       sat.orbitLine.visible = (satelliteMode === 'AUTOMATIC' && orbitLinesVisible);
+      scene.add(sat.model);
     });
 
     autoSatellites = [sat1Data, sat2Data];
@@ -159,6 +162,19 @@ async function main() {
         scene.remove(sat.orbitLine);
         if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
         if (sat.orbitLine.material) sat.orbitLine.material.dispose();
+
+        sat.model.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((m) => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          }
+        });
 
         if (satelliteMode === 'AUTOMATIC') {
           const idx = autoSatellites.indexOf(sat);
