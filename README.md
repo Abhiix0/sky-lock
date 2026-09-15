@@ -30,14 +30,17 @@ The application will automatically open in your browser at `http://localhost:300
 sky-lock/
 ├── public/
 │   └── assets/
-│       ├── earth.glb          # Earth 3D model
-│       ├── satellite.glb      # Satellite 3D model
-│       └── skybox.glb         # Reserved for future phase
+│       ├── earth.glb               # Earth 3D model
+│       ├── satellite.glb           # Satellite 1 3D model
+│       ├── satellite2.glb          # Satellite 2 3D model
+│       └── skybox.glb (not yet present - reserved for future phase)
 ├── src/
-│   ├── main.js               # Application entry & animation loop
-│   ├── sceneSetup.js         # Scene, camera, renderer, lighting
-│   ├── loadAssets.js         # GLB loading & normalization
-│   └── orbit.js              # Orbit calculations & visualization
+│   ├── GLTFSpecGlossExtension.js   # KHR_materials_pbrSpecularGlossiness support
+│   ├── loadAssets.js               # GLB loading & normalization
+│   ├── main.js                     # Application entry & animation loop
+│   ├── orbit.js                    # Orbit calculations & visualization
+│   ├── sceneSetup.js               # Scene, camera, renderer, lighting
+│   └── ui.js                       # UI control panel, state management & preview
 ├── index.html
 ├── package.json
 └── vite.config.js
@@ -49,25 +52,37 @@ All major parameters are exposed as constants at the top of each file for easy t
 
 ### Model Scales (`src/loadAssets.js`)
 ```javascript
-export const EARTH_RADIUS = 20;
-export const SATELLITE_SIZE = EARTH_RADIUS / 50;
+export const EARTH_RADIUS = 10;
+export const SATELLITE_SIZE = 2.0;
 ```
 
 ### Orbit Parameters (`src/orbit.js`)
 ```javascript
-export const ORBIT_1_RADIUS = EARTH_RADIUS * 2.2;
-export const ORBIT_1_SPEED = 0.3;
-export const ORBIT_1_INCLINATION = 15;
+// Automatic orbit parameters
+export const ORBIT_1_RADIUS      = 20;    // 2× Earth radius
+export const ORBIT_1_SPEED       = 0.3;   // radians per second
+export const ORBIT_1_INCLINATION = 25;    // degrees
 
-export const ORBIT_2_RADIUS = EARTH_RADIUS * 2.8;
-export const ORBIT_2_SPEED = 0.2;
-export const ORBIT_2_INCLINATION = 75;
+export const ORBIT_2_RADIUS      = 26;    // 2.6× Earth radius
+export const ORBIT_2_SPEED       = 0.2;   // radians per second
+export const ORBIT_2_INCLINATION = 65;    // degrees
+
+// Manual orbit constraints
+export const MAX_MANUAL_SATELLITES     = 2;
+export const MANUAL_ORBIT_ECCENTRICITY = 0.25;
+export const MIN_SATELLITE_DISTANCE    = EARTH_RADIUS * 1.15; // 11.5
+export const MAX_SATELLITE_DISTANCE    = 38.0;
 ```
 
 ### Camera & Lighting (`src/sceneSetup.js`)
 ```javascript
-export const CAMERA_INITIAL_POSITION = { x: 0, y: 50, z: 150 };
-export const SUN_INTENSITY = 3.0;
+export const CAMERA_FOV  = 60;
+export const CAMERA_NEAR = 0.1;
+export const CAMERA_FAR  = 10000;
+export const CAMERA_INITIAL_POSITION = { x: 32, y: 24, z: 38 };
+
+export const SUN_INTENSITY    = 3.0;
+export const SUN_POSITION     = { x: 20, y: 10, z: 15 };
 export const AMBIENT_INTENSITY = 0.15;
 ```
 
