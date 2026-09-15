@@ -5,35 +5,39 @@ import { EARTH_RADIUS } from './loadAssets.js';
 // TWEAKABLE ORBIT CONSTANTS
 // ============================================================
 
-export const ORBIT_1_RADIUS      = 20;    // 2× Earth radius
-export const ORBIT_1_SPEED       = 0.3;   // radians per second
-export const ORBIT_1_INCLINATION = 25;    // degrees
+export const ORBIT_1_RADIUS = 20; // 2× Earth radius
+export const ORBIT_1_SPEED = 0.3; // radians per second
+export const ORBIT_1_INCLINATION = 25; // degrees
 
-export const ORBIT_2_RADIUS      = 26;    // 2.6× Earth radius
-export const ORBIT_2_SPEED       = 0.2;   // radians per second
-export const ORBIT_2_INCLINATION = 65;    // degrees
+export const ORBIT_2_RADIUS = 26; // 2.6× Earth radius
+export const ORBIT_2_SPEED = 0.2; // radians per second
+export const ORBIT_2_INCLINATION = 65; // degrees
 
 // Manual orbit constraints
-export const MAX_MANUAL_SATELLITES      = 2;
-export const MANUAL_ORBIT_ECCENTRICITY  = 0.25;
-export const MIN_SATELLITE_DISTANCE     = EARTH_RADIUS * 1.15; // 11.5
-export const MAX_SATELLITE_DISTANCE     = 38.0;
+export const MAX_MANUAL_SATELLITES = 2;
+export const MANUAL_ORBIT_ECCENTRICITY = 0.25;
+export const MIN_SATELLITE_DISTANCE = EARTH_RADIUS * 1.15; // 11.5
+export const MAX_SATELLITE_DISTANCE = 38.0;
 
 /**
  * Optional rotation offset applied to align native GLB forward axis.
  */
 export const SATELLITE_ROTATION_OFFSET = { x: 0, y: 0, z: 0 };
 const _offsetQuat = new THREE.Quaternion().setFromEuler(
-  new THREE.Euler(SATELLITE_ROTATION_OFFSET.x, SATELLITE_ROTATION_OFFSET.y, SATELLITE_ROTATION_OFFSET.z)
+  new THREE.Euler(
+    SATELLITE_ROTATION_OFFSET.x,
+    SATELLITE_ROTATION_OFFSET.y,
+    SATELLITE_ROTATION_OFFSET.z
+  )
 );
 
 // ---- Orbit line visuals ----
-const ORBIT_LINE_COLOR_1   = 0x6699cc;  // steel blue (automatic 1)
-const ORBIT_LINE_COLOR_2   = 0xcc7766;  // warm salmon (automatic 2)
-const MANUAL_LINE_COLOR_1  = 0x00e5ff;  // electric cyan (manual 1)
-const MANUAL_LINE_COLOR_2  = 0xffaa33;  // vibrant amber (manual 2)
-const ORBIT_LINE_OPACITY   = 0.65;
-const ORBIT_LINE_SEGMENTS  = 128;
+const ORBIT_LINE_COLOR_1 = 0x6699cc; // steel blue (automatic 1)
+const ORBIT_LINE_COLOR_2 = 0xcc7766; // warm salmon (automatic 2)
+const MANUAL_LINE_COLOR_1 = 0x00e5ff; // electric cyan (manual 1)
+const MANUAL_LINE_COLOR_2 = 0xffaa33; // vibrant amber (manual 2)
+const ORBIT_LINE_OPACITY = 0.65;
+const ORBIT_LINE_SEGMENTS = 128;
 
 // ---- Internal reusable math objects (prevents GC pressure in animation loop) ----
 const _position = new THREE.Vector3();
@@ -64,7 +68,7 @@ function createOrbitLine(radius, inclinationDeg, color) {
   const material = new THREE.LineBasicMaterial({
     color,
     transparent: true,
-    opacity: ORBIT_LINE_OPACITY,
+    opacity: ORBIT_LINE_OPACITY
   });
 
   return new THREE.LineLoop(geometry, material);
@@ -86,10 +90,10 @@ export function setupOrbitLines(scene) {
 
 export class OrbitState {
   constructor(radius, speed, inclinationDeg, initialAngleDeg) {
-    this.radius      = radius;
-    this.speed       = speed;
+    this.radius = radius;
+    this.speed = speed;
     this.inclination = THREE.MathUtils.degToRad(inclinationDeg);
-    this.angle       = THREE.MathUtils.degToRad(initialAngleDeg);
+    this.angle = THREE.MathUtils.degToRad(initialAngleDeg);
 
     // Constant orbital plane normal vector N = (0, -cos(inc), sin(inc))
     this.normal = new THREE.Vector3(
@@ -140,7 +144,7 @@ export class OrbitState {
 export function initializeOrbits() {
   return [
     new OrbitState(ORBIT_1_RADIUS, ORBIT_1_SPEED, ORBIT_1_INCLINATION, 0),
-    new OrbitState(ORBIT_2_RADIUS, ORBIT_2_SPEED, ORBIT_2_INCLINATION, 180),
+    new OrbitState(ORBIT_2_RADIUS, ORBIT_2_SPEED, ORBIT_2_INCLINATION, 180)
   ];
 }
 
@@ -150,12 +154,12 @@ export function initializeOrbits() {
 
 export class ManualOrbitState {
   constructor(u, v, a, b, speed, normal) {
-    this.u = u;         // Major axis unit vector (toward drop position)
-    this.v = v;         // Minor axis unit vector in orbit plane
-    this.a = a;         // Semi-major axis
-    this.b = b;         // Semi-minor axis
+    this.u = u; // Major axis unit vector (toward drop position)
+    this.v = v; // Minor axis unit vector in orbit plane
+    this.a = a; // Semi-major axis
+    this.b = b; // Semi-minor axis
     this.speed = speed; // Angular velocity (rad/s)
-    this.angle = 0;     // Initial angle is 0 => pos(0) == drop position!
+    this.angle = 0; // Initial angle is 0 => pos(0) == drop position!
     this.normal = normal; // Constant orbit plane normal
   }
 
@@ -166,7 +170,8 @@ export class ManualOrbitState {
   getPosition(outVec) {
     const cosA = Math.cos(this.angle);
     const sinA = Math.sin(this.angle);
-    outVec.set(0, 0, 0)
+    outVec
+      .set(0, 0, 0)
       .addScaledVector(this.u, this.a * cosA)
       .addScaledVector(this.v, this.b * sinA);
     return outVec;
@@ -176,7 +181,8 @@ export class ManualOrbitState {
     // Tangent derivative dPos/dAngle = -u * a * sinA + v * b * cosA
     const cosA = Math.cos(this.angle);
     const sinA = Math.sin(this.angle);
-    outVec.set(0, 0, 0)
+    outVec
+      .set(0, 0, 0)
       .addScaledVector(this.u, -this.a * sinA)
       .addScaledVector(this.v, this.b * cosA)
       .normalize();
@@ -214,7 +220,7 @@ function createManualOrbitLine(u, v, a, b, color) {
   const material = new THREE.LineBasicMaterial({
     color,
     transparent: true,
-    opacity: ORBIT_LINE_OPACITY,
+    opacity: ORBIT_LINE_OPACITY
   });
 
   return new THREE.LineLoop(geometry, material);
@@ -237,9 +243,10 @@ export function createManualOrbit(dropPosition, satelliteIndex) {
   const u = P.clone().normalize();
 
   // Reference axis to determine the orbital plane
-  let refAxis = satelliteIndex === 0
-    ? new THREE.Vector3(0.2, 0.95, 0.2).normalize()
-    : new THREE.Vector3(-0.35, 0.85, -0.4).normalize();
+  let refAxis =
+    satelliteIndex === 0
+      ? new THREE.Vector3(0.2, 0.95, 0.2).normalize()
+      : new THREE.Vector3(-0.35, 0.85, -0.4).normalize();
 
   if (Math.abs(u.dot(refAxis)) > 0.85) {
     refAxis = new THREE.Vector3(0.9, 0.1, 0.3).normalize();

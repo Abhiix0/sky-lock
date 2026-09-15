@@ -72,10 +72,14 @@ function normalizeModel(model, targetSize, label) {
 
   // ---- Warn about suspicious dimensions ----
   if (largestDim === 0) {
-    console.warn(`⚠️  ${label}: bounding-box largest dimension is 0 — model may have no visible geometry`);
+    console.warn(
+      `⚠️  ${label}: bounding-box largest dimension is 0 — model may have no visible geometry`
+    );
   }
   if (!isFinite(largestDim)) {
-    console.warn(`⚠️  ${label}: bounding-box largest dimension is Infinity — model hierarchy may be corrupt`);
+    console.warn(
+      `⚠️  ${label}: bounding-box largest dimension is Infinity — model hierarchy may be corrupt`
+    );
   }
   if (largestDim < 1e-6 && largestDim !== 0) {
     console.warn(`⚠️  ${label}: bounding-box largest dimension is extremely small (${largestDim})`);
@@ -114,8 +118,6 @@ function inspectAndVerifyEarth(earthGltf) {
   const stats = collectMeshStats(root);
 
   let meshCount = 0;
-  let materialCount = 0;
-  let textureCount = 0;
   const uniqueMaterials = new Set();
   const uniqueTextures = new Set();
 
@@ -143,8 +145,8 @@ function inspectAndVerifyEarth(earthGltf) {
     }
   });
 
-  materialCount = uniqueMaterials.size;
-  textureCount = uniqueTextures.size;
+  const materialCount = uniqueMaterials.size;
+  const textureCount = uniqueTextures.size;
 
   if (DEBUG_MODE) {
     console.log(`Mesh count: ${meshCount}`);
@@ -167,13 +169,17 @@ function inspectAndVerifyEarth(earthGltf) {
         if (geo.attributes.uv) {
           hasUVs = true;
           if (DEBUG_MODE) {
-            console.log(`Geometry UVs: count=${geo.attributes.uv.count}, itemSize=${geo.attributes.uv.itemSize}`);
+            console.log(
+              `Geometry UVs: count=${geo.attributes.uv.count}, itemSize=${geo.attributes.uv.itemSize}`
+            );
           }
         }
         if (geo.attributes.normal) {
           hasNormals = true;
           if (DEBUG_MODE) {
-            console.log(`Geometry Normals: count=${geo.attributes.normal.count}, itemSize=${geo.attributes.normal.itemSize}`);
+            console.log(
+              `Geometry Normals: count=${geo.attributes.normal.count}, itemSize=${geo.attributes.normal.itemSize}`
+            );
           }
         }
       }
@@ -279,7 +285,7 @@ export async function loadAssets(scene) {
   const [earthGltf, sat1Gltf, sat2Gltf] = await Promise.all([
     loadGLB('/assets/earth.glb', 'Earth'),
     loadGLB('/assets/satellite.glb', 'Satellite 1'),
-    loadGLB('/assets/satellite2.glb', 'Satellite 2'),
+    loadGLB('/assets/satellite2.glb', 'Satellite 2')
   ]);
 
   // ------------------------------------------------------------------

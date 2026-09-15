@@ -64,7 +64,10 @@ export function renderSatellitePreview() {
 /**
  * Dynamically render the Live Satellite Status list with individual controls.
  */
-export function renderSatelliteStatusList(satellites, { onSatelliteSpeedChange, onSatelliteTogglePause, onSatelliteRemove }) {
+export function renderSatelliteStatusList(
+  satellites,
+  { onSatelliteSpeedChange, onSatelliteTogglePause, onSatelliteRemove }
+) {
   const listContainer = document.getElementById('satellites-list');
   if (!listContainer) return;
 

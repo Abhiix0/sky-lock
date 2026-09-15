@@ -129,8 +129,8 @@ async function main() {
       sat.orbit.getOrientation(_targetQuat);
       sat.model.quaternion.copy(_targetQuat);
       attachStateToHierarchy(sat.model, sat);
-      sat.model.visible = (satelliteMode === 'AUTOMATIC');
-      sat.orbitLine.visible = (satelliteMode === 'AUTOMATIC' && orbitLinesVisible);
+      sat.model.visible = satelliteMode === 'AUTOMATIC';
+      sat.orbitLine.visible = satelliteMode === 'AUTOMATIC' && orbitLinesVisible;
       scene.add(sat.model);
     });
 
@@ -236,8 +236,8 @@ async function main() {
 
     attachStateToHierarchy(newModel, satData);
 
-    newModel.visible = (satelliteMode === 'MANUAL');
-    orbitLine.visible = (satelliteMode === 'MANUAL' && orbitLinesVisible);
+    newModel.visible = satelliteMode === 'MANUAL';
+    orbitLine.visible = satelliteMode === 'MANUAL' && orbitLinesVisible;
 
     scene.add(newModel);
     scene.add(orbitLine);
@@ -357,7 +357,9 @@ async function main() {
   }
 
   animate();
-  console.log('🌍 Simulation running with stable orientation, individual controls, and live status.');
+  console.log(
+    '🌍 Simulation running with stable orientation, individual controls, and live status.'
+  );
 }
 
 // ============================================================
