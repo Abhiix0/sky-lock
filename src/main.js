@@ -206,6 +206,15 @@ async function main() {
     // First manual satellite uses satellite1, second uses satellite2
     const sourceModel = satIndex === 0 ? satellite1 : satellite2;
     const newModel = sourceModel.clone(true);
+    newModel.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map((m) => m.clone());
+        } else {
+          child.material = child.material.clone();
+        }
+      }
+    });
 
     // Generate elliptical orbit passing through dropPosition
     const { orbitState, orbitLine, initialPosition } = createManualOrbit(dropPosition, satIndex);
