@@ -95,6 +95,8 @@ async function main() {
     autoSatellites.forEach((sat) => {
       scene.remove(sat.model);
       scene.remove(sat.orbitLine);
+      if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
+      if (sat.orbitLine.material) sat.orbitLine.material.dispose();
     });
 
     const lines = setupOrbitLines(scene);
@@ -127,8 +129,9 @@ async function main() {
       sat.orbit.getOrientation(_targetQuat);
       sat.model.quaternion.copy(_targetQuat);
       attachStateToHierarchy(sat.model, sat);
-      sat.model.visible = (satelliteMode === 'AUTOMATIC');
-      sat.orbitLine.visible = (satelliteMode === 'AUTOMATIC' && orbitLinesVisible);
+      sat.model.visible = satelliteMode === 'AUTOMATIC';
+      sat.orbitLine.visible = satelliteMode === 'AUTOMATIC' && orbitLinesVisible;
+      scene.add(sat.model);
     });
 
     autoSatellites = [sat1Data, sat2Data];
@@ -160,6 +163,19 @@ async function main() {
         if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
         if (sat.orbitLine.material) sat.orbitLine.material.dispose();
 
+        sat.model.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((m) => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          }
+        });
+
         if (satelliteMode === 'AUTOMATIC') {
           const idx = autoSatellites.indexOf(sat);
           if (idx !== -1) autoSatellites.splice(idx, 1);
@@ -190,6 +206,15 @@ async function main() {
     // First manual satellite uses satellite1, second uses satellite2
     const sourceModel = satIndex === 0 ? satellite1 : satellite2;
     const newModel = sourceModel.clone(true);
+    newModel.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map((m) => m.clone());
+        } else {
+          child.material = child.material.clone();
+        }
+      }
+    });
 
     // Generate elliptical orbit passing through dropPosition
     const { orbitState, orbitLine, initialPosition } = createManualOrbit(dropPosition, satIndex);
@@ -211,8 +236,8 @@ async function main() {
 
     attachStateToHierarchy(newModel, satData);
 
-    newModel.visible = (satelliteMode === 'MANUAL');
-    orbitLine.visible = (satelliteMode === 'MANUAL' && orbitLinesVisible);
+    newModel.visible = satelliteMode === 'MANUAL';
+    orbitLine.visible = satelliteMode === 'MANUAL' && orbitLinesVisible;
 
     scene.add(newModel);
     scene.add(orbitLine);
@@ -332,7 +357,9 @@ async function main() {
   }
 
   animate();
-  console.log('🌍 Simulation running with stable orientation, individual controls, and live status.');
+  console.log(
+    '🌍 Simulation running with stable orientation, individual controls, and live status.'
+  );
 }
 
 // ============================================================

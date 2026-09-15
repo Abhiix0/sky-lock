@@ -5,16 +5,16 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 // TWEAKABLE SCENE CONSTANTS
 // ============================================================
 
-export const CAMERA_FOV  = 60;
+export const CAMERA_FOV = 60;
 export const CAMERA_NEAR = 0.1;
-export const CAMERA_FAR  = 10000;
+export const CAMERA_FAR = 10000;
 
 // Position chosen to frame Earth (diameter 20) + orbits (radius up to 26)
 export const CAMERA_INITIAL_POSITION = { x: 32, y: 24, z: 38 };
 
 // Lighting
-export const SUN_INTENSITY    = 3.0;
-export const SUN_POSITION     = { x: 20, y: 10, z: 15 };
+export const SUN_INTENSITY = 3.0;
+export const SUN_POSITION = { x: 20, y: 10, z: 15 };
 export const AMBIENT_INTENSITY = 0.15;
 
 /**
@@ -82,14 +82,14 @@ function setupLighting(scene) {
   sunLight.castShadow = true;
 
   // Shadow camera
-  sunLight.shadow.mapSize.width  = 2048;
+  sunLight.shadow.mapSize.width = 2048;
   sunLight.shadow.mapSize.height = 2048;
-  sunLight.shadow.camera.near    = 0.5;
-  sunLight.shadow.camera.far     = 500;
-  sunLight.shadow.camera.left    = -100;
-  sunLight.shadow.camera.right   = 100;
-  sunLight.shadow.camera.top     = 100;
-  sunLight.shadow.camera.bottom  = -100;
+  sunLight.shadow.camera.near = 0.5;
+  sunLight.shadow.camera.far = 500;
+  sunLight.shadow.camera.left = -100;
+  sunLight.shadow.camera.right = 100;
+  sunLight.shadow.camera.top = 100;
+  sunLight.shadow.camera.bottom = -100;
 
   scene.add(sunLight);
 

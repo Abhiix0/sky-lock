@@ -72,10 +72,14 @@ function normalizeModel(model, targetSize, label) {
 
   // ---- Warn about suspicious dimensions ----
   if (largestDim === 0) {
-    console.warn(`⚠️  ${label}: bounding-box largest dimension is 0 — model may have no visible geometry`);
+    console.warn(
+      `⚠️  ${label}: bounding-box largest dimension is 0 — model may have no visible geometry`
+    );
   }
   if (!isFinite(largestDim)) {
-    console.warn(`⚠️  ${label}: bounding-box largest dimension is Infinity — model hierarchy may be corrupt`);
+    console.warn(
+      `⚠️  ${label}: bounding-box largest dimension is Infinity — model hierarchy may be corrupt`
+    );
   }
   if (largestDim < 1e-6 && largestDim !== 0) {
     console.warn(`⚠️  ${label}: bounding-box largest dimension is extremely small (${largestDim})`);
@@ -114,21 +118,23 @@ function inspectAndVerifyEarth(earthGltf) {
   const stats = collectMeshStats(root);
 
   let meshCount = 0;
-  let materialCount = 0;
-  let textureCount = 0;
   const uniqueMaterials = new Set();
   const uniqueTextures = new Set();
 
-  console.log('--- Earth GLB loaded successfully ---');
-  console.log('Scene children:', root.children.length);
+  if (DEBUG_MODE) {
+    console.log('--- Earth GLB loaded successfully ---');
+    console.log('Scene children:', root.children.length);
+  }
 
   // Traverse the entire hierarchy as instructed
   root.traverse((child) => {
     if (child.isMesh) {
       meshCount++;
-      console.log('Earth mesh:', child);
-      console.log('Geometry:', child.geometry);
-      console.log('Material:', child.material);
+      if (DEBUG_MODE) {
+        console.log('Earth mesh:', child);
+        console.log('Geometry:', child.geometry);
+        console.log('Material:', child.material);
+      }
 
       if (child.material) {
         uniqueMaterials.add(child.material);
@@ -139,13 +145,15 @@ function inspectAndVerifyEarth(earthGltf) {
     }
   });
 
-  materialCount = uniqueMaterials.size;
-  textureCount = uniqueTextures.size;
+  const materialCount = uniqueMaterials.size;
+  const textureCount = uniqueTextures.size;
 
-  console.log(`Mesh count: ${meshCount}`);
-  console.log(`Material count: ${materialCount}`);
-  console.log(`Texture count: ${textureCount}`);
-  console.log(`Triangle count: ${stats.triangleCount.toLocaleString()}`);
+  if (DEBUG_MODE) {
+    console.log(`Mesh count: ${meshCount}`);
+    console.log(`Material count: ${materialCount}`);
+    console.log(`Texture count: ${textureCount}`);
+    console.log(`Triangle count: ${stats.triangleCount.toLocaleString()}`);
+  }
 
   // Inspect materials and enforce proper color space on color/albedo textures
   let hasBaseColorTexture = false;
@@ -160,29 +168,39 @@ function inspectAndVerifyEarth(earthGltf) {
       if (geo && geo.attributes) {
         if (geo.attributes.uv) {
           hasUVs = true;
-          console.log(`Geometry UVs: count=${geo.attributes.uv.count}, itemSize=${geo.attributes.uv.itemSize}`);
+          if (DEBUG_MODE) {
+            console.log(
+              `Geometry UVs: count=${geo.attributes.uv.count}, itemSize=${geo.attributes.uv.itemSize}`
+            );
+          }
         }
         if (geo.attributes.normal) {
           hasNormals = true;
-          console.log(`Geometry Normals: count=${geo.attributes.normal.count}, itemSize=${geo.attributes.normal.itemSize}`);
+          if (DEBUG_MODE) {
+            console.log(
+              `Geometry Normals: count=${geo.attributes.normal.count}, itemSize=${geo.attributes.normal.itemSize}`
+            );
+          }
         }
       }
 
       const mat = child.material;
       if (mat) {
-        console.log('--- Earth Mesh Material Inspection ---', {
-          'material.type': mat.type,
-          'material.map': mat.map ? mat.map.name || 'Texture present' : null,
-          'material.color': mat.color ? `#${mat.color.getHexString()}` : null,
-          'material.normalMap': mat.normalMap ? 'Present' : null,
-          'material.roughnessMap': mat.roughnessMap ? 'Present' : null,
-          'material.metalnessMap': mat.metalnessMap ? 'Present' : null,
-          'material.emissiveMap': mat.emissiveMap ? 'Present' : null,
-          'material.transparent': mat.transparent,
-          'material.opacity': mat.opacity,
-          'material.roughness': mat.roughness,
-          'material.metalness': mat.metalness
-        });
+        if (DEBUG_MODE) {
+          console.log('--- Earth Mesh Material Inspection ---', {
+            'material.type': mat.type,
+            'material.map': mat.map ? mat.map.name || 'Texture present' : null,
+            'material.color': mat.color ? `#${mat.color.getHexString()}` : null,
+            'material.normalMap': mat.normalMap ? 'Present' : null,
+            'material.roughnessMap': mat.roughnessMap ? 'Present' : null,
+            'material.metalnessMap': mat.metalnessMap ? 'Present' : null,
+            'material.emissiveMap': mat.emissiveMap ? 'Present' : null,
+            'material.transparent': mat.transparent,
+            'material.opacity': mat.opacity,
+            'material.roughness': mat.roughness,
+            'material.metalness': mat.metalness
+          });
+        }
 
         // Step 4: Fix texture color space correctly for color/albedo map
         if (mat.map) {
@@ -204,17 +222,19 @@ function inspectAndVerifyEarth(earthGltf) {
   });
 
   // Critical Debugging Checklist
-  console.log('========================================');
-  console.log('CRITICAL DEBUGGING CHECKLIST:');
-  console.log('GLB loads?          YES');
-  console.log(`Geometry loads?     ${meshCount > 0 ? 'YES' : 'NO'}`);
-  console.log(`UVs exist?          ${hasUVs ? 'YES' : 'NO'}`);
-  console.log(`Normals exist?      ${hasNormals ? 'YES' : 'NO'}`);
-  console.log(`Material exists?    ${materialCount > 0 ? 'YES' : 'NO'}`);
-  console.log(`Base-color texture? ${hasBaseColorTexture ? 'YES' : 'NO'}`);
-  console.log(`Texture dimensions: ${textureDimensions}`);
-  console.log(`Texture color space: ${textureColorSpace}`);
-  console.log('========================================');
+  if (DEBUG_MODE) {
+    console.log('========================================');
+    console.log('CRITICAL DEBUGGING CHECKLIST:');
+    console.log('GLB loads?          YES');
+    console.log(`Geometry loads?     ${meshCount > 0 ? 'YES' : 'NO'}`);
+    console.log(`UVs exist?          ${hasUVs ? 'YES' : 'NO'}`);
+    console.log(`Normals exist?      ${hasNormals ? 'YES' : 'NO'}`);
+    console.log(`Material exists?    ${materialCount > 0 ? 'YES' : 'NO'}`);
+    console.log(`Base-color texture? ${hasBaseColorTexture ? 'YES' : 'NO'}`);
+    console.log(`Texture dimensions: ${textureDimensions}`);
+    console.log(`Texture color space: ${textureColorSpace}`);
+    console.log('========================================');
+  }
 }
 
 // ============================================================
@@ -265,7 +285,7 @@ export async function loadAssets(scene) {
   const [earthGltf, sat1Gltf, sat2Gltf] = await Promise.all([
     loadGLB('/assets/earth.glb', 'Earth'),
     loadGLB('/assets/satellite.glb', 'Satellite 1'),
-    loadGLB('/assets/satellite2.glb', 'Satellite 2'),
+    loadGLB('/assets/satellite2.glb', 'Satellite 2')
   ]);
 
   // ------------------------------------------------------------------

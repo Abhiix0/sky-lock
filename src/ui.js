@@ -64,7 +64,10 @@ export function renderSatellitePreview() {
 /**
  * Dynamically render the Live Satellite Status list with individual controls.
  */
-export function renderSatelliteStatusList(satellites, { onSatelliteSpeedChange, onSatelliteTogglePause, onSatelliteRemove }) {
+export function renderSatelliteStatusList(
+  satellites,
+  { onSatelliteSpeedChange, onSatelliteTogglePause, onSatelliteRemove }
+) {
   const listContainer = document.getElementById('satellites-list');
   if (!listContainer) return;
 
@@ -351,18 +354,46 @@ export function setupUI({
     if (!ghostModelTemplate) return null;
     const ghost = ghostModelTemplate.clone(true);
     ghost.traverse((child) => {
-      if (child.isMesh && child.material) {
-        child.material = child.material.clone();
-        child.material.transparent = true;
-        child.material.opacity = 0.65;
-        if (child.material.emissive) {
-          child.material.emissive.setHex(0x00aaff);
+      if (child.isMesh) {
+        if (child.geometry) {
+          child.geometry = child.geometry.clone();
+        }
+        if (child.material) {
+          child.material = child.material.clone();
+          child.material.transparent = true;
+          child.material.opacity = 0.65;
+          if (child.material.emissive) {
+            child.material.emissive.setHex(0x00aaff);
+          }
         }
       }
     });
     ghost.visible = false;
     scene.add(ghost);
     return ghost;
+  }
+
+  function cleanupGhostSatellite() {
+    if (!ghostSatellite) return;
+
+    scene.remove(ghostSatellite);
+
+    ghostSatellite.traverse((child) => {
+      if (child.isMesh) {
+        if (child.geometry) {
+          child.geometry.dispose();
+        }
+        if (child.material) {
+          if (Array.isArray(child.material)) {
+            child.material.forEach((m) => m.dispose());
+          } else {
+            child.material.dispose();
+          }
+        }
+      }
+    });
+
+    ghostSatellite = null;
   }
 
   if (previewContainer) {
@@ -431,9 +462,7 @@ export function setupUI({
 
     if (controls) controls.enabled = true;
 
-    if (ghostSatellite) {
-      ghostSatellite.visible = false;
-    }
+    cleanupGhostSatellite();
 
     const panel = document.getElementById('control-panel');
     let droppedInPanel = false;

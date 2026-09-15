@@ -57,9 +57,7 @@ export class GLTFSpecGlossExtension {
 
     // 2. Diffuse Texture -> MeshStandardMaterial.map (sRGB color space)
     if (ext.diffuseTexture !== undefined) {
-      pending.push(
-        parser.assignTexture(materialParams, 'map', ext.diffuseTexture, SRGBColorSpace)
-      );
+      pending.push(parser.assignTexture(materialParams, 'map', ext.diffuseTexture, SRGBColorSpace));
     }
 
     // 3. Glossiness -> Roughness conversion: roughness = 1 - glossiness
@@ -79,12 +77,15 @@ export class GLTFSpecGlossExtension {
       materialParams.metalness = 0.0;
     }
 
-    console.log(`[GLTFSpecGlossExtension] Successfully parsed material "${materialDef.name || materialIndex}":`, {
-      diffuseFactor: ext.diffuseFactor,
-      hasDiffuseTexture: ext.diffuseTexture !== undefined,
-      roughness: materialParams.roughness,
-      metalness: materialParams.metalness
-    });
+    console.log(
+      `[GLTFSpecGlossExtension] Successfully parsed material "${materialDef.name || materialIndex}":`,
+      {
+        diffuseFactor: ext.diffuseFactor,
+        hasDiffuseTexture: ext.diffuseTexture !== undefined,
+        roughness: materialParams.roughness,
+        metalness: materialParams.metalness
+      }
+    );
 
     return Promise.all(pending);
   }
