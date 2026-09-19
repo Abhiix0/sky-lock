@@ -2,19 +2,26 @@ import * as THREE from 'three';
 
 /**
  * Inter-Satellite Comms Console
- * Generates terminal-style telemetry logs built from live satellite orbit positions.
+ * Monospace terminal logging real telemetry every 5 seconds with Earth occlusion handling.
  */
 
 let logContainer = null;
 let statusDot = null;
-let lastLogTime = 0;
+let consolePanel = null;
+
+// Wall-clock delta time accumulator in seconds (independent of simulationSpeed/pause)
+let timeAccumulator = 0;
+const CADENCE_INTERVAL_SEC = 5.0;
+
 let tickCount = 0;
+let isCurrentlyObstructed = false;
 
 // Earth radius conversion (1 Three.js unit ≈ 637.1 km)
 const KM_PER_UNIT = 637.1;
 const SPEED_OF_LIGHT_KMS = 299792;
+const MAX_LOG_LINES = 20;
 
-// Reusable math objects to prevent per-frame garbage collection
+// Reusable math objects
 const _posA = new THREE.Vector3();
 const _posB = new THREE.Vector3();
 const _tanA = new THREE.Vector3();
@@ -43,57 +50,71 @@ function appendLog(html) {
   line.innerHTML = html;
   logContainer.appendChild(line);
 
-  // Cap at ~50 lines to prevent DOM bloat
-  while (logContainer.children.length > 50) {
+  // Cap at ~20 lines
+  while (logContainer.children.length > MAX_LOG_LINES) {
     logContainer.removeChild(logContainer.firstChild);
   }
 
-  // Smoothly auto-scroll to latest message
+  // Auto-scroll to latest log entry
   logContainer.scrollTop = logContainer.scrollHeight;
 }
 
 /**
- * Initialize the comms console DOM connections and starting logs.
+ * Initialize the comms console DOM connections and initial status.
  */
 export function initCommsConsole() {
+  consolePanel = document.getElementById('comms-console');
   logContainer = document.getElementById('comms-log-container');
   statusDot = document.getElementById('comms-status-dot');
 
   if (!logContainer) return;
 
   appendLog(
-    `[${getTimeString()}] <span class="comms-peer">SYSTEM</span> | <span class="comms-type">[INIT]</span> | ISL terminal initialized | Ka-band 23.4 GHz`
-  );
-  appendLog(
-    `[${getTimeString()}] <span class="comms-peer">SYSTEM</span> | <span class="comms-type">[ACQUIRE]</span> | tracking crosslink telemetry...`
+    `[${getTimeString()}] <span class="comms-peer">SYSTEM</span> | <span class="comms-type">[INIT]</span> | ISL terminal online | 5s telemetry cadence`
   );
 }
 
 /**
+ * Show or hide the comms console panel.
+ *
+ * @param {boolean} visible
+ */
+export function setCommsConsoleVisible(visible) {
+  if (!consolePanel) {
+    consolePanel = document.getElementById('comms-console');
+  }
+  if (consolePanel) {
+    consolePanel.style.display = visible ? 'flex' : 'none';
+  }
+}
+
+/**
+ * Clear the console log contents.
+ */
+export function clearConsole() {
+  if (logContainer) {
+    logContainer.innerHTML = '';
+  }
+}
+
+/**
  * Update comms console telemetry logs called from main animation loop.
- * Triggers a new telemetry entry every ~1.2 to 1.5 seconds.
+ * Accumulates real deltaTime in seconds and fires every 5 seconds.
+ * Halts logging and shows a persistent occlusion line while line of sight is obstructed.
  *
  * @param {Array<Object>} activeSatellites
+ * @param {number} realDeltaTime - Real wall-clock elapsed time in seconds (independent of simulationSpeed/pause)
+ * @param {boolean} hasLOS - True if line of sight is unobstructed by Earth, false if occluded
  */
-export function update(activeSatellites) {
+export function update(activeSatellites, realDeltaTime = 0, hasLOS = true) {
   if (!logContainer) {
+    consolePanel = document.getElementById('comms-console');
     logContainer = document.getElementById('comms-log-container');
     statusDot = document.getElementById('comms-status-dot');
     if (!logContainer) return;
   }
 
-  const currentTime = performance.now();
-
-  // Trigger roughly every 1.35 seconds
-  if (currentTime - lastLogTime < 1350) {
-    return;
-  }
-  lastLogTime = currentTime;
-  tickCount++;
-
-  const timeStr = getTimeString();
-
-  // Filter operational satellites
+  // Filter operational satellites (in scene, visible, not paused)
   const operational = (activeSatellites || []).filter(
     (s) => s && s.model && !s.paused && s.model.visible !== false
   );
@@ -101,16 +122,63 @@ export function update(activeSatellites) {
     (s) => s && s.model && s.model.visible !== false
   );
 
-  // Update status indicator dot
+  const timeStr = getTimeString();
+
+  // 1. Earth Occlusion Check
+  if (operational.length >= 2 && !hasLOS) {
+    if (!isCurrentlyObstructed) {
+      isCurrentlyObstructed = true;
+      timeAccumulator = 0; // Reset accumulator so cadence restarts cleanly upon restoration
+
+      if (statusDot) {
+        statusDot.className = 'comms-status-indicator obstructed';
+      }
+
+      appendLog(
+        `[${timeStr}] <span class="comms-peer">ISL-MONITOR</span> | <span class="comms-type">[OCCLUSION]</span> | link: <span class="comms-link-obstructed">LINK OBSTRUCTED — EARTH OCCLUSION</span>`
+      );
+    }
+    // While obstructed, do NOT log new lines
+    return;
+  }
+
+  // If link was obstructed and now line of sight has returned
+  if (isCurrentlyObstructed && hasLOS && operational.length >= 2) {
+    isCurrentlyObstructed = false;
+    timeAccumulator = 0;
+
+    if (statusDot) {
+      statusDot.className = 'comms-status-indicator';
+    }
+
+    appendLog(
+      `[${timeStr}] <span class="comms-peer">ISL-MONITOR</span> | <span class="comms-type">[REACQUIRED]</span> | link: <span class="comms-link-locked">LOS RESTORED — LINK ACTIVE</span>`
+    );
+    return;
+  }
+
+  // Accumulate real wall-clock elapsed time
+  if (typeof realDeltaTime === 'number' && realDeltaTime > 0) {
+    timeAccumulator += realDeltaTime;
+  }
+
+  // Only fire a new log line once exactly 5 seconds have accumulated
+  if (timeAccumulator < CADENCE_INTERVAL_SEC) {
+    return;
+  }
+  timeAccumulator = 0; // Reset accumulator after each log
+  tickCount++;
+
+  // Update status dot for non-occluded states
   if (statusDot) {
     if (operational.length >= 2) {
-      statusDot.classList.remove('offline');
+      statusDot.className = 'comms-status-indicator';
     } else {
-      statusDot.classList.add('offline');
+      statusDot.className = 'comms-status-indicator offline';
     }
   }
 
-  // Case 1: 2+ active satellites connected
+  // Case A: 2+ active satellites in mutual line of sight
   if (operational.length >= 2) {
     const satA = operational[0];
     const satB = operational[1];
@@ -122,16 +190,20 @@ export function update(activeSatellites) {
     const distUnits = _posA.distanceTo(_posB);
     const distKm = Math.round(distUnits * KM_PER_UNIT);
 
-    // Compute relative velocity (Δv) from orbital mechanics
+    // Compute relative velocity (Δv) from orbital tangents and radii
     let dv = 3.2;
-    if (satA.orbit && satB.orbit && typeof satA.orbit.getTangent === 'function' && typeof satB.orbit.getTangent === 'function') {
+    if (
+      satA.orbit &&
+      satB.orbit &&
+      typeof satA.orbit.getTangent === 'function' &&
+      typeof satB.orbit.getTangent === 'function'
+    ) {
       satA.orbit.getTangent(_tanA);
       satB.orbit.getTangent(_tanB);
 
       const rA = Math.max(10, _posA.length()) * KM_PER_UNIT;
       const rB = Math.max(10, _posB.length()) * KM_PER_UNIT;
 
-      // Standard orbital speed v = sqrt(GM / r) with Earth GM = 398600 km^3/s^2
       const speedA = Math.sqrt(398600 / rA) * (satA.individualSpeed || 1);
       const speedB = Math.sqrt(398600 / rB) * (satB.individualSpeed || 1);
 
@@ -142,11 +214,10 @@ export function update(activeSatellites) {
     }
 
     const dvStr = (dv > 0 ? dv : 3.2).toFixed(1);
-    const direction = (tickCount % 2 === 0)
-      ? `${satA.id} -> ${satB.id}`
-      : `${satB.id} -> ${satA.id}`;
+    const direction =
+      tickCount % 2 === 0 ? `${satA.id} -> ${satB.id}` : `${satB.id} -> ${satA.id}`;
 
-    // Rotate across 4 standard protocol message types
+    // Vary message types each 5-second tick
     const messageTypes = ['POSITION_SYNC', 'RANGING', 'HANDSHAKE', 'DATA_PACKET'];
     const currentType = messageTypes[tickCount % messageTypes.length];
 
@@ -154,7 +225,7 @@ export function update(activeSatellites) {
 
     switch (currentType) {
       case 'POSITION_SYNC': {
-        const senderPos = (tickCount % 2 === 0) ? _posA : _posB;
+        const senderPos = tickCount % 2 === 0 ? _posA : _posB;
         const x = Math.round(senderPos.x * KM_PER_UNIT);
         const y = Math.round(senderPos.y * KM_PER_UNIT);
         const z = Math.round(senderPos.z * KM_PER_UNIT);
@@ -188,7 +259,7 @@ export function update(activeSatellites) {
     return;
   }
 
-  // Case 2: Satellites exist in mode, but one/both are paused
+  // Case B: Satellites exist, but one or both are paused
   if (totalInMode.length >= 2) {
     const pausedSat = totalInMode.find((s) => s.paused);
     const pausedId = pausedSat ? pausedSat.id : 'PEER';
@@ -198,7 +269,7 @@ export function update(activeSatellites) {
     return;
   }
 
-  // Case 3: Only 1 satellite deployed
+  // Case C: Only 1 satellite deployed
   if (totalInMode.length === 1) {
     appendLog(
       `[${timeStr}] <span class="comms-peer">${totalInMode[0].id}</span> | <span class="comms-type">[RANGING]</span> | link: <span class="comms-link-wait">SEARCHING</span> | awaiting peer satellite`
@@ -206,8 +277,8 @@ export function update(activeSatellites) {
     return;
   }
 
-  // Case 4: No satellites in current mode
+  // Case D: No satellites deployed
   appendLog(
-    `[${timeStr}] <span class="comms-peer">ISL-CORE</span> | <span class="comms-type">[STANDBY]</span> | link: <span class="comms-link-wait">IDLE</span> | no active satellites`
+    `[${timeStr}] <span class="comms-peer">ISL-CORE</span> | <span class="comms-type">[STANDBY]</span> | link: <span class="comms-link-wait">IDLE</span> | awaiting satellite deployment`
   );
 }

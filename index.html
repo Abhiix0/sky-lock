@@ -563,6 +563,23 @@
       color: #f59e0b;
       font-weight: 600;
     }
+
+    .comms-link-obstructed {
+      color: #ef4444;
+      font-weight: 700;
+      text-shadow: 0 0 6px rgba(239, 68, 68, 0.4);
+    }
+
+    .comms-status-indicator.obstructed {
+      background: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+      animation: comms-pulse-fast 0.8s infinite ease-in-out;
+    }
+
+    @keyframes comms-pulse-fast {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.25; transform: scale(0.75); }
+    }
   </style>
 </head>
 <body>
@@ -601,6 +618,12 @@
     <div class="control-row">
       <span class="control-label">Orbit Lines</span>
       <button class="toggle-btn on" id="orbit-lines-toggle">ON</button>
+    </div>
+
+    <!-- ISL Link Row -->
+    <div class="control-row">
+      <span class="control-label">ISL Link</span>
+      <button class="toggle-btn on" id="isl-link-toggle">ON</button>
     </div>
 
     <!-- Pause / Resume Row -->

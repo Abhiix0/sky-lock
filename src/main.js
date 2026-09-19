@@ -15,10 +15,19 @@ import {
   simulationSpeed,
   isPaused,
   orbitLinesVisible,
+  islLinkEnabled,
   satelliteMode
 } from './ui.js';
-import { update as updateLinkLine } from './tracking/linkLine.js';
-import { initCommsConsole, update as updateCommsConsole } from './tracking/commsConsole.js';
+import {
+  update as updateLinkLine,
+  setLinkLineVisible,
+  hasLineOfSight
+} from './tracking/linkLine.js';
+import {
+  initCommsConsole,
+  update as updateCommsConsole,
+  setCommsConsoleVisible
+} from './tracking/commsConsole.js';
 
 // ============================================================
 // CONFIGURATION CONSTANTS
@@ -290,6 +299,14 @@ async function main() {
         sat.orbitLine.visible = visible;
       });
     },
+    onToggleISLLink: (enabled) => {
+      if (!enabled) {
+        setLinkLineVisible(false);
+        setCommsConsoleVisible(false);
+      } else {
+        setCommsConsoleVisible(true);
+      }
+    },
     onTogglePause: (paused) => {
       console.log(`Global simulation ${paused ? 'PAUSED' : 'RESUMED'}`);
     },
@@ -342,9 +359,11 @@ async function main() {
       sat.model.quaternion.slerp(_targetQuat, 0.25);
     });
 
-    // Update inter-satellite link line and comms console telemetry
-    updateLinkLine(scene, currentActive);
-    updateCommsConsole(currentActive);
+    // Update inter-satellite link line and comms console telemetry (when enabled)
+    if (islLinkEnabled) {
+      const hasLOS = updateLinkLine(scene, currentActive, earth);
+      updateCommsConsole(currentActive, deltaTime, hasLOS);
+    }
 
     // Continuous slow Earth rotation
     if (earth) {
