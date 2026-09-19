@@ -92,6 +92,8 @@ export function renderSatelliteStatusList(
     const pauseBtnText = isSatPaused ? 'RESUME' : 'PAUSE';
     const pauseBtnClass = isSatPaused ? 'paused' : '';
 
+    const isManual = sat.isManual !== undefined ? sat.isManual : (satelliteMode === 'MANUAL');
+
     card.innerHTML = `
       <div class="sat-card-header">
         <span class="sat-id-tag">${sat.id}</span>
@@ -109,7 +111,7 @@ export function renderSatelliteStatusList(
       </div>
       <div class="sat-actions-row">
         <button class="sat-action-btn pause-action ${pauseBtnClass}">${pauseBtnText}</button>
-        <button class="sat-action-btn remove-action">REMOVE</button>
+        ${isManual ? '<button class="sat-action-btn remove-action">REMOVE</button>' : ''}
       </div>
     `;
 
@@ -141,15 +143,17 @@ export function renderSatelliteStatusList(
       });
     }
 
-    // Remove button listener
-    const removeBtn = card.querySelector('.remove-action');
-    if (removeBtn) {
-      removeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (typeof onSatelliteRemove === 'function') {
-          onSatelliteRemove(sat);
-        }
-      });
+    // Remove button listener (manual mode only)
+    if (isManual) {
+      const removeBtn = card.querySelector('.remove-action');
+      if (removeBtn) {
+        removeBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (typeof onSatelliteRemove === 'function') {
+            onSatelliteRemove(sat);
+          }
+        });
+      }
     }
 
     listContainer.appendChild(card);
