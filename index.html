@@ -508,18 +508,19 @@
     }
 
     .comms-log {
-      height: 135px;
+      height: 140px;
+      max-height: 140px;
+      min-height: 140px;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 3px;
-      font-size: 11px;
-      line-height: 1.45;
-      color: #94a3b8;
+      gap: 2px;
       scrollbar-width: thin;
       scrollbar-color: rgba(56, 189, 248, 0.25) transparent;
       user-select: text;
+      box-sizing: border-box;
     }
 
     .comms-log::-webkit-scrollbar {
@@ -531,9 +532,15 @@
     }
 
     .comms-line {
+      flex-shrink: 0;
+      height: 18px;
+      min-height: 18px;
+      font-size: 11px;
+      line-height: 18px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      box-sizing: border-box;
     }
 
     .comms-peer {

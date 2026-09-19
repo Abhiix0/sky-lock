@@ -47,15 +47,20 @@ function appendLog(html) {
 
   const line = document.createElement('div');
   line.className = 'comms-line';
+  line.style.flexShrink = '0';
+  line.style.fontSize = '11px';
+  line.style.lineHeight = '18px';
+  line.style.height = '18px';
+  line.style.minHeight = '18px';
   line.innerHTML = html;
   logContainer.appendChild(line);
 
-  // Cap at ~20 lines
+  // Cap at ~20 lines (strictly remove old DOM nodes from top, never restyle existing ones)
   while (logContainer.children.length > MAX_LOG_LINES) {
     logContainer.removeChild(logContainer.firstChild);
   }
 
-  // Auto-scroll to latest log entry
+  // Auto-scroll only updates scrollTop without altering container geometry
   logContainer.scrollTop = logContainer.scrollHeight;
 }
 
