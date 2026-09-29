@@ -1,0 +1,3324 @@
+{
+  "benchmarkVersion": "1.0.0",
+  "appVersion": "0.0.0",
+  "timestamp": "2026-09-29T14:40:25.129Z",
+  "totalWallClockMs": 79104.79999999702,
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.7977.130 Electron/44.4.5 Safari/537.36",
+    "hardwareConcurrency": 12,
+    "devicePixelRatio": 1.25
+  },
+  "configSnapshot": {
+    "CAMERA_CONFIG": {
+      "fovDeg": 20,
+      "width": 640,
+      "height": 480,
+      "near": 0.05,
+      "far": 1000,
+      "feedRateHz": 30,
+      "panLimitDeg": 180,
+      "tiltLimitDeg": 90,
+      "maxSlewRateDegPerSec": 45,
+      "maxSlewAccelDegPerSec2": 120,
+      "panWrap": true,
+      "simStepHz": 120,
+      "maxFeedFramesPerRender": 2,
+      "manualRateDegS": 20,
+      "activeSlewPreset": "baseline",
+      "observerId": "S-1",
+      "targetId": "S-2"
+    },
+    "TRACKING_CONFIG": {
+      "overlap": 0.2,
+      "tiltScanLimitDeg": 55,
+      "scanRateDegS": 35,
+      "reacquireMaxRadiusDeg": 45,
+      "minSnrSearch": 3,
+      "acquireConfirmFrames": 3,
+      "acquireTimeoutSec": 1,
+      "lostMissFrames": 5,
+      "coastMaxSec": 10
+    },
+    "KALMAN_CONFIG": {
+      "qAccelDegS2": 25,
+      "rMeasDeg": 0.1,
+      "gateThresholdSigma": 4
+    },
+    "CONTROLLER_CONFIG": {
+      "kp": 4,
+      "ki": 0.5,
+      "kd": 0.2,
+      "kff": 1,
+      "dFilterAlpha": 0.2,
+      "integralClampDegS": 8
+    },
+    "DISTURBANCE_PRESETS": {
+      "OFF": {
+        "name": "Off",
+        "wanderRmsPx": 0,
+        "wanderCornerHz": 2,
+        "scintillationSigma": 0,
+        "jitterRmsDeg": 0,
+        "vibrationHz": 10,
+        "noiseSigma": 0,
+        "hotPixelsCount": 0,
+        "blurRadiusPx": 0,
+        "dropProbability": 0
+      },
+      "LOW": {
+        "name": "Low",
+        "wanderRmsPx": 1,
+        "wanderCornerHz": 2,
+        "scintillationSigma": 0.15,
+        "jitterRmsDeg": 0.04,
+        "vibrationHz": 10,
+        "noiseSigma": 4,
+        "hotPixelsCount": 2,
+        "blurRadiusPx": 1,
+        "dropProbability": 0.02
+      },
+      "MED": {
+        "name": "Med",
+        "wanderRmsPx": 2.5,
+        "wanderCornerHz": 2,
+        "scintillationSigma": 0.35,
+        "jitterRmsDeg": 0.15,
+        "vibrationHz": 10,
+        "noiseSigma": 10,
+        "hotPixelsCount": 6,
+        "blurRadiusPx": 2,
+        "dropProbability": 0.05
+      },
+      "HIGH": {
+        "name": "High",
+        "wanderRmsPx": 6,
+        "wanderCornerHz": 3,
+        "scintillationSigma": 0.75,
+        "jitterRmsDeg": 0.48,
+        "vibrationHz": 12,
+        "noiseSigma": 22,
+        "hotPixelsCount": 18,
+        "blurRadiusPx": 3,
+        "dropProbability": 0.18
+      }
+    },
+    "BEACON_CODE": {
+      "bits": "10110010",
+      "bitPeriodSec": 0.1,
+      "samplesPerBit": 3,
+      "mode": "steady"
+    }
+  },
+  "runs": [
+    {
+      "scenario": {
+        "id": "S0",
+        "name": "Clean Baseline",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 189.57499999999152,
+        "observableTimeSec": 189.57499999999152,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": 0.43333333333333385,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 1.953744725671331,
+          "p95": 3.800000011920929,
+          "max": 12.299999997019768
+        },
+        "fps": {
+          "mean": 44.09739803094234,
+          "min": 6
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [
+        {
+          "simTime": 0.43333333333333385,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.6000000089406967,
+          "fps": 6,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 2.041666666666662,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.300000011920929,
+          "fps": 48,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 3.6416666666666564,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.8999999910593033,
+          "fps": 56,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 5.233333333333383,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.3999999910593033,
+          "fps": 51,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 6.833333333333463,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7000000029802322,
+          "fps": 52,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 8.433333333333495,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.6000000089406967,
+          "fps": 52,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 10.033333333333404,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5999999940395355,
+          "fps": 61,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 11.633333333333313,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5,
+          "fps": 58,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 13.241666666666555,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7000000029802322,
+          "fps": 58,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 14.841666666666464,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5,
+          "fps": 59,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 16.441666666666375,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5,
+          "fps": 59,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 18.041666666666284,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.9000000059604645,
+          "fps": 59,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 19.641666666666193,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5999999940395355,
+          "fps": 59,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 21.241666666666102,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5,
+          "fps": 54,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 22.84166666666601,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5,
+          "fps": 59,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 24.44166666666592,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.2999999970197678,
+          "fps": 54,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 26.04166666666583,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.4000000059604645,
+          "fps": 54,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 27.64166666666574,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.0999999940395355,
+          "fps": 49,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 29.241666666665648,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.9000000059604645,
+          "fps": 46,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 30.841666666665557,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5999999940395355,
+          "fps": 50,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 32.44166666666547,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.6000000089406967,
+          "fps": 50,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 34.04166666666538,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7000000029802322,
+          "fps": 56,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 35.64166666666529,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5999999940395355,
+          "fps": 49,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 37.241666666665196,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7999999970197678,
+          "fps": 51,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 38.841666666665105,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.6000000089406967,
+          "fps": 50,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 40.441666666665014,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5999999940395355,
+          "fps": 49,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 42.04166666666492,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.6000000089406967,
+          "fps": 47,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 43.64166666666483,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.9000000059604645,
+          "fps": 54,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 45.24166666666474,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7000000029802322,
+          "fps": 53,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 46.84166666666465,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1,
+          "fps": 57,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 48.44166666666456,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7000000029802322,
+          "fps": 52,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 50.04166666666447,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2,
+          "fps": 52,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 51.64166666666438,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7999999970197678,
+          "fps": 54,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 53.24166666666429,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.5999999940395355,
+          "fps": 54,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 54.841666666664196,
+          "state": "ACQUIRE",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.2000000029802322,
+          "fps": 53,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 56.441666666664105,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.2999999970197678,
+          "fps": 45,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 58.041666666664014,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.9000000059604645,
+          "fps": 47,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 59.64166666666392,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 0.7000000029802322,
+          "fps": 50,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 61.24166666666383,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 4,
+          "fps": 50,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 62.84166666666374,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.5,
+          "fps": 49,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 64.44166666666402,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.1000000089406967,
+          "fps": 49,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 66.0416666666653,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.699999988079071,
+          "fps": 56,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 67.63333333333323,
+          "state": "ACQUIRE",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.5,
+          "fps": 48,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 69.2333333333345,
+          "state": "ACQUIRE",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 70.83333333333577,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.0999999940395355,
+          "fps": 45,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 72.43333333333705,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 74.03333333333832,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.7000000029802322,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 75.63333333333959,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 77.23333333334087,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.0999999940395355,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 78.83333333334214,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.4000000059604645,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 80.43333333334341,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.2999999970197678,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 82.03333333334469,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.0999999940395355,
+          "fps": 34,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 83.63333333334596,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.6000000089406967,
+          "fps": 39,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 85.23333333334723,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.9000000059604645,
+          "fps": 39,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 86.8333333333485,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.4000000059604645,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 88.43333333334978,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.5,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 90.03333333335105,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.8999999910593033,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 91.63333333335233,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.6000000089406967,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 93.2333333333536,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.199999988079071,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 94.83333333335487,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.6000000089406967,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 96.43333333335615,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.7999999970197678,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 98.03333333335742,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 99.63333333335869,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.2999999970197678,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 101.23333333335997,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.2999999970197678,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 102.83333333336124,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 104.43333333336251,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.5999999940395355,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 106.03333333336379,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.5999999940395355,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 107.63333333336506,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 109.23333333336633,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.2000000029802322,
+          "fps": 37,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 110.8333333333676,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 112.43333333336888,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.2999999970197678,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 114.03333333337015,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.7000000029802322,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 115.63333333337143,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 117.2333333333727,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.2999999970197678,
+          "fps": 44,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 118.83333333337397,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.9000000059604645,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 120.43333333337524,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.1000000089406967,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 122.03333333337652,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.2999999970197678,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 123.63333333337779,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.7000000029802322,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 125.23333333337906,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.0999999940395355,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 126.83333333338034,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.7000000029802322,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 128.43333333338086,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.6000000089406967,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 130.0333333333794,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.3999999910593033,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 131.63333333337795,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.5999999940395355,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 133.2333333333765,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 134.83333333337504,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.800000011920929,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 136.43333333337358,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7999999970197678,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 138.03333333337213,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.6000000089406967,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 139.63333333337067,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.2999999970197678,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 141.23333333336922,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 142.83333333336776,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 144.4333333333663,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 4,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 146.03333333336485,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7999999970197678,
+          "fps": 35,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 147.6333333333634,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.9000000059604645,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 149.23333333336194,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7999999970197678,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 150.83333333336049,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 152.43333333335903,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.5,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 154.03333333335758,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.5,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 155.63333333335612,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.6000000089406967,
+          "fps": 42,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 157.23333333335466,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.699999988079071,
+          "fps": 40,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 158.8333333333532,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 160.43333333335175,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 162.0333333333503,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.7000000029802322,
+          "fps": 36,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 163.63333333334884,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 165.2333333333474,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.9000000059604645,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 166.83333333334593,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.300000011920929,
+          "fps": 39,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 168.43333333334448,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 170.03333333334302,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.5,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 171.63333333334157,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.2000000029802322,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 173.2333333333401,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.3999999910593033,
+          "fps": 43,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 174.83333333333866,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.9000000059604645,
+          "fps": 41,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 176.4333333333372,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.7000000029802322,
+          "fps": 38,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 178.03333333333575,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.7000000029802322,
+          "fps": 32,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 179.6333333333343,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 6.4000000059604645,
+          "fps": 18,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 181.23333333333284,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.5,
+          "fps": 29,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 182.83333333333138,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 4.799999997019768,
+          "fps": 20,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 184.43333333332993,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.7999999970197678,
+          "fps": 33,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 186.03333333332847,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 1.8999999910593033,
+          "fps": 35,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 187.63333333332702,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 3.6000000089406967,
+          "fps": 34,
+          "confirmedId": null,
+          "droppedFrames": 0
+        },
+        {
+          "simTime": 189.23333333332556,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.6000000089406967,
+          "fps": 34,
+          "confirmedId": null,
+          "droppedFrames": 0
+        }
+      ],
+      "wallClockMs": 77448.29999999702
+    },
+    {
+      "scenario": {
+        "id": "S0",
+        "name": "Clean Baseline",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 57.20000000298023
+    },
+    {
+      "scenario": {
+        "id": "S0",
+        "name": "Clean Baseline",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 71.90000000596046
+    },
+    {
+      "scenario": {
+        "id": "S1",
+        "name": "Low Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "LOW",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 90.20000000298023
+    },
+    {
+      "scenario": {
+        "id": "S1",
+        "name": "Low Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "LOW",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 87
+    },
+    {
+      "scenario": {
+        "id": "S1",
+        "name": "Low Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "LOW",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 80.90000000596046
+    },
+    {
+      "scenario": {
+        "id": "S2",
+        "name": "Medium Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "MED",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 82.8999999910593
+    },
+    {
+      "scenario": {
+        "id": "S2",
+        "name": "Medium Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "MED",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 97.3999999910593
+    },
+    {
+      "scenario": {
+        "id": "S2",
+        "name": "Medium Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "MED",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 80.70000000298023
+    },
+    {
+      "scenario": {
+        "id": "S3",
+        "name": "High Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "HIGH",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 79.5
+    },
+    {
+      "scenario": {
+        "id": "S3",
+        "name": "High Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "HIGH",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 89.09999999403954
+    },
+    {
+      "scenario": {
+        "id": "S3",
+        "name": "High Disturbances",
+        "durationSimSec": 190,
+        "disturbancePreset": "HIGH",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 78.5
+    },
+    {
+      "scenario": {
+        "id": "S4",
+        "name": "Medium + 3 Decoys",
+        "durationSimSec": 190,
+        "disturbancePreset": "MED",
+        "decoys": true,
+        "decoyCount": 3,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 87.20000000298023
+    },
+    {
+      "scenario": {
+        "id": "S4",
+        "name": "Medium + 3 Decoys",
+        "durationSimSec": 190,
+        "disturbancePreset": "MED",
+        "decoys": true,
+        "decoyCount": 3,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 95.5
+    },
+    {
+      "scenario": {
+        "id": "S4",
+        "name": "Medium + 3 Decoys",
+        "durationSimSec": 190,
+        "disturbancePreset": "MED",
+        "decoys": true,
+        "decoyCount": 3,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 83.5
+    },
+    {
+      "scenario": {
+        "id": "S5",
+        "name": "Occlusion at 4x Speed",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 4,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": 190.03333333332512,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 2.5999999940395355,
+          "p95": 2.5999999940395355,
+          "max": 2.5999999940395355
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [
+        {
+          "simTime": 190.03333333332512,
+          "state": "SEARCH",
+          "isObservable": true,
+          "pointingErrPx": null,
+          "trackingErrPx": null,
+          "pointingErrMrad": null,
+          "trackingErrMrad": null,
+          "procMs": 2.5999999940395355,
+          "fps": 60,
+          "confirmedId": null,
+          "droppedFrames": 0
+        }
+      ],
+      "wallClockMs": 36
+    },
+    {
+      "scenario": {
+        "id": "S5",
+        "name": "Occlusion at 4x Speed",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 4,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 19.900000005960464
+    },
+    {
+      "scenario": {
+        "id": "S5",
+        "name": "Occlusion at 4x Speed",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 4,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 25.5
+    },
+    {
+      "scenario": {
+        "id": "S6",
+        "name": "PS-Slew (30°/s) Stress",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "ps",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 77.6000000089407
+    },
+    {
+      "scenario": {
+        "id": "S6",
+        "name": "PS-Slew (30°/s) Stress",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "ps",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 62.19999998807907
+    },
+    {
+      "scenario": {
+        "id": "S6",
+        "name": "PS-Slew (30°/s) Stress",
+        "durationSimSec": 190,
+        "disturbancePreset": "OFF",
+        "decoys": false,
+        "simSpeed": 1,
+        "slewPreset": "ps",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 68.70000000298023
+    },
+    {
+      "scenario": {
+        "id": "S7",
+        "name": "High + Decoys Stress",
+        "durationSimSec": 190,
+        "disturbancePreset": "HIGH",
+        "decoys": true,
+        "decoyCount": 3,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 1
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 67.5
+    },
+    {
+      "scenario": {
+        "id": "S7",
+        "name": "High + Decoys Stress",
+        "durationSimSec": 190,
+        "disturbancePreset": "HIGH",
+        "decoys": true,
+        "decoyCount": 3,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 2
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 66.09999999403954
+    },
+    {
+      "scenario": {
+        "id": "S7",
+        "name": "High + Decoys Stress",
+        "durationSimSec": 190,
+        "disturbancePreset": "HIGH",
+        "decoys": true,
+        "decoyCount": 3,
+        "simSpeed": 1,
+        "slewPreset": "baseline",
+        "seed": 3
+      },
+      "summary": {
+        "totalSimTimeSec": 0,
+        "observableTimeSec": 0,
+        "inTrackTimeSec": 0,
+        "inLockRadiusTimeSec": 0,
+        "lockRetentionRate": 0,
+        "firstObservableTime": null,
+        "firstTrackTime": null,
+        "acquisitionTimeSec": null,
+        "acquisitionFromStartSec": null,
+        "reacquisitions": [],
+        "reacquisitionMeanSec": 0,
+        "reacquisitionMaxSec": 0,
+        "pointingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "trackingError": {
+          "meanPx": 0,
+          "rmsPx": 0,
+          "maxPx": 0,
+          "p95Px": 0,
+          "meanMrad": 0,
+          "rmsMrad": 0,
+          "maxMrad": 0,
+          "p95Mrad": 0
+        },
+        "falseLocks": 0,
+        "processingMs": {
+          "mean": 0,
+          "p95": 0,
+          "max": 0
+        },
+        "fps": {
+          "mean": 60,
+          "min": 60
+        },
+        "droppedFrames": 0
+      },
+      "timeSeries": [],
+      "wallClockMs": 66.90000000596046
+    }
+  ],
+  "aggregate": {
+    "S0": {
+      "scenarioId": "S0",
+      "name": "Clean Baseline",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0.6512482418904436,
+        "std": 1.1279950432941546
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S1": {
+      "scenarioId": "S1",
+      "name": "Low Disturbances",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0,
+        "std": 0
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S2": {
+      "scenarioId": "S2",
+      "name": "Medium Disturbances",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0,
+        "std": 0
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S3": {
+      "scenarioId": "S3",
+      "name": "High Disturbances",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0,
+        "std": 0
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S4": {
+      "scenarioId": "S4",
+      "name": "Medium + 3 Decoys",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0,
+        "std": 0
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S5": {
+      "scenarioId": "S5",
+      "name": "Occlusion at 4x Speed",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0.8666666646798452,
+        "std": 1.501110696451751
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S6": {
+      "scenarioId": "S6",
+      "name": "PS-Slew (30°/s) Stress",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0,
+        "std": 0
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    },
+    "S7": {
+      "scenarioId": "S7",
+      "name": "High + Decoys Stress",
+      "retention": {
+        "mean": 0,
+        "std": 0
+      },
+      "pointingRmsPx": {
+        "mean": 0,
+        "std": 0
+      },
+      "acqTime": {
+        "mean": 0,
+        "std": 0
+      },
+      "reacqMean": {
+        "mean": 0,
+        "std": 0
+      },
+      "procLatency": {
+        "mean": 0,
+        "std": 0
+      },
+      "falseLocks": {
+        "mean": 0,
+        "std": 0
+      }
+    }
+  }
+}

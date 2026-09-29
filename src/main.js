@@ -42,6 +42,7 @@ import {
 } from './tracking/cameraPanel.js';
 import { CAMERA_CONFIG, SAT_ORIENT_SMOOTH_TAU_SEC } from './tracking/config.js';
 import { createSimClock } from './simClock.js';
+import { requestCapture, captureFrame } from './tracking/capture.js';
 
 // ============================================================
 // CONFIGURATION CONSTANTS
@@ -431,6 +432,9 @@ async function main() {
 
   window.addEventListener('keydown', (e) => {
     if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (e.key === 'p' || e.key === 'P') {
+      requestCapture();
+    }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'].includes(e.key)) {
       e.preventDefault();
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
@@ -649,6 +653,16 @@ async function main() {
 
     // Render 3D scene
     renderer.render(scene, camera);
+
+    // Frame capture on key P (Sub-phase 4C)
+    const pipEl = document.getElementById('gimbal-cam-canvas');
+    const trkStatus = trackingSystem ? trackingSystem.getStatus() : null;
+    captureFrame(
+      renderer.domElement,
+      pipEl,
+      trkStatus ? trkStatus.state : 'IDLE',
+      simClock.getSimTime()
+    );
   }
 
   animate();
