@@ -101,18 +101,18 @@ export function createDetector(config = DETECTOR_CONFIG) {
     let bgSum = 0;
     let bgSumSq = 0;
     let bgCount = 0;
-    const stepX = 10;
-    const stepY = 10;
+    const stepX = 16;
+    const stepY = 16;
 
     for (let y = 0; y < height; y += stepY) {
-      const rawY = (height - 1) - y;
+      const rawY = height - 1 - y;
       const rowOffset = rawY * width * 4;
       for (let x = 0; x < width; x += stepX) {
-        const idx = rowOffset + (x * 4);
+        const idx = rowOffset + x * 4;
         const r = data[idx];
         const g = data[idx + 1];
         const b = data[idx + 2];
-        const s = isChroma ? (Math.min(r, b) - g) : (0.299 * r + 0.587 * g + 0.114 * b);
+        const s = isChroma ? (r < b ? r : b) - g : 0.299 * r + 0.587 * g + 0.114 * b;
         bgSum += s;
         bgSumSq += s * s;
         bgCount++;
@@ -120,22 +120,22 @@ export function createDetector(config = DETECTOR_CONFIG) {
     }
 
     const bgMean = bgCount > 0 ? bgSum / bgCount : 0;
-    const bgVariance = bgCount > 0 ? Math.max(0, (bgSumSq / bgCount) - (bgMean * bgMean)) : 0;
+    const bgVariance = bgCount > 0 ? Math.max(0, bgSumSq / bgCount - bgMean * bgMean) : 0;
     const bgStd = Math.sqrt(bgVariance);
 
     // Step 2: Pass 1 - Collect pixels above threshold & initialize disjoint sets
     let numActive = 0;
 
     for (let y = minY; y <= maxY; y++) {
-      const rawY = (height - 1) - y;
+      const rawY = height - 1 - y;
       const rowOffset = rawY * width * 4;
+      let idx = rowOffset + minX * 4;
 
-      for (let x = minX; x <= maxX; x++) {
-        const idx = rowOffset + (x * 4);
+      for (let x = minX; x <= maxX; x++, idx += 4) {
         const r = data[idx];
         const g = data[idx + 1];
         const b = data[idx + 2];
-        const score = isChroma ? (Math.min(r, b) - g) : (0.299 * r + 0.587 * g + 0.114 * b);
+        const score = isChroma ? (r < b ? r : b) - g : 0.299 * r + 0.587 * g + 0.114 * b;
 
         if (score >= threshold) {
           const pixelIdx = y * width + x;

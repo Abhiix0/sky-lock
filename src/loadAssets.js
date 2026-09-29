@@ -15,7 +15,7 @@ export const SATELLITE_SIZE = 2.0;
 /**
  * Set to true to get verbose bounding-box / mesh / triangle logging.
  */
-const DEBUG_MODE = true;
+const DEBUG_MODE = false;
 
 // ============================================================
 // HELPERS
@@ -276,7 +276,8 @@ export async function loadAssets(scene) {
   // ------------------------------------------------------------------
   // Load all three GLBs in parallel using relative base URL
   // ------------------------------------------------------------------
-  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || './';
+  const baseUrl =
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || './';
   const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
 
   const [earthGltf, sat1Gltf, sat2Gltf] = await Promise.all([

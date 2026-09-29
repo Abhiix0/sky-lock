@@ -114,7 +114,7 @@ export function computeBlinkScore(history = [], codeConfig = {}) {
  * @returns {Array<Object>} Evaluated candidates
  */
 export function evaluateCandidates(candidates = [], codeConfig = {}, idConfig = {}) {
-  const threshold = idConfig.idThreshold ?? ID_CONFIG.idThreshold ?? 0.70;
+  const threshold = idConfig.idThreshold ?? ID_CONFIG.idThreshold ?? 0.7;
   const confirmFrames = idConfig.idConfirmFrames ?? ID_CONFIG.idConfirmFrames ?? 3;
   const mode = codeConfig.mode ?? BEACON_CODE.mode ?? 'steady';
 

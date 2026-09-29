@@ -99,7 +99,7 @@ export function renderSatelliteStatusList(
     const pauseBtnText = isSatPaused ? 'RESUME' : 'PAUSE';
     const pauseBtnClass = isSatPaused ? 'paused' : '';
 
-    const isManual = sat.isManual !== undefined ? sat.isManual : (satelliteMode === 'MANUAL');
+    const isManual = sat.isManual !== undefined ? sat.isManual : satelliteMode === 'MANUAL';
 
     card.innerHTML = `
       <div class="sat-card-header">

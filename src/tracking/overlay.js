@@ -21,7 +21,13 @@ export const STATE_COLORS = {
  * @param {number} [canvasWidth=320]
  * @param {number} [canvasHeight=240]
  */
-export function drawOverlay(ctx, trackingStatus, gimbalState, canvasWidth = 320, canvasHeight = 240) {
+export function drawOverlay(
+  ctx,
+  trackingStatus,
+  gimbalState,
+  canvasWidth = 320,
+  canvasHeight = 240
+) {
   if (!ctx || !trackingStatus) return;
 
   const { state = 'SEARCH', mode = 'AUTO', detection, estimate } = trackingStatus;
@@ -99,7 +105,7 @@ export function drawOverlay(ctx, trackingStatus, gimbalState, canvasWidth = 320,
       // Sigma circle
       if (estimate.sigmaDeg && estimate.sigmaDeg > 0) {
         // Convert sigma in degrees to pixels on canvas
-        const pxPerDeg = (canvasHeight / CAMERA_CONFIG.fovDeg);
+        const pxPerDeg = canvasHeight / CAMERA_CONFIG.fovDeg;
         const radiusPx = Math.max(3, Math.min(100, estimate.sigmaDeg * pxPerDeg));
 
         ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';

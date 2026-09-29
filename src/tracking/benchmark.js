@@ -74,7 +74,8 @@ export function runScenario({ scenario, seed, context, onProgress }) {
       if (tracking.stateMachine && tracking.stateMachine.reset) tracking.stateMachine.reset();
       if (tracking.controller && tracking.controller.reset) tracking.controller.reset();
       if (tracking.kalman && tracking.kalman.reset) tracking.kalman.reset();
-      if (tracking.candidateTracker && tracking.candidateTracker.reset) tracking.candidateTracker.reset();
+      if (tracking.candidateTracker && tracking.candidateTracker.reset)
+        tracking.candidateTracker.reset();
       if (tracking.metrics && tracking.metrics.reset) tracking.metrics.reset();
     }
 
@@ -225,8 +226,9 @@ export async function runBenchmark(context, options = {}) {
     totalWallClockMs,
     environment: {
       userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Node.js',
-      hardwareConcurrency: typeof navigator !== 'undefined' ? (navigator.hardwareConcurrency || 4) : 4,
-      devicePixelRatio: typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1
+      hardwareConcurrency:
+        typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 4 : 4,
+      devicePixelRatio: typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
     },
     configSnapshot: {
       CAMERA_CONFIG: { ...CAMERA_CONFIG },

@@ -12,7 +12,11 @@
  * @param {Blob|Uint8Array} data - File content
  */
 let saveFileHandler = async (filename, data) => {
-  if (typeof window !== 'undefined' && window.skylock && typeof window.skylock.saveFile === 'function') {
+  if (
+    typeof window !== 'undefined' &&
+    window.skylock &&
+    typeof window.skylock.saveFile === 'function'
+  ) {
     let uint8;
     if (data instanceof Uint8Array) {
       uint8 = data;
@@ -233,7 +237,10 @@ export function formatBenchmarkCsv(runs) {
  * @param {Object} benchmarkPayload
  * @param {string} [timestamp] - ISO timestamp string
  */
-export function exportBenchmark(benchmarkPayload, timestamp = new Date().toISOString().replace(/[:.]/g, '-')) {
+export function exportBenchmark(
+  benchmarkPayload,
+  timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+) {
   const jsonName = `benchmark-${timestamp}.json`;
   const csvName = `benchmark-${timestamp}.csv`;
 

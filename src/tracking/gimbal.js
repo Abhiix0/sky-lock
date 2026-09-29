@@ -121,7 +121,7 @@ export function createGimbal(virtualCamera, config = CAMERA_CONFIG) {
     // --- PAN AXIS ---
     let desiredPanVel;
     if (mode === 'GOTO') {
-      const err = panWrap ? angularDiffDeg(targetPan, pan) : (targetPan - pan);
+      const err = panWrap ? angularDiffDeg(targetPan, pan) : targetPan - pan;
       const absErr = Math.abs(err);
       if (absErr < 0.0001 && Math.abs(panRate) < 0.001) {
         pan = targetPan;
@@ -231,7 +231,10 @@ export function runGimbalSelfTest(gimbalInstance, dt = 1 / 120) {
   let localPan = 0;
   let localTilt = 0;
   const mockCam = {
-    setPanTilt: (p, t) => { localPan = p; localTilt = t; },
+    setPanTilt: (p, t) => {
+      localPan = p;
+      localTilt = t;
+    },
     getPanTilt: () => ({ panDeg: localPan, tiltDeg: localTilt })
   };
 
@@ -246,7 +249,8 @@ export function runGimbalSelfTest(gimbalInstance, dt = 1 / 120) {
   let prevRate = 0;
   let maxPanObserved = 0;
 
-  for (let i = 0; i < 600; i++) { // up to 5 seconds
+  for (let i = 0; i < 600; i++) {
+    // up to 5 seconds
     testGimbal.step(dt);
     const st = testGimbal.getGimbalState();
     const rate = Math.abs(st.panRateDegS);

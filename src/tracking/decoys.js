@@ -146,11 +146,7 @@ export function createDecoys(scene, options = {}) {
         nextFlashTime: 0,
         flashDuration: 0.067, // ~2 feed frames
         isFlashing: false,
-        offset: new THREE.Vector3(
-          (prng() - 0.5) * 6,
-          (prng() - 0.5) * 6,
-          (prng() - 0.5) * 6
-        ),
+        offset: new THREE.Vector3((prng() - 0.5) * 6, (prng() - 0.5) * 6, (prng() - 0.5) * 6),
         isSteady: false
       });
     }
@@ -232,7 +228,7 @@ export function createDecoys(scene, options = {}) {
   }
 
   function setSeed(newSeed) {
-    seed = (newSeed >>> 0) || 42;
+    seed = newSeed >>> 0 || 42;
     buildDecoys();
   }
 

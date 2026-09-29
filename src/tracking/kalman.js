@@ -79,16 +79,20 @@ export function createKalmanFilter(config = KALMAN_CONFIG) {
 
     // Propagate covariance P = F * P * F^T + Q
     // For decoupled axes (pan: indices 0,2; tilt: indices 1,3):
-    const p00 = P[0]; const p02 = P[2];
-    const p20 = P[8]; const p22 = P[10];
+    const p00 = P[0];
+    const p02 = P[2];
+    const p20 = P[8];
+    const p22 = P[10];
 
     P[0] = p00 + dt * (p20 + p02) + dt2 * p22 + q00;
     P[2] = p02 + dt * p22 + q01;
     P[8] = p20 + dt * p22 + q01;
     P[10] = p22 + q11;
 
-    const p11 = P[5]; const p13 = P[7];
-    const p31 = P[13]; const p33 = P[15];
+    const p11 = P[5];
+    const p13 = P[7];
+    const p31 = P[13];
+    const p33 = P[15];
 
     P[5] = p11 + dt * (p31 + p13) + dt2 * p33 + q00;
     P[7] = p13 + dt * p33 + q01;
@@ -162,8 +166,10 @@ export function createKalmanFilter(config = KALMAN_CONFIG) {
 
     // Covariance update P = (I - K H) P
     // Pan block:
-    const p00 = P[0]; const p02 = P[2];
-    const p20 = P[8]; const p22 = P[10];
+    const p00 = P[0];
+    const p02 = P[2];
+    const p20 = P[8];
+    const p22 = P[10];
 
     P[0] = (1 - k00) * p00;
     P[2] = (1 - k00) * p02;
@@ -171,8 +177,10 @@ export function createKalmanFilter(config = KALMAN_CONFIG) {
     P[10] = p22 - k20 * p02;
 
     // Tilt block:
-    const p11 = P[5]; const p13 = P[7];
-    const p31 = P[13]; const p33 = P[15];
+    const p11 = P[5];
+    const p13 = P[7];
+    const p31 = P[13];
+    const p33 = P[15];
 
     P[5] = (1 - k11) * p11;
     P[7] = (1 - k11) * p13;
@@ -221,7 +229,7 @@ export function createKalmanFilter(config = KALMAN_CONFIG) {
    */
   function getPositionSigmaDeg() {
     const rMeas = cfg.rMeasDeg || 0.1;
-    return Math.sqrt(Math.max(P[0], P[5]) + (rMeas * rMeas));
+    return Math.sqrt(Math.max(P[0], P[5]) + rMeas * rMeas);
   }
 
   return {

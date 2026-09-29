@@ -68,13 +68,7 @@ export function createStateMachine(config = TRACKING_CONFIG) {
    * @returns {{ state: string, mode: 'GOTO'|'TRACK', setpoint: { panDeg: number, tiltDeg: number }, selectedDetection: Object|null, events: Array<Object> }}
    */
   function update(inputs) {
-    const {
-      simTime,
-      detections = [],
-      kalman,
-      gimbalState,
-      cameraCfg = CAMERA_CONFIG
-    } = inputs;
+    const { simTime, detections = [], kalman, gimbalState, cameraCfg = CAMERA_CONFIG } = inputs;
 
     const emittedEvents = [];
     const minSnr = cfg.minSnrSearch ?? 3.0;
@@ -82,12 +76,14 @@ export function createStateMachine(config = TRACKING_CONFIG) {
 
     let selectedDetection = null;
     let mode = 'GOTO';
-    let setpoint = { panDeg: gimbalState ? gimbalState.panDeg : 0, tiltDeg: gimbalState ? gimbalState.tiltDeg : 0 };
+    let setpoint = {
+      panDeg: gimbalState ? gimbalState.panDeg : 0,
+      tiltDeg: gimbalState ? gimbalState.tiltDeg : 0
+    };
 
     // Find best candidate detection with highest peak/SNR
-    const bestDetection = detections.length > 0
-      ? detections.find((d) => d.snr >= minSnr) || detections[0]
-      : null;
+    const bestDetection =
+      detections.length > 0 ? detections.find((d) => d.snr >= minSnr) || detections[0] : null;
 
     switch (currentState) {
       case 'SEARCH': {
@@ -114,13 +110,15 @@ export function createStateMachine(config = TRACKING_CONFIG) {
         mode = 'GOTO';
 
         // Candidate selection: prefer confirmed candidate, otherwise center on strongest unconfirmed
-        const activeTarget = inputs.confirmedCandidate || inputs.strongestCandidate || bestDetection;
+        const activeTarget =
+          inputs.confirmedCandidate || inputs.strongestCandidate || bestDetection;
 
         if (activeTarget) {
           const cx = activeTarget.x ?? activeTarget.cx;
           const cy = activeTarget.y ?? activeTarget.cy;
 
-          selectedDetection = activeTarget.lastDetection || (activeTarget.cx !== undefined ? activeTarget : null);
+          selectedDetection =
+            activeTarget.lastDetection || (activeTarget.cx !== undefined ? activeTarget : null);
           candidateAngles = pixelToBodyAngles(
             cx,
             cy,
@@ -139,12 +137,19 @@ export function createStateMachine(config = TRACKING_CONFIG) {
             }
             transitionTo('TRACK', simTime, 'Confirmed beacon via blink code ID');
             emittedEvents.push(eventLog[eventLog.length - 1]);
-          } else if (!inputs.allCandidates && candidateConfirmCount >= (cfg.acquireConfirmFrames ?? 3)) {
+          } else if (
+            !inputs.allCandidates &&
+            candidateConfirmCount >= (cfg.acquireConfirmFrames ?? 3)
+          ) {
             // Backward-compatibility fallback when blink ID is not in use (e.g. pure unit tests)
             if (kalman) {
               kalman.init(candidateAngles.panDeg, candidateAngles.tiltDeg, simTime);
             }
-            transitionTo('TRACK', simTime, `Confirmed candidate over ${candidateConfirmCount} frames`);
+            transitionTo(
+              'TRACK',
+              simTime,
+              `Confirmed candidate over ${candidateConfirmCount} frames`
+            );
             emittedEvents.push(eventLog[eventLog.length - 1]);
           }
         } else {
@@ -163,9 +168,14 @@ export function createStateMachine(config = TRACKING_CONFIG) {
         let minGateDist = Infinity;
 
         // If candidate tracker is active, feed the confirmed candidate only
-        const targetDetections = inputs.confirmedCandidate && inputs.confirmedCandidate.lastDetection && inputs.confirmedCandidate.missedFrames === 0
-          ? [inputs.confirmedCandidate.lastDetection]
-          : (inputs.allCandidates ? [] : detections);
+        const targetDetections =
+          inputs.confirmedCandidate &&
+          inputs.confirmedCandidate.lastDetection &&
+          inputs.confirmedCandidate.missedFrames === 0
+            ? [inputs.confirmedCandidate.lastDetection]
+            : inputs.allCandidates
+              ? []
+              : detections;
 
         // Innovation gating against Kalman prediction
         if (kalman) {

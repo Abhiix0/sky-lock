@@ -56,7 +56,8 @@ export function createController(config = CONTROLLER_CONFIG) {
     } = inputs;
 
     const preset = CAMERA_CONFIG.activeSlewPreset || 'baseline';
-    const vmax = inputs.maxSlewRate ?? SLEW_PRESETS[preset] ?? CAMERA_CONFIG.maxSlewRateDegPerSec ?? 45;
+    const vmax =
+      inputs.maxSlewRate ?? SLEW_PRESETS[preset] ?? CAMERA_CONFIG.maxSlewRateDegPerSec ?? 45;
 
     const kp = cfg.kp ?? 4.0;
     const ki = cfg.ki ?? 0.5;
@@ -93,8 +94,16 @@ export function createController(config = CONTROLLER_CONFIG) {
     const tentativeIntTilt = Math.max(-maxInt, Math.min(maxInt, intTilt + tiltErr * dt));
 
     // Raw unconstrained command
-    let panCmd = kp * panErr + ki * tentativeIntPan + kd * filtDerivPan + kff * (losRateEstimate.panRateDegS || 0);
-    let tiltCmd = kp * tiltErr + ki * tentativeIntTilt + kd * filtDerivTilt + kff * (losRateEstimate.tiltRateDegS || 0);
+    let panCmd =
+      kp * panErr +
+      ki * tentativeIntPan +
+      kd * filtDerivPan +
+      kff * (losRateEstimate.panRateDegS || 0);
+    let tiltCmd =
+      kp * tiltErr +
+      ki * tentativeIntTilt +
+      kd * filtDerivTilt +
+      kff * (losRateEstimate.tiltRateDegS || 0);
 
     // Apply conditional integration based on saturation
     if (Math.abs(panCmd) < vmax || Math.sign(panErr) !== Math.sign(panCmd)) {

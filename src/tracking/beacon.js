@@ -44,7 +44,9 @@ export function createBeacon(scene, renderer) {
   const requestedSize = BEACON_CONFIG.haloRadiusPx * 2;
   const pointSize = Math.min(requestedSize, maxPointSize);
   if (requestedSize > maxPointSize) {
-    console.warn(`[Beacon] Requested point size ${requestedSize}px exceeds WebGL max ${maxPointSize}px.`);
+    console.warn(
+      `[Beacon] Requested point size ${requestedSize}px exceeds WebGL max ${maxPointSize}px.`
+    );
   }
 
   // Single point geometry
@@ -151,7 +153,7 @@ export function createBeacon(scene, renderer) {
       const bitIdx = Math.floor(tMod / bitPeriodSec) % codeLen;
       isBlinkOn = codeBits[bitIdx] === '1';
     } else if (blinkHz > 0) {
-      const phase = ((simTimeSec * blinkHz) % 1 + 1) % 1;
+      const phase = (((simTimeSec * blinkHz) % 1) + 1) % 1;
       isBlinkOn = phase < blinkDuty;
     }
 
@@ -255,4 +257,3 @@ export function createBeacon(scene, renderer) {
     getMode: () => beaconMode
   };
 }
-

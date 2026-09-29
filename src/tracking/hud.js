@@ -20,15 +20,8 @@ const STATE_CLASSES = {
  * @returns {Object} HUD controller instance
  */
 export function createHud(elements, metricsEngine) {
-  const {
-    stateEl,
-    lockTimeEl,
-    pointingErrEl,
-    trackingErrEl,
-    retentionEl,
-    latencyEl,
-    fpsEl
-  } = elements;
+  const { stateEl, lockTimeEl, pointingErrEl, trackingErrEl, retentionEl, latencyEl, fpsEl } =
+    elements;
 
   let lastAppliedState = null;
 
@@ -123,15 +116,18 @@ export function initHudPanel(metricsEngine, trackingSystem) {
     });
   }
 
-  const hud = createHud({
-    stateEl: document.getElementById('hud-state'),
-    lockTimeEl: document.getElementById('hud-lock-time'),
-    pointingErrEl: document.getElementById('hud-pointing-err'),
-    trackingErrEl: document.getElementById('hud-tracking-err'),
-    retentionEl: document.getElementById('hud-retention'),
-    latencyEl: document.getElementById('hud-latency'),
-    fpsEl: document.getElementById('hud-fps')
-  }, metricsEngine);
+  const hud = createHud(
+    {
+      stateEl: document.getElementById('hud-state'),
+      lockTimeEl: document.getElementById('hud-lock-time'),
+      pointingErrEl: document.getElementById('hud-pointing-err'),
+      trackingErrEl: document.getElementById('hud-tracking-err'),
+      retentionEl: document.getElementById('hud-retention'),
+      latencyEl: document.getElementById('hud-latency'),
+      fpsEl: document.getElementById('hud-fps')
+    },
+    metricsEngine
+  );
 
   setInterval(() => {
     const status = trackingSystem ? trackingSystem.getStatus() : {};

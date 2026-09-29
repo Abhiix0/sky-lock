@@ -219,8 +219,7 @@ export function update(activeSatellites, realDeltaTime = 0, hasLOS = true) {
     }
 
     const dvStr = (dv > 0 ? dv : 3.2).toFixed(1);
-    const direction =
-      tickCount % 2 === 0 ? `${satA.id} -> ${satB.id}` : `${satB.id} -> ${satA.id}`;
+    const direction = tickCount % 2 === 0 ? `${satA.id} -> ${satB.id}` : `${satB.id} -> ${satA.id}`;
 
     // Vary message types each 5-second tick
     const messageTypes = ['POSITION_SYNC', 'RANGING', 'HANDSHAKE', 'DATA_PACKET'];

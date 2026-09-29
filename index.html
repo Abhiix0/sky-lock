@@ -852,11 +852,11 @@
       color: #e2e8f0;
     }
 
-    .hud-state-search { color: #3b82f6; text-shadow: 0 0 6px rgba(59, 130, 246, 0.4); }
+    .hud-state-search { color: #94a3b8; text-shadow: 0 0 6px rgba(148, 163, 184, 0.4); }
     .hud-state-acquire { color: #f59e0b; text-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
-    .hud-state-track { color: #22c55e; text-shadow: 0 0 6px rgba(34, 197, 94, 0.4); }
+    .hud-state-track { color: #10b981; text-shadow: 0 0 6px rgba(16, 185, 129, 0.4); }
     .hud-state-lost { color: #ef4444; text-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
-    .hud-state-reacquire { color: #a855f7; text-shadow: 0 0 6px rgba(168, 85, 247, 0.4); }
+    .hud-state-reacquire { color: #f97316; text-shadow: 0 0 6px rgba(249, 115, 22, 0.4); }
 
     .chart-container {
       display: flex;
@@ -871,6 +871,138 @@
       border: 1px solid rgba(255, 255, 255, 0.08);
       display: block;
     }
+
+    /* Panel Collapsing Rules */
+    .panel-collapse-btn {
+      width: 20px;
+      height: 18px;
+      font-size: 13px;
+      line-height: 1;
+      padding: 0;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #gimbal-cam-panel.collapsed .gimbal-cam-body { display: none !important; }
+    #disturbance-panel.collapsed #disturbance-panel-body,
+    #disturbance-panel.collapsed .dist-preset-bar { display: none !important; }
+    #metrics-panel.collapsed #metrics-panel-body { display: none !important; }
+    #comms-console.collapsed .comms-log { display: none !important; }
+    #control-panel.collapsed > *:not(.panel-header) { display: none !important; }
+
+    /* Responsive Non-overlapping Layout for 1366x768 and 1920x1080 */
+    @media (max-height: 840px) {
+      #disturbance-panel {
+        top: 48px !important;
+        left: 346px !important;
+      }
+      #metrics-panel {
+        left: 440px !important;
+        width: 420px !important;
+      }
+      #comms-console {
+        width: 412px !important;
+      }
+    }
+
+    @media (max-width: 1400px) {
+      #metrics-panel {
+        left: 440px !important;
+        width: 410px !important;
+      }
+      #comms-console {
+        width: 412px !important;
+      }
+    }
+
+    /* Keyboard Shortcuts Modal Overlay */
+    #keyboard-help-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .help-modal-backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .help-modal-card {
+      position: relative;
+      z-index: 10000;
+      width: 580px;
+      max-width: 92vw;
+      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.85);
+      overflow: hidden;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+      color: #e2e8f0;
+    }
+
+    .help-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(30, 41, 59, 0.85);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .help-modal-body {
+      padding: 12px 16px;
+      max-height: 64vh;
+      overflow-y: auto;
+    }
+
+    .help-shortcuts-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    .help-shortcuts-table th {
+      text-align: left;
+      padding: 6px 8px;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      font-weight: 700;
+      letter-spacing: 0.5px;
+    }
+
+    .help-shortcuts-table td {
+      padding: 6px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+
+    .help-shortcuts-table kbd {
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.25);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      color: #38bdf8;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    }
+
+    .help-modal-footer {
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.95);
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 10.5px;
+      color: #94a3b8;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
@@ -881,7 +1013,10 @@
   <div id="gimbal-cam-panel">
     <div class="gimbal-cam-header">
       <span>S-1 GIMBAL CAM</span>
-      <span style="color: #34d399; font-size: 10px; font-weight: 600;">LIVE FEED</span>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="color: #34d399; font-size: 10px; font-weight: 600;">LIVE FEED</span>
+        <button class="gimbal-dpad-btn panel-collapse-btn" id="gimbal-collapse-btn" title="Collapse / Expand PiP Panel">−</button>
+      </div>
     </div>
     <div class="gimbal-cam-body">
       <canvas id="gimbal-cam-canvas" width="320" height="240"></canvas>
@@ -918,10 +1053,10 @@
       </div>
       <div style="display: flex; align-items: center; gap: 5px;">
         <button class="gimbal-action-btn" id="dist-seed-random-btn" style="padding: 2px 6px; font-size: 9px;" title="Roll new random seed">RND</button>
-        <button class="gimbal-dpad-btn" id="disturbance-collapse-btn" style="width: 20px; height: 18px; font-size: 13px; line-height: 1;">−</button>
+        <button class="gimbal-dpad-btn panel-collapse-btn" id="disturbance-collapse-btn" title="Collapse / Expand Disturbances">−</button>
       </div>
     </div>
-    <div style="display: flex; gap: 4px; padding: 5px 8px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.06);">
+    <div class="dist-preset-bar" style="display: flex; gap: 4px; padding: 5px 8px; background: rgba(0,0,0,0.3); border-bottom: 1px solid rgba(255,255,255,0.06);">
       <button class="speed-btn active" id="dist-btn-off" style="flex: 1; padding: 3px 0; font-size: 10px;">OFF</button>
       <button class="speed-btn" id="dist-btn-low" style="flex: 1; padding: 3px 0; font-size: 10px;">LOW</button>
       <button class="speed-btn" id="dist-btn-med" style="flex: 1; padding: 3px 0; font-size: 10px;">MED</button>
@@ -1051,7 +1186,10 @@
         <span class="comms-status-indicator" id="comms-status-dot"></span>
         <span>ISL COMMS TERMINAL</span>
       </div>
-      <span style="color: #64748b; font-size: 10px; font-weight: 600;">ACTIVE LINK</span>
+      <div style="display: flex; align-items: center; gap: 6px;">
+        <span style="color: #64748b; font-size: 10px; font-weight: 600;">ACTIVE LINK</span>
+        <button class="gimbal-dpad-btn panel-collapse-btn" id="comms-collapse-btn" title="Collapse / Expand Comms Terminal">−</button>
+      </div>
     </div>
     <div class="comms-log" id="comms-log-container">
       <!-- Live telemetry log lines -->
@@ -1060,7 +1198,10 @@
 
   <!-- Control Panel -->
   <div id="control-panel">
-    <div class="panel-header">SIMULATION</div>
+    <div class="panel-header" style="display: flex; align-items: center; justify-content: space-between;">
+      <span>SIMULATION</span>
+      <button class="gimbal-dpad-btn panel-collapse-btn" id="control-collapse-btn" title="Collapse / Expand Simulation Panel">−</button>
+    </div>
 
     <!-- Speed Row -->
     <div class="control-row">
@@ -1117,6 +1258,49 @@
     </div>
   </div>
 
+  <!-- Keyboard Shortcuts Help Modal (Triggered by '?') -->
+  <div id="keyboard-help-overlay" style="display: none;">
+    <div class="help-modal-backdrop" id="help-backdrop"></div>
+    <div class="help-modal-card">
+      <div class="help-modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 16px;">⌨️</span>
+          <span style="color: #38bdf8; font-weight: 700; letter-spacing: 1px;">KEYBOARD SHORTCUTS</span>
+        </div>
+        <button id="help-close-btn" class="gimbal-dpad-btn" style="width: 24px; height: 22px; font-size: 13px;">✕</button>
+      </div>
+      <div class="help-modal-body">
+        <table class="help-shortcuts-table">
+          <thead>
+            <tr>
+              <th>Key</th>
+              <th>Action</th>
+              <th>Context</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td><kbd>?</kbd></td><td>Toggle Keyboard Help Overlay</td><td>Global</td></tr>
+            <tr><td><kbd>Space</kbd></td><td>Pause / Resume Simulation Clock</td><td>Global</td></tr>
+            <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>4</kbd></td><td>Set Sim Speed (1x, 2x, 4x)</td><td>Global</td></tr>
+            <tr><td><kbd>O</kbd></td><td>Toggle Orbit Path Lines</td><td>Simulation</td></tr>
+            <tr><td><kbd>L</kbd></td><td>Toggle Optical Inter-Satellite Link</td><td>Simulation</td></tr>
+            <tr><td><kbd>G</kbd></td><td>Toggle Gimbal Camera PiP Feed</td><td>Tracking</td></tr>
+            <tr><td><kbd>Arrow Keys</kbd></td><td>Manual Gimbal Slew (Pan / Tilt)</td><td>Gimbal (Manual)</td></tr>
+            <tr><td><kbd>Shift</kbd> + <kbd>Arrows</kbd></td><td>Fast Slew Mode</td><td>Gimbal (Manual)</td></tr>
+            <tr><td><kbd>C</kbd></td><td>Center / Reset Bore-Sight (0°, 0°)</td><td>Gimbal</td></tr>
+            <tr><td><kbd>B</kbd></td><td>Run One-Click Benchmark Suite</td><td>Benchmark</td></tr>
+            <tr><td><kbd>P</kbd></td><td>Capture Main + PiP View PNG</td><td>Telemetry</td></tr>
+            <tr><td><kbd>D</kbd></td><td>Start / Stop Choreographed Demo</td><td>Demo Mode</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close Help Dialog</td><td>Global</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="help-modal-footer">
+        Press <kbd>?</kbd> or <kbd>Esc</kbd> anytime to dismiss this help window.
+      </div>
+    </div>
+  </div>
+
   <div id="canvas-container"></div>
   <script type="module" src="/src/main.js"></script>
   <script type="module">
@@ -1126,6 +1310,55 @@
 
     function setupTelemetryUI() {
       initDisturbancePanel();
+
+      // Setup collapsible panels
+      const panels = [
+        { panelId: 'gimbal-cam-panel', btnId: 'gimbal-collapse-btn' },
+        { panelId: 'disturbance-panel', btnId: 'disturbance-collapse-btn' },
+        { panelId: 'metrics-panel', btnId: 'metrics-collapse-btn' },
+        { panelId: 'comms-console', btnId: 'comms-collapse-btn' },
+        { panelId: 'control-panel', btnId: 'control-collapse-btn' }
+      ];
+
+      for (const { panelId, btnId } of panels) {
+        const panel = document.getElementById(panelId);
+        const btn = document.getElementById(btnId);
+        if (panel && btn) {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('collapsed');
+            btn.textContent = panel.classList.contains('collapsed') ? '+' : '−';
+          });
+        }
+      }
+
+      // Keyboard Help Overlay handling
+      const helpOverlay = document.getElementById('keyboard-help-overlay');
+      const helpCloseBtn = document.getElementById('help-close-btn');
+      const helpBackdrop = document.getElementById('help-backdrop');
+
+      const toggleHelp = () => {
+        if (!helpOverlay) return;
+        const isHidden = helpOverlay.style.display === 'none';
+        helpOverlay.style.display = isHidden ? 'flex' : 'none';
+      };
+
+      const closeHelp = () => {
+        if (helpOverlay) helpOverlay.style.display = 'none';
+      };
+
+      if (helpCloseBtn) helpCloseBtn.addEventListener('click', closeHelp);
+      if (helpBackdrop) helpBackdrop.addEventListener('click', closeHelp);
+
+      window.addEventListener('keydown', (e) => {
+        if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+        if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+          e.preventDefault();
+          toggleHelp();
+        } else if (e.key === 'Escape') {
+          closeHelp();
+        }
+      });
 
       const checkReady = () => {
         if (window.__sky && window.__sky.tracking) {

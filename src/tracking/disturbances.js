@@ -111,11 +111,11 @@ export function createDisturbanceManager(initialOptions = {}) {
    * @param {number} seed
    */
   function setSeed(seed) {
-    activeSeed = (seed >>> 0) || 12345;
+    activeSeed = seed >>> 0 || 12345;
 
     // Derive deterministic stream seeds using large coprimes
     const sTurb = (activeSeed ^ 0x9e3779b9) >>> 0;
-    const sVib  = (activeSeed ^ 0x6a09e667) >>> 0;
+    const sVib = (activeSeed ^ 0x6a09e667) >>> 0;
     const sSens = (activeSeed ^ 0xbb67ae85) >>> 0;
     const sDrop = (activeSeed ^ 0x3c6ef372) >>> 0;
 
@@ -344,7 +344,7 @@ export function createDisturbanceManager(initialOptions = {}) {
         const ng = sensGaussian(0, sigma);
         const nb = sensGaussian(0, sigma);
 
-        data[i]     = Math.min(255, Math.max(0, (data[i]     + nr + 0.5) | 0));
+        data[i] = Math.min(255, Math.max(0, (data[i] + nr + 0.5) | 0));
         data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] + ng + 0.5) | 0));
         data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] + nb + 0.5) | 0));
       }
@@ -355,7 +355,7 @@ export function createDisturbanceManager(initialOptions = {}) {
       for (let k = 0; k < hotPixelOffsets.length; k++) {
         const off = hotPixelOffsets[k];
         if (off < len - 3) {
-          data[off]     = 255;
+          data[off] = 255;
           data[off + 1] = 255;
           data[off + 2] = 255;
         }
@@ -367,7 +367,13 @@ export function createDisturbanceManager(initialOptions = {}) {
       if (!blurScratchBuffer || blurScratchBuffer.length !== len) {
         blurScratchBuffer = new Uint8Array(len);
       }
-      applySeparableBoxBlur(data, frame.width, frame.height, params.blurRadiusPx, blurScratchBuffer);
+      applySeparableBoxBlur(
+        data,
+        frame.width,
+        frame.height,
+        params.blurRadiusPx,
+        blurScratchBuffer
+      );
     }
 
     return frame;

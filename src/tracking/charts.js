@@ -4,11 +4,11 @@
  */
 
 const STATE_COLORS = {
-  SEARCH: '#3b82f6',     // Blue
-  ACQUIRE: '#f59e0b',    // Amber
-  TRACK: '#22c55e',      // Green
-  LOST: '#ef4444',       // Red
-  REACQUIRE: '#a855f7'   // Purple
+  SEARCH: '#3b82f6', // Blue
+  ACQUIRE: '#f59e0b', // Amber
+  TRACK: '#22c55e', // Green
+  LOST: '#ef4444', // Red
+  REACQUIRE: '#a855f7' // Purple
 };
 
 /**

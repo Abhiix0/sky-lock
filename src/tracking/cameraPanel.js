@@ -192,8 +192,10 @@ export function updateCameraPanel(frame, info, trackingStatus) {
       ctx.strokeStyle = 'rgba(0, 255, 200, 0.8)';
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(cx - 12, cy); ctx.lineTo(cx + 12, cy);
-      ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy + 12);
+      ctx.moveTo(cx - 12, cy);
+      ctx.lineTo(cx + 12, cy);
+      ctx.moveTo(cx, cy - 12);
+      ctx.lineTo(cx, cy + 12);
       ctx.stroke();
     }
   }

@@ -43,7 +43,7 @@ export function pixelToBodyAngles(px, py, panDeg, tiltDeg, cameraCfg = CAMERA_CO
   const { width, height, fovDeg } = cameraCfg;
 
   const fovRad = (fovDeg * Math.PI) / 180;
-  const focalLength = (height / 2) / Math.tan(fovRad / 2);
+  const focalLength = height / 2 / Math.tan(fovRad / 2);
 
   const cx = width / 2;
   const cy = height / 2;
@@ -100,11 +100,17 @@ export function pixelToBodyAngles(px, py, panDeg, tiltDeg, cameraCfg = CAMERA_CO
  * @param {Object} [cameraCfg=CAMERA_CONFIG] - Camera parameters
  * @returns {{ px: number, py: number, inFrustum: boolean, visibleInFront: boolean }}
  */
-export function bodyAnglesToPixel(targetPanDeg, targetTiltDeg, gimbalPanDeg, gimbalTiltDeg, cameraCfg = CAMERA_CONFIG) {
+export function bodyAnglesToPixel(
+  targetPanDeg,
+  targetTiltDeg,
+  gimbalPanDeg,
+  gimbalTiltDeg,
+  cameraCfg = CAMERA_CONFIG
+) {
   const { width, height, fovDeg } = cameraCfg;
 
   const fovRad = (fovDeg * Math.PI) / 180;
-  const focalLength = (height / 2) / Math.tan(fovRad / 2);
+  const focalLength = height / 2 / Math.tan(fovRad / 2);
 
   const cx = width / 2;
   const cy = height / 2;

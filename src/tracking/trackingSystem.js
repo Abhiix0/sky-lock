@@ -86,14 +86,28 @@ export function createTrackingSystem(api, options = {}) {
     let kalmanPredPx = null;
     if (kalman && currentState === 'TRACK') {
       const pred = kalman.getState();
-      const proj = bodyAnglesToPixel(pred.panDeg, pred.tiltDeg, gimbalState.panDeg, gimbalState.tiltDeg, CAMERA_CONFIG);
+      const proj = bodyAnglesToPixel(
+        pred.panDeg,
+        pred.tiltDeg,
+        gimbalState.panDeg,
+        gimbalState.tiltDeg,
+        CAMERA_CONFIG
+      );
       if (proj.inFrustum) {
         kalmanPredPx = { x: proj.px, y: proj.py };
       }
     }
 
-    const rawCandidates = candidateTracker.update(lastDetResult.blobs, frame.timestamp, kalmanPredPx);
-    evaluatedCandidates = evaluateCandidates(rawCandidates, options.beaconCode || BEACON_CODE, options.idConfig || ID_CONFIG);
+    const rawCandidates = candidateTracker.update(
+      lastDetResult.blobs,
+      frame.timestamp,
+      kalmanPredPx
+    );
+    evaluatedCandidates = evaluateCandidates(
+      rawCandidates,
+      options.beaconCode || BEACON_CODE,
+      options.idConfig || ID_CONFIG
+    );
     confirmedCandidate = getConfirmedCandidate(evaluatedCandidates);
 
     // 3. State machine update (feeding identified candidate)
@@ -120,7 +134,13 @@ export function createTrackingSystem(api, options = {}) {
     let estimatePx = null;
     if (kalman && gimbalState) {
       const pred = kalman.getState();
-      const proj = bodyAnglesToPixel(pred.panDeg, pred.tiltDeg, gimbalState.panDeg, gimbalState.tiltDeg, CAMERA_CONFIG);
+      const proj = bodyAnglesToPixel(
+        pred.panDeg,
+        pred.tiltDeg,
+        gimbalState.panDeg,
+        gimbalState.tiltDeg,
+        CAMERA_CONFIG
+      );
       if (proj.inFrustum) {
         estimatePx = { x: proj.px, y: proj.py };
       }
@@ -129,15 +149,20 @@ export function createTrackingSystem(api, options = {}) {
     metrics.addSample({
       simTime: frame.timestamp,
       state: stateMachine.getState(),
-      groundTruth: gt ? {
-        pixelX: gt.pixelX,
-        pixelY: gt.pixelY,
-        inFrustum: gt.inFrustum,
-        losClear: gt.losClear !== undefined ? gt.losClear : true,
-        reachable: gt.reachable !== undefined ? gt.reachable : true
-      } : { pixelX: 0, pixelY: 0, inFrustum: false, losClear: true, reachable: true },
+      groundTruth: gt
+        ? {
+            pixelX: gt.pixelX,
+            pixelY: gt.pixelY,
+            inFrustum: gt.inFrustum,
+            losClear: gt.losClear !== undefined ? gt.losClear : true,
+            reachable: gt.reachable !== undefined ? gt.reachable : true
+          }
+        : { pixelX: 0, pixelY: 0, inFrustum: false, losClear: true, reachable: true },
       estimatePx,
-      detectionPx: smResult && smResult.selectedDetection ? { x: smResult.selectedDetection.cx, y: smResult.selectedDetection.cy } : null,
+      detectionPx:
+        smResult && smResult.selectedDetection
+          ? { x: smResult.selectedDetection.cx, y: smResult.selectedDetection.cy }
+          : null,
       procMs: frameProcMs,
       fps: typeof window !== 'undefined' && window.__skyFps ? window.__skyFps : 60,
       confirmedId: confirmedCandidate ? confirmedCandidate.id : null,
@@ -258,4 +283,3 @@ export function createTrackingSystem(api, options = {}) {
     disturbances
   };
 }
-

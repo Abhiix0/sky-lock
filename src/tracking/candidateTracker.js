@@ -33,9 +33,10 @@ export function createCandidateTracker(config = {}) {
       let bestDetIdx = -1;
 
       // Expand gate if candidate has missed frames
-      const gate = candidate.confirmed && predictedPos
-        ? associationGatePx * 1.5
-        : associationGatePx + candidate.missedFrames * 2.0;
+      const gate =
+        candidate.confirmed && predictedPos
+          ? associationGatePx * 1.5
+          : associationGatePx + candidate.missedFrames * 2.0;
 
       for (let i = 0; i < detections.length; i++) {
         if (matchedDetectionIndices.has(i)) continue;

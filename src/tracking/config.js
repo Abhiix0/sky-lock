@@ -46,7 +46,7 @@ export const BEACON_CODE = {
 };
 
 export const ID_CONFIG = {
-  idThreshold: 0.70, // Matched filter score threshold for confirmation
+  idThreshold: 0.7, // Matched filter score threshold for confirmation
   idConfirmFrames: 3, // Consecutive frames above threshold to confirm ID
   historyWindowFrames: 48, // N = 2 * code length in frames (2 * 8 * 3 = 48)
   gateInitialPx: 35,
@@ -69,7 +69,6 @@ export const DECOY_CONFIG = {
   glintRateHz: 1.5,
   seed: 42
 };
-
 
 // ============================================================
 // DETECTOR CONFIGURATION
@@ -279,3 +278,8 @@ export const DISTURBANCE_PRESETS = {
   }
 };
 
+/**
+ * Master debug logging flag.
+ * When false, silences high-frequency runtime and per-frame tracking diagnostic logs.
+ */
+export const DEBUG = false;

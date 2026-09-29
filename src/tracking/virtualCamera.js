@@ -22,16 +22,7 @@ import { disturbances } from './disturbances.js';
 // CONFIGURATION
 // ============================================================
 
-const {
-  fovDeg,
-  width,
-  height,
-  near,
-  far,
-  feedRateHz,
-  panLimitDeg,
-  tiltLimitDeg
-} = CAMERA_CONFIG;
+const { fovDeg, width, height, near, far, feedRateHz, panLimitDeg, tiltLimitDeg } = CAMERA_CONFIG;
 
 /** Offset the camera slightly outward so it never sits inside the satellite mesh. */
 const CAMERA_OFFSET_Z = 2.5;
@@ -253,7 +244,10 @@ export function createVirtualCamera(scene, renderer) {
     }
 
     // ---- Temporarily hide objects that a real camera wouldn't see ----
-    const hiddenEntries = collectHiddenObjects(observerSat.model, targetSat ? targetSat.model : null);
+    const hiddenEntries = collectHiddenObjects(
+      observerSat.model,
+      targetSat ? targetSat.model : null
+    );
     hiddenEntries.forEach((entry) => {
       entry.object.visible = false;
     });
@@ -368,4 +362,3 @@ export function createVirtualCamera(scene, renderer) {
     getGroundTruthDirection
   };
 }
-

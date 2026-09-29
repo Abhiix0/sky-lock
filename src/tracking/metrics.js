@@ -152,7 +152,10 @@ export function createMetrics(options = {}) {
 
       if (sample.estimatePx) {
         // Tracking error: distance from Kalman estimate pixel to ground-truth pixel
-        trackingErrPx = Math.hypot(gt.pixelX - sample.estimatePx.x, gt.pixelY - sample.estimatePx.y);
+        trackingErrPx = Math.hypot(
+          gt.pixelX - sample.estimatePx.x,
+          gt.pixelY - sample.estimatePx.y
+        );
       }
     }
 
@@ -165,7 +168,7 @@ export function createMetrics(options = {}) {
     if (state === 'TRACK' && isObs && pointingErrPx !== null && pointingErrPx > falseLockPx) {
       if (currentFalseLockStartTime === null) {
         currentFalseLockStartTime = t;
-      } else if (!hasCountedCurrentFalseLock && (t - currentFalseLockStartTime >= 1.0)) {
+      } else if (!hasCountedCurrentFalseLock && t - currentFalseLockStartTime >= 1.0) {
         falseLockSpans++;
         hasCountedCurrentFalseLock = true;
       }
@@ -180,8 +183,10 @@ export function createMetrics(options = {}) {
       isObservable: isObs,
       pointingErrPx: isObs && state === 'TRACK' ? pointingErrPx : null,
       trackingErrPx: isObs && state === 'TRACK' ? trackingErrPx : null,
-      pointingErrMrad: isObs && state === 'TRACK' && pointingErrPx !== null ? pointingErrPx * mradPerPx : null,
-      trackingErrMrad: isObs && state === 'TRACK' && trackingErrPx !== null ? trackingErrPx * mradPerPx : null,
+      pointingErrMrad:
+        isObs && state === 'TRACK' && pointingErrPx !== null ? pointingErrPx * mradPerPx : null,
+      trackingErrMrad:
+        isObs && state === 'TRACK' && trackingErrPx !== null ? trackingErrPx * mradPerPx : null,
       procMs: sample.procMs || 0,
       fps: sample.fps || 60,
       confirmedId: sample.confirmedId || null,
@@ -271,9 +276,10 @@ export function createMetrics(options = {}) {
 
     const retention = observableTime > 0 ? (inLockRadiusTime / observableTime) * 100 : 0;
 
-    const acqTime = (firstTrackTime !== null && firstObservableTime !== null)
-      ? Math.max(0, firstTrackTime - firstObservableTime)
-      : null;
+    const acqTime =
+      firstTrackTime !== null && firstObservableTime !== null
+        ? Math.max(0, firstTrackTime - firstObservableTime)
+        : null;
 
     return {
       totalSimTimeSec: totalSimTime,

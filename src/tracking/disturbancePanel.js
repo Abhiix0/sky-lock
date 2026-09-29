@@ -16,13 +16,41 @@ const presetBtns = {};
 
 // Slider and readout elements
 const sliderMap = {
-  wanderRmsPx: { sliderId: 'dist-slider-wander', labelId: 'dist-val-wander', format: (v) => `${Number(v).toFixed(1)} px` },
-  scintillationSigma: { sliderId: 'dist-slider-scint', labelId: 'dist-val-scint', format: (v) => Number(v).toFixed(2) },
-  jitterRmsDeg: { sliderId: 'dist-slider-jitter', labelId: 'dist-val-jitter', format: (v) => `${Number(v).toFixed(2)}°` },
-  noiseSigma: { sliderId: 'dist-slider-noise', labelId: 'dist-val-noise', format: (v) => `${Math.round(v)} LSB` },
-  hotPixelsCount: { sliderId: 'dist-slider-hot', labelId: 'dist-val-hot', format: (v) => `${Math.round(v)}` },
-  blurRadiusPx: { sliderId: 'dist-slider-blur', labelId: 'dist-val-blur', format: (v) => `${Math.round(v)} px` },
-  dropProbability: { sliderId: 'dist-slider-drop', labelId: 'dist-val-drop', format: (v) => `${(Number(v) * 100).toFixed(0)}%` }
+  wanderRmsPx: {
+    sliderId: 'dist-slider-wander',
+    labelId: 'dist-val-wander',
+    format: (v) => `${Number(v).toFixed(1)} px`
+  },
+  scintillationSigma: {
+    sliderId: 'dist-slider-scint',
+    labelId: 'dist-val-scint',
+    format: (v) => Number(v).toFixed(2)
+  },
+  jitterRmsDeg: {
+    sliderId: 'dist-slider-jitter',
+    labelId: 'dist-val-jitter',
+    format: (v) => `${Number(v).toFixed(2)}°`
+  },
+  noiseSigma: {
+    sliderId: 'dist-slider-noise',
+    labelId: 'dist-val-noise',
+    format: (v) => `${Math.round(v)} LSB`
+  },
+  hotPixelsCount: {
+    sliderId: 'dist-slider-hot',
+    labelId: 'dist-val-hot',
+    format: (v) => `${Math.round(v)}`
+  },
+  blurRadiusPx: {
+    sliderId: 'dist-slider-blur',
+    labelId: 'dist-val-blur',
+    format: (v) => `${Math.round(v)} px`
+  },
+  dropProbability: {
+    sliderId: 'dist-slider-drop',
+    labelId: 'dist-val-drop',
+    format: (v) => `${(Number(v) * 100).toFixed(0)}%`
+  }
 };
 
 /**
