@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { GLTFSpecGlossExtension } from './GLTFSpecGlossExtension.js';
 
 // ============================================================
@@ -252,11 +251,6 @@ export async function loadAssets(scene) {
   // Register the plugin for KHR_materials_pbrSpecularGlossiness so Earth's embedded textures load properly
   loader.register((parser) => new GLTFSpecGlossExtension(parser));
 
-  // Setup DRACO decoder for compressed meshes (if any)
-  const dracoLoader = new DRACOLoader();
-  dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.7/');
-  loader.setDRACOLoader(dracoLoader);
-
   /**
    * Promise-based GLB loader with clear success/error logging.
    */
@@ -280,12 +274,15 @@ export async function loadAssets(scene) {
   }
 
   // ------------------------------------------------------------------
-  // Load all three GLBs in parallel
+  // Load all three GLBs in parallel using relative base URL
   // ------------------------------------------------------------------
+  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || './';
+  const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+
   const [earthGltf, sat1Gltf, sat2Gltf] = await Promise.all([
-    loadGLB('/assets/earth.glb', 'Earth'),
-    loadGLB('/assets/satellite.glb', 'Satellite 1'),
-    loadGLB('/assets/satellite2.glb', 'Satellite 2')
+    loadGLB(`${cleanBase}assets/earth.glb`, 'Earth'),
+    loadGLB(`${cleanBase}assets/satellite.glb`, 'Satellite 1'),
+    loadGLB(`${cleanBase}assets/satellite2.glb`, 'Satellite 2')
   ]);
 
   // ------------------------------------------------------------------

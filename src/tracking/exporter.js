@@ -11,7 +11,22 @@
  * @param {string} filename - Filename with extension
  * @param {Blob|Uint8Array} data - File content
  */
-let saveFileHandler = (filename, data) => {
+let saveFileHandler = async (filename, data) => {
+  if (typeof window !== 'undefined' && window.skylock && typeof window.skylock.saveFile === 'function') {
+    let uint8;
+    if (data instanceof Uint8Array) {
+      uint8 = data;
+    } else if (data instanceof Blob) {
+      const buffer = await data.arrayBuffer();
+      uint8 = new Uint8Array(buffer);
+    } else if (typeof data === 'string') {
+      uint8 = new TextEncoder().encode(data);
+    } else {
+      uint8 = new Uint8Array(data);
+    }
+    return window.skylock.saveFile(filename, uint8);
+  }
+
   const blob = data instanceof Blob ? data : new Blob([data], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

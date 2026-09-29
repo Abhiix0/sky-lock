@@ -1,21 +1,49 @@
 {
   "name": "sky-lock",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "FSOC Beacon Tracking System",
+  "author": "Sky Lock Team",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "electron:dev": "vite build && electron .",
+    "dist": "vite build && electron-builder",
     "test": "vitest run",
     "lint": "eslint src/",
     "format": "prettier --write src/"
+  },
+  "build": {
+    "appId": "com.skylock.app",
+    "productName": "Sky Lock",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "three": "^0.170.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "electron": "^44.4.5",
+    "electron-builder": "^26.15.3",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.12.0",
