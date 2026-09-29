@@ -59,6 +59,44 @@ export const DETECTOR_CONFIG = {
 };
 
 // ============================================================
+// KALMAN TRACKER CONFIGURATION
+// ============================================================
+
+/**
+ * @typedef {Object} KalmanConfig
+ * @property {number} qAccelDegS2 - Continuous process noise acceleration variance (deg/s^2)^2
+ * @property {number} rMeasDeg - Measurement noise standard deviation in degrees
+ * @property {number} gateThresholdSigma - Innovation gating threshold in sigmas
+ */
+export const KALMAN_CONFIG = {
+  qAccelDegS2: 25.0,
+  rMeasDeg: 0.1,
+  gateThresholdSigma: 4.0
+};
+
+// ============================================================
+// CONTROLLER CONFIGURATION
+// ============================================================
+
+/**
+ * @typedef {Object} ControllerConfig
+ * @property {number} kp - Proportional gain
+ * @property {number} ki - Integral gain
+ * @property {number} kd - Derivative gain
+ * @property {number} kff - Feed-forward velocity gain
+ * @property {number} dFilterAlpha - Low-pass filter smoothing for derivative term [0, 1]
+ * @property {number} integralClampDegS - Anti-windup clamp on integral accumulation
+ */
+export const CONTROLLER_CONFIG = {
+  kp: 4.0,
+  ki: 0.5,
+  kd: 0.2,
+  kff: 1.0,
+  dFilterAlpha: 0.2,
+  integralClampDegS: 8.0
+};
+
+// ============================================================
 // CAMERA CONFIGURATION
 // ============================================================
 
