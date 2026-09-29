@@ -35,6 +35,43 @@ export const BEACON_CONFIG = {
 };
 
 // ============================================================
+// BEACON CODING & IDENTIFICATION CONFIGURATION (Phase 3B)
+// ============================================================
+
+export const BEACON_CODE = {
+  bits: '10110010',
+  bitPeriodSec: 0.1, // 100 ms per bit = 3 feed frames at 30 Hz
+  samplesPerBit: 3,
+  mode: 'steady' // 'steady' | 'code' (steady by default per 3B requirements)
+};
+
+export const ID_CONFIG = {
+  idThreshold: 0.70, // Matched filter score threshold for confirmation
+  idConfirmFrames: 3, // Consecutive frames above threshold to confirm ID
+  historyWindowFrames: 48, // N = 2 * code length in frames (2 * 8 * 3 = 48)
+  gateInitialPx: 35,
+  gateGrowthPxPerFrame: 3,
+  gateMaxPx: 90,
+  maxMissFrames: 6,
+  intensityThreshold: 40
+};
+
+// ============================================================
+// DECOY CONFIGURATION (Phase 3B)
+// ============================================================
+
+export const DECOY_CONFIG = {
+  enabled: false,
+  count: 3, // Number of active decoys when enabled
+  starCount: 2,
+  decoySatCount: 1,
+  glintCount: 1,
+  glintRateHz: 1.5,
+  seed: 42
+};
+
+
+// ============================================================
 // DETECTOR CONFIGURATION
 // ============================================================
 

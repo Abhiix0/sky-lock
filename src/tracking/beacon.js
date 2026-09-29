@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { BEACON_CONFIG, BEACON_LAYER } from './config.js';
+import { BEACON_CONFIG, BEACON_CODE, BEACON_LAYER } from './config.js';
 import { disturbances } from './disturbances.js';
 
 /**
@@ -21,6 +21,11 @@ export function createBeacon(scene, renderer) {
   let brightness = BEACON_CONFIG.brightness;
   let blinkHz = BEACON_CONFIG.blinkHz;
   let blinkDuty = BEACON_CONFIG.blinkDuty;
+
+  // Blink code support (Phase 3B)
+  let beaconMode = BEACON_CODE.mode || 'steady'; // 'steady' | 'code'
+  let codeBits = BEACON_CODE.bits || '10110010';
+  let bitPeriodSec = BEACON_CODE.bitPeriodSec || 0.1;
 
   const baseColor = new THREE.Color(BEACON_CONFIG.color);
 
@@ -139,7 +144,13 @@ export function createBeacon(scene, renderer) {
 
     // Evaluate blink state
     let isBlinkOn = true;
-    if (blinkHz > 0) {
+    if (beaconMode === 'code' && codeBits.length > 0) {
+      const codeLen = codeBits.length;
+      const cycleTime = codeLen * bitPeriodSec;
+      const tMod = ((simTimeSec % cycleTime) + cycleTime) % cycleTime;
+      const bitIdx = Math.floor(tMod / bitPeriodSec) % codeLen;
+      isBlinkOn = codeBits[bitIdx] === '1';
+    } else if (blinkHz > 0) {
       const phase = ((simTimeSec * blinkHz) % 1 + 1) % 1;
       isBlinkOn = phase < blinkDuty;
     }
@@ -213,6 +224,24 @@ export function createBeacon(scene, renderer) {
     blinkDuty = duty;
   }
 
+  /**
+   * Set repeating bit code pattern and bit period.
+   * @param {string} bits - Binary string (e.g. '10110010')
+   * @param {number} [period=0.1] - Bit duration in seconds
+   */
+  function setCode(bits, period = 0.1) {
+    codeBits = bits;
+    bitPeriodSec = period;
+  }
+
+  /**
+   * Set beacon modulation mode ('steady' | 'code').
+   * @param {'steady'|'code'} newMode
+   */
+  function setMode(newMode) {
+    beaconMode = newMode;
+  }
+
   return {
     object: pointMesh,
     markerObject: markerMesh,
@@ -220,7 +249,10 @@ export function createBeacon(scene, renderer) {
     setEnabled,
     setBrightness,
     setBlink,
-    setPerturbations
+    setPerturbations,
+    setCode,
+    setMode,
+    getMode: () => beaconMode
   };
 }
 

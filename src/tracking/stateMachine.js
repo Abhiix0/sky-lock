@@ -111,22 +111,36 @@ export function createStateMachine(config = TRACKING_CONFIG) {
       }
 
       case 'ACQUIRE': {
-        setpoint = { panDeg: candidateAngles.panDeg, tiltDeg: candidateAngles.tiltDeg };
         mode = 'GOTO';
 
-        if (bestDetection && bestDetection.snr >= minSnr) {
-          selectedDetection = bestDetection;
+        // Candidate selection: prefer confirmed candidate, otherwise center on strongest unconfirmed
+        const activeTarget = inputs.confirmedCandidate || inputs.strongestCandidate || bestDetection;
+
+        if (activeTarget) {
+          const cx = activeTarget.x ?? activeTarget.cx;
+          const cy = activeTarget.y ?? activeTarget.cy;
+
+          selectedDetection = activeTarget.lastDetection || (activeTarget.cx !== undefined ? activeTarget : null);
           candidateAngles = pixelToBodyAngles(
-            bestDetection.cx,
-            bestDetection.cy,
+            cx,
+            cy,
             gimbalState.panDeg,
             gimbalState.tiltDeg,
             cameraCfg
           );
+          setpoint = { panDeg: candidateAngles.panDeg, tiltDeg: candidateAngles.tiltDeg };
           candidateConfirmCount++;
           lastSeenTime = simTime;
 
-          if (candidateConfirmCount >= (cfg.acquireConfirmFrames ?? 3)) {
+          // If confirmed candidate is available via blink ID, immediately enter TRACK
+          if (inputs.confirmedCandidate && inputs.confirmedCandidate.confirmed) {
+            if (kalman) {
+              kalman.init(candidateAngles.panDeg, candidateAngles.tiltDeg, simTime);
+            }
+            transitionTo('TRACK', simTime, 'Confirmed beacon via blink code ID');
+            emittedEvents.push(eventLog[eventLog.length - 1]);
+          } else if (!inputs.allCandidates && candidateConfirmCount >= (cfg.acquireConfirmFrames ?? 3)) {
+            // Backward-compatibility fallback when blink ID is not in use (e.g. pure unit tests)
             if (kalman) {
               kalman.init(candidateAngles.panDeg, candidateAngles.tiltDeg, simTime);
             }
@@ -134,6 +148,7 @@ export function createStateMachine(config = TRACKING_CONFIG) {
             emittedEvents.push(eventLog[eventLog.length - 1]);
           }
         } else {
+          setpoint = { panDeg: candidateAngles.panDeg, tiltDeg: candidateAngles.tiltDeg };
           if (simTime - lastSeenTime > (cfg.acquireTimeoutSec ?? 1.0)) {
             transitionTo('SEARCH', simTime, 'Acquire timeout without confirmation');
             emittedEvents.push(eventLog[eventLog.length - 1]);
@@ -147,11 +162,16 @@ export function createStateMachine(config = TRACKING_CONFIG) {
         let bestGated = null;
         let minGateDist = Infinity;
 
+        // If candidate tracker is active, feed the confirmed candidate only
+        const targetDetections = inputs.confirmedCandidate && inputs.confirmedCandidate.lastDetection && inputs.confirmedCandidate.missedFrames === 0
+          ? [inputs.confirmedCandidate.lastDetection]
+          : (inputs.allCandidates ? [] : detections);
+
         // Innovation gating against Kalman prediction
         if (kalman) {
           kalman.predict(simTime);
 
-          for (const d of detections) {
+          for (const d of targetDetections) {
             const bodyAngles = pixelToBodyAngles(
               d.cx,
               d.cy,

@@ -3,14 +3,16 @@ import { createKalmanFilter } from './kalman.js';
 import { createController } from './controller.js';
 import { createStateMachine } from './stateMachine.js';
 import { bodyAnglesToPixel } from './geometry.js';
-import { CAMERA_CONFIG, DETECTOR_CONFIG } from './config.js';
+import { CAMERA_CONFIG, DETECTOR_CONFIG, BEACON_CODE, ID_CONFIG } from './config.js';
 import { disturbances } from './disturbances.js';
+import { createCandidateTracker } from './candidateTracker.js';
+import { evaluateCandidates, getConfirmedCandidate } from './beaconId.js';
 
 /**
  * Creates the closed-loop autonomous tracking system.
  *
- * Coordinates detector, Kalman filter, PID rate controller, and acquisition state machine
- * through the Tracking API.
+ * Coordinates detector, Kalman filter, PID rate controller, candidate tracker,
+ * blink-code ID, and acquisition state machine through the Tracking API.
  *
  * @param {Object} api - Tracking API boundary interface
  * @param {Object} [options={}]
@@ -21,6 +23,10 @@ export function createTrackingSystem(api, options = {}) {
   const kalman = createKalmanFilter(options.kalmanConfig);
   const controller = createController(options.controllerConfig);
   const stateMachine = createStateMachine(options.trackingConfig);
+  const candidateTracker = createCandidateTracker(options.idConfig);
+
+  let evaluatedCandidates = [];
+  let confirmedCandidate = null;
 
   let mode = 'AUTO'; // 'AUTO' | 'MANUAL'
   let lastProcessedFrameId = -1;
@@ -74,10 +80,27 @@ export function createTrackingSystem(api, options = {}) {
     // 1. Blob detection on post-disturbance frame
     lastDetResult = detector.detect(frame, roi ? { roi } : undefined);
 
-    // 2. State machine update
+    // 2. Multi-candidate tracking and blink-code ID evaluation (Phase 3B)
+    let kalmanPredPx = null;
+    if (kalman && currentState === 'TRACK') {
+      const pred = kalman.getState();
+      const proj = bodyAnglesToPixel(pred.panDeg, pred.tiltDeg, gimbalState.panDeg, gimbalState.tiltDeg, CAMERA_CONFIG);
+      if (proj.inFrustum) {
+        kalmanPredPx = { x: proj.px, y: proj.py };
+      }
+    }
+
+    const rawCandidates = candidateTracker.update(lastDetResult.blobs, frame.timestamp, kalmanPredPx);
+    evaluatedCandidates = evaluateCandidates(rawCandidates, options.beaconCode || BEACON_CODE, options.idConfig || ID_CONFIG);
+    confirmedCandidate = getConfirmedCandidate(evaluatedCandidates);
+
+    // 3. State machine update (feeding identified candidate)
     smResult = stateMachine.update({
       simTime: frame.timestamp,
       detections: lastDetResult.blobs,
+      confirmedCandidate,
+      strongestCandidate: evaluatedCandidates[0] || null,
+      allCandidates: evaluatedCandidates,
       kalman,
       gimbalState,
       cameraCfg: CAMERA_CONFIG
@@ -170,6 +193,8 @@ export function createTrackingSystem(api, options = {}) {
       state: stateMachine.getState(),
       mode,
       detection: selected,
+      confirmedId: confirmedCandidate ? confirmedCandidate.id : null,
+      candidates: evaluatedCandidates,
       estimate: {
         panDeg: kState.panDeg,
         tiltDeg: kState.tiltDeg,
@@ -196,6 +221,7 @@ export function createTrackingSystem(api, options = {}) {
     kalman,
     controller,
     stateMachine,
+    candidateTracker,
     disturbances
   };
 }
