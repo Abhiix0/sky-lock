@@ -35,6 +35,30 @@ export const BEACON_CONFIG = {
 };
 
 // ============================================================
+// DETECTOR CONFIGURATION
+// ============================================================
+
+/**
+ * @typedef {Object} DetectorConfig
+ * @property {'chroma'|'luma'} mode - Detection mode ('chroma' for magenta beacon, 'luma' fallback)
+ * @property {number} lumaThreshold - Intensity threshold for luma mode [0, 255]
+ * @property {number} chromaThreshold - Chroma threshold: min(R, B) - G [0, 255]
+ * @property {number} minAreaPx - Minimum connected component area in pixels
+ * @property {number} maxAreaPx - Maximum connected component area in pixels
+ * @property {number} maxBlobs - Maximum number of detected blobs returned
+ * @property {number} roiMarginPx - Margin around predicted position for ROI tracking
+ */
+export const DETECTOR_CONFIG = {
+  mode: 'chroma',
+  lumaThreshold: 200,
+  chromaThreshold: 90,
+  minAreaPx: 2,
+  maxAreaPx: 900,
+  maxBlobs: 8,
+  roiMarginPx: 40
+};
+
+// ============================================================
 // CAMERA CONFIGURATION
 // ============================================================
 
