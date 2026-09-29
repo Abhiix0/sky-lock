@@ -97,6 +97,34 @@ export const CONTROLLER_CONFIG = {
 };
 
 // ============================================================
+// TRACKING STATE MACHINE & SCAN CONFIGURATION
+// ============================================================
+
+/**
+ * @typedef {Object} TrackingConfig
+ * @property {number} overlap - Overlap fraction between adjacent scan FOVs [0, 1]
+ * @property {number} tiltScanLimitDeg - Elevation coverage limit in degrees (±)
+ * @property {number} scanRateDegS - Scanning slew rate in deg/s
+ * @property {number} reacquireMaxRadiusDeg - Maximum search radius for spiral reacquisition
+ * @property {number} minSnrSearch - Minimum SNR threshold to trigger acquisition from search
+ * @property {number} acquireConfirmFrames - Consecutive confirmed detections to enter track
+ * @property {number} acquireTimeoutSec - Timeout in seconds before aborting unconfirmed acquire
+ * @property {number} lostMissFrames - Consecutive missed frames before entering coasting
+ * @property {number} coastMaxSec - Maximum duration to coast on prediction before reacquire
+ */
+export const TRACKING_CONFIG = {
+  overlap: 0.2,
+  tiltScanLimitDeg: 55,
+  scanRateDegS: 35,
+  reacquireMaxRadiusDeg: 45,
+  minSnrSearch: 3.0,
+  acquireConfirmFrames: 3,
+  acquireTimeoutSec: 1.0,
+  lostMissFrames: 5,
+  coastMaxSec: 14.0
+};
+
+// ============================================================
 // CAMERA CONFIGURATION
 // ============================================================
 
