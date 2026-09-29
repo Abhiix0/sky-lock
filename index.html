@@ -781,6 +781,95 @@
       border-radius: 2px;
       cursor: pointer;
     }
+
+    /* Metrics HUD & Charts Panel (Phase 3C) */
+    #metrics-panel {
+      position: fixed;
+      bottom: 14px;
+      left: 508px;
+      z-index: 1000;
+      width: 440px;
+      background: rgba(10, 15, 26, 0.90);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    }
+
+    .metrics-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #38bdf8;
+      text-transform: uppercase;
+    }
+
+    #metrics-panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 10px;
+    }
+
+    .hud-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .hud-card {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .hud-label {
+      font-size: 9px;
+      color: #94a3b8;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
+    .hud-value {
+      font-size: 11px;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+
+    .hud-state-search { color: #3b82f6; text-shadow: 0 0 6px rgba(59, 130, 246, 0.4); }
+    .hud-state-acquire { color: #f59e0b; text-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+    .hud-state-track { color: #22c55e; text-shadow: 0 0 6px rgba(34, 197, 94, 0.4); }
+    .hud-state-lost { color: #ef4444; text-shadow: 0 0 6px rgba(239, 68, 68, 0.4); }
+    .hud-state-reacquire { color: #a855f7; text-shadow: 0 0 6px rgba(168, 85, 247, 0.4); }
+
+    .chart-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .chart-canvas {
+      width: 100%;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -890,6 +979,53 @@
     </div>
   </div>
 
+  <!-- Metrics HUD & Charts Panel (Phase 3C) -->
+  <div id="metrics-panel">
+    <div class="metrics-header">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="color: #38bdf8; font-weight: 700; letter-spacing: 1px;">METRICS & TELEMETRY HUD</span>
+      </div>
+      <button class="gimbal-dpad-btn" id="metrics-collapse-btn" style="width: 20px; height: 18px; font-size: 13px; line-height: 1;">−</button>
+    </div>
+    <div id="metrics-panel-body">
+      <div class="hud-grid">
+        <div class="hud-card">
+          <span class="hud-label">STATE</span>
+          <span class="hud-value hud-state-search" id="hud-state">SEARCH</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">LOCK TIME</span>
+          <span class="hud-value" id="hud-lock-time">0.0s</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">RETENTION</span>
+          <span class="hud-value" style="color: #38bdf8;" id="hud-retention">0.0%</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">POINTING ERR</span>
+          <span class="hud-value" id="hud-pointing-err">--</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">TRACKING ERR</span>
+          <span class="hud-value" id="hud-tracking-err">--</span>
+        </div>
+        <div class="hud-card">
+          <span class="hud-label">LATENCY / FPS</span>
+          <div style="display: flex; gap: 4px; align-items: baseline;">
+            <span class="hud-value" id="hud-latency">-- ms</span>
+            <span style="color: #64748b; font-size: 10px;">|</span>
+            <span class="hud-value" style="color: #22c55e;" id="hud-fps">60</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas class="chart-canvas" id="chart-error" width="420" height="42"></canvas>
+        <canvas class="chart-canvas" id="chart-latency" width="420" height="30"></canvas>
+        <canvas class="chart-canvas" id="chart-timeline" width="420" height="12"></canvas>
+      </div>
+    </div>
+  </div>
+
   <div id="comms-console">
     <div class="comms-header">
       <div class="comms-title">
@@ -966,10 +1102,28 @@
   <script type="module" src="/src/main.js"></script>
   <script type="module">
     import { initDisturbancePanel } from '/src/tracking/disturbancePanel.js';
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', () => initDisturbancePanel());
-    } else {
+    import { initHudPanel } from '/src/tracking/hud.js';
+    import { initChartsPanel } from '/src/tracking/charts.js';
+
+    function setupTelemetryUI() {
       initDisturbancePanel();
+
+      const checkReady = () => {
+        if (window.__sky && window.__sky.tracking) {
+          const tracking = window.__sky.tracking;
+          initHudPanel(tracking.metrics, tracking);
+          initChartsPanel(tracking.metrics);
+        } else {
+          setTimeout(checkReady, 50);
+        }
+      };
+      checkReady();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupTelemetryUI);
+    } else {
+      setupTelemetryUI();
     }
   </script>
 </body>

@@ -7,6 +7,7 @@ import { CAMERA_CONFIG, DETECTOR_CONFIG, BEACON_CODE, ID_CONFIG } from './config
 import { disturbances } from './disturbances.js';
 import { createCandidateTracker } from './candidateTracker.js';
 import { evaluateCandidates, getConfirmedCandidate } from './beaconId.js';
+import { createMetrics } from './metrics.js';
 
 /**
  * Creates the closed-loop autonomous tracking system.
@@ -24,6 +25,7 @@ export function createTrackingSystem(api, options = {}) {
   const controller = createController(options.controllerConfig);
   const stateMachine = createStateMachine(options.trackingConfig);
   const candidateTracker = createCandidateTracker(options.idConfig);
+  const metrics = options.metrics || createMetrics(options.metricsConfig);
 
   let evaluatedCandidates = [];
   let confirmedCandidate = null;
@@ -112,6 +114,35 @@ export function createTrackingSystem(api, options = {}) {
     timingBuffer[timingIndex] = frameProcMs;
     timingIndex = (timingIndex + 1) % timingBuffer.length;
     if (timingCount < timingBuffer.length) timingCount++;
+
+    // 4. Emit sample to performance metrics engine
+    const gt = api.getGroundTruth ? api.getGroundTruth() : null;
+    let estimatePx = null;
+    if (kalman && gimbalState) {
+      const pred = kalman.getState();
+      const proj = bodyAnglesToPixel(pred.panDeg, pred.tiltDeg, gimbalState.panDeg, gimbalState.tiltDeg, CAMERA_CONFIG);
+      if (proj.inFrustum) {
+        estimatePx = { x: proj.px, y: proj.py };
+      }
+    }
+
+    metrics.addSample({
+      simTime: frame.timestamp,
+      state: stateMachine.getState(),
+      groundTruth: gt ? {
+        pixelX: gt.pixelX,
+        pixelY: gt.pixelY,
+        inFrustum: gt.inFrustum,
+        losClear: gt.losClear !== undefined ? gt.losClear : true,
+        reachable: gt.reachable !== undefined ? gt.reachable : true
+      } : { pixelX: 0, pixelY: 0, inFrustum: false, losClear: true, reachable: true },
+      estimatePx,
+      detectionPx: smResult && smResult.selectedDetection ? { x: smResult.selectedDetection.cx, y: smResult.selectedDetection.cy } : null,
+      procMs: frameProcMs,
+      fps: typeof window !== 'undefined' && window.__skyFps ? window.__skyFps : 60,
+      confirmedId: confirmedCandidate ? confirmedCandidate.id : null,
+      droppedFrames: disturbances.getDroppedFramesCount ? disturbances.getDroppedFramesCount() : 0
+    });
   }
 
   /**
@@ -207,7 +238,8 @@ export function createTrackingSystem(api, options = {}) {
       timings: {
         detectMs: lastDetResult ? lastDetResult.processingMs : 0,
         recentMedianMs: getMedianProcessingMs()
-      }
+      },
+      metrics: metrics.getSummary()
     };
   }
 
@@ -222,6 +254,7 @@ export function createTrackingSystem(api, options = {}) {
     controller,
     stateMachine,
     candidateTracker,
+    metrics,
     disturbances
   };
 }
