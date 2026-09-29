@@ -34,7 +34,8 @@ import {
   updateCameraPanel,
   hideCameraPanel
 } from './tracking/cameraPanel.js';
-import { CAMERA_CONFIG } from './tracking/config.js';
+import { CAMERA_CONFIG, SAT_ORIENT_SMOOTH_TAU_SEC } from './tracking/config.js';
+import { createSimClock } from './simClock.js';
 
 // ============================================================
 // CONFIGURATION CONSTANTS
@@ -391,6 +392,26 @@ async function main() {
     }
   });
 
+  // ---- Simulation clock & testing interface (sub-phase 1C-1) ----
+  const simClock = createSimClock({ stepHz: CAMERA_CONFIG.simStepHz || 120 });
+
+  window.__sky = {
+    getSimTime: () => simClock.getSimTime(),
+    getSatellitePositions: () => {
+      const active = getActiveSatellites();
+      const s1 = active.find((s) => s.id === 'S-1');
+      const s2 = active.find((s) => s.id === 'S-2');
+      const pos1 = new THREE.Vector3();
+      const pos2 = new THREE.Vector3();
+      if (s1 && s1.model) s1.model.getWorldPosition(pos1);
+      if (s2 && s2.model) s2.model.getWorldPosition(pos2);
+      return {
+        s1: { x: pos1.x, y: pos1.y, z: pos1.z },
+        s2: { x: pos2.x, y: pos2.y, z: pos2.z }
+      };
+    }
+  };
+
   // 4. Animation loop
   let lastTime = performance.now();
 
@@ -401,28 +422,58 @@ async function main() {
     const deltaTime = (currentTime - lastTime) / 1000;
     lastTime = currentTime;
 
-    // Simulation delta: 0 if global paused, otherwise deltaTime * simulationSpeed
-    const simulationDelta = isPaused ? 0 : deltaTime * simulationSpeed;
+    // Simulation delta time multiplier: 0 when paused, otherwise simulationSpeed
+    const timeScale = isPaused ? 0 : simulationSpeed;
+
+    // Advance deterministic fixed-timestep simulation clock
+    simClock.advance(deltaTime, timeScale, (fixedDt, simTime) => {
+      const activeSats = getActiveSatellites();
+
+      // Orbits and satellites
+      activeSats.forEach((sat) => {
+        if (sat.paused) return; // Individual pause
+
+        const satDt = fixedDt * sat.individualSpeed;
+        if (satDt <= 0) return;
+
+        sat.orbit.update(satDt);
+        sat.orbit.getPosition(_position);
+        sat.model.position.copy(_position);
+
+        // Stable, flip-free orientation along direction of travel with time-based smoothing
+        sat.orbit.getOrientation(_targetQuat);
+        const alpha = 1 - Math.exp(-satDt / SAT_ORIENT_SMOOTH_TAU_SEC);
+        sat.model.quaternion.slerp(_targetQuat, alpha);
+      });
+
+      // Continuous slow Earth rotation
+      if (earth) {
+        earth.rotation.y += EARTH_ROTATION_SPEED * fixedDt;
+      }
+
+      // Observer and target satellites
+      const observerSat = activeSats.find((sat) => sat.id === CAMERA_CONFIG.observerId);
+      const targetSat = activeSats.find((sat) => sat.id === CAMERA_CONFIG.targetId);
+
+      // Update optical beacon with real simTime
+      if (targetSat && targetSat.model && targetSat.model.visible !== false) {
+        beacon.update(targetSat, simTime, observerSat);
+      } else {
+        beacon.setEnabled(false);
+      }
+
+      // Update virtual camera rig pose and render feed at fixed cadence
+      if (observerSat && observerSat.model && observerSat.model.visible !== false) {
+        virtualCamera.syncRig(observerSat);
+        virtualCamera.renderFeed(observerSat, simTime, targetSat);
+      }
+    });
 
     // Update OrbitControls (smooth damping)
     controls.update();
 
-    // Update active satellites
     const currentActive = getActiveSatellites();
-    currentActive.forEach((sat) => {
-      if (sat.paused) return; // Individual pause!
-
-      const satDelta = simulationDelta * sat.individualSpeed;
-      if (satDelta <= 0) return;
-
-      sat.orbit.update(satDelta);
-      sat.orbit.getPosition(_position);
-      sat.model.position.copy(_position);
-
-      // Stable, flip-free orientation along direction of travel
-      sat.orbit.getOrientation(_targetQuat);
-      sat.model.quaternion.slerp(_targetQuat, 0.25);
-    });
+    const observerSat = currentActive.find((sat) => sat.id === CAMERA_CONFIG.observerId);
 
     // Update inter-satellite link line and comms console telemetry (when enabled)
     if (islLinkEnabled) {
@@ -430,24 +481,8 @@ async function main() {
       updateCommsConsole(currentActive, deltaTime, hasLOS);
     }
 
-    // Continuous slow Earth rotation
-    if (earth) {
-      earth.rotation.y += EARTH_ROTATION_SPEED * simulationDelta;
-    }
-
-    // Update optical beacon and virtual camera feed (sub-phase 1A/1B)
-    const observerSat = currentActive.find((sat) => sat.id === CAMERA_CONFIG.observerId);
-    const targetSat = currentActive.find((sat) => sat.id === CAMERA_CONFIG.targetId);
-
-    if (targetSat && targetSat.model && targetSat.model.visible !== false) {
-      beacon.update(targetSat, currentTime / 1000, observerSat);
-    } else {
-      beacon.setEnabled(false);
-    }
-
-    // Update virtual camera feed and PiP panel (sub-phase 1A/1B)
+    // Update PiP panel only when observer is active
     if (observerSat && observerSat.model && observerSat.model.visible !== false) {
-      virtualCamera.update(observerSat, targetSat);
       updateCameraPanel(virtualCamera.getFrame(), virtualCamera.getPanTilt());
     } else {
       hideCameraPanel();

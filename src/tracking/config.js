@@ -76,6 +76,12 @@ export const CAMERA_CONFIG = {
 };
 
 /**
+ * Orientation smoothing time constant in seconds.
+ * Replaces fixed 0.25 slerp with dt-independent exponential smoothing.
+ */
+export const SAT_ORIENT_SMOOTH_TAU_SEC = 0.05;
+
+/**
  * Slew rate presets (deg/s)
  * Baseline exists because peak line-of-sight rate is ~36 deg/s; PS is 30 deg/s stress preset.
  */

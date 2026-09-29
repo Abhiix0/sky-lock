@@ -93,8 +93,9 @@ export function createVirtualCamera(scene, renderer) {
   let panDeg = 90; // Default aimed at Earth (+X in body frame)
   let tiltDeg = 0;
   let frameId = 0;
-  let lastFeedTime = 0;
-  const feedIntervalMs = 1000 / feedRateHz;
+  let nextFeedTime = 0;
+  let droppedFeedFrames = 0;
+  const feedIntervalSec = 1 / feedRateHz;
 
   /** Latest frame payload (mutated in place). */
   const frame = {
@@ -175,24 +176,42 @@ export function createVirtualCamera(scene, renderer) {
   }
 
   /**
-   * Update the rig to track the observer satellite, render the feed at feedRateHz.
+   * Synchronize the unscaled rig root pose with the observer satellite.
    *
    * @param {Object} observerSat - Satellite data object with .model property
-   * @param {Object} [targetSat] - Optional target satellite data object with .model property
    */
-  function update(observerSat, targetSat) {
+  function syncRig(observerSat) {
     if (!observerSat || !observerSat.model) return;
-
-    // Copy world position and quaternion into the unscaled rig root
     observerSat.model.getWorldPosition(_worldPos);
     observerSat.model.getWorldQuaternion(_worldQuat);
     rigRoot.position.copy(_worldPos);
     rigRoot.quaternion.copy(_worldQuat);
+  }
 
-    // Rate-limit feed rendering
-    const now = performance.now();
-    if (now - lastFeedTime < feedIntervalMs) return;
-    lastFeedTime = now;
+  /**
+   * Render feed frame if simTimeSec has reached or exceeded nextFeedTime.
+   *
+   * @param {Object} observerSat - Satellite data object with .model property
+   * @param {number} simTimeSec - Current simulation time in seconds
+   * @param {Object} [targetSat] - Optional target satellite data object with .model property
+   */
+  function renderFeed(observerSat, simTimeSec, targetSat) {
+    if (!observerSat || !observerSat.model) return;
+
+    if (simTimeSec < nextFeedTime) return;
+
+    let framesDue = 0;
+    while (simTimeSec >= nextFeedTime) {
+      framesDue++;
+      nextFeedTime += feedIntervalSec;
+    }
+
+    const maxFrames = CAMERA_CONFIG.maxFeedFramesPerRender || 2;
+    if (framesDue > maxFrames) {
+      droppedFeedFrames += framesDue - maxFrames;
+    }
+
+    syncRig(observerSat);
 
     // ---- Temporarily hide objects that a real camera wouldn't see ----
     const hiddenEntries = collectHiddenObjects(observerSat.model, targetSat ? targetSat.model : null);
@@ -230,8 +249,19 @@ export function createVirtualCamera(scene, renderer) {
 
     // ---- Update frame payload ----
     frameId++;
-    frame.timestamp = now;
+    frame.timestamp = simTimeSec;
     frame.frameId = frameId;
+  }
+
+  /**
+   * Thin wrapper around syncRig and renderFeed for backward compatibility.
+   *
+   * @param {Object} observerSat - Satellite data object with .model property
+   * @param {Object} [targetSat] - Optional target satellite data object with .model property
+   */
+  function update(observerSat, targetSat) {
+    syncRig(observerSat);
+    renderFeed(observerSat, performance.now() / 1000, targetSat);
   }
 
   /**
@@ -291,6 +321,9 @@ export function createVirtualCamera(scene, renderer) {
     getPanTilt,
     getFrame,
     update,
+    syncRig,
+    renderFeed,
+    getDroppedFeedFrames: () => droppedFeedFrames,
     getGroundTruthDirection
   };
 }

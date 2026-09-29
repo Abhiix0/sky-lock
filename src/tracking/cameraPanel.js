@@ -33,6 +33,9 @@ let telemetryEl = null;
 /** Reusable ImageData for putImageData (avoids per-frame allocations). */
 let imageData = null;
 
+/** Last rendered frame ID to avoid redundant pixel blits. */
+let lastBlitFrameId = -1;
+
 // ============================================================
 // PUBLIC API
 // ============================================================
@@ -112,8 +115,9 @@ export function updateCameraPanel(frame, info) {
 
   panelEl.style.display = 'block';
 
-  // ---- Blit frame data (flip Y because readRenderTargetPixels is bottom-up) ----
-  if (frame && frame.data && frame.data.length > 0) {
+  // ---- Blit frame data only when frameId has changed ----
+  if (frame && frame.data && frame.data.length > 0 && frame.frameId !== lastBlitFrameId) {
+    lastBlitFrameId = frame.frameId;
     const src = frame.data;
     const dst = imageData.data;
     const srcW = frame.width;
