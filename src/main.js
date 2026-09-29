@@ -29,6 +29,8 @@ import {
 } from './tracking/commsConsole.js';
 import { createVirtualCamera } from './tracking/virtualCamera.js';
 import { createBeacon } from './tracking/beacon.js';
+import { createGimbal, runGimbalSelfTest } from './tracking/gimbal.js';
+import { createTrackingApi } from './tracking/api.js';
 import {
   initCameraPanel,
   updateCameraPanel,
@@ -340,60 +342,85 @@ async function main() {
   // ---- Optical beacon on target satellite (sub-phase 1B) ----
   const beacon = createBeacon(scene, renderer);
 
+  // ---- Simulation clock (sub-phase 1C-1) ----
+  const simClock = createSimClock({ stepHz: CAMERA_CONFIG.simStepHz || 120 });
+
+  // ---- Gimbal servo & Tracking API (sub-phase 1C-2) ----
+  const gimbal = createGimbal(virtualCamera, CAMERA_CONFIG);
+  const trackingApi = createTrackingApi({
+    virtualCamera,
+    gimbal,
+    simClock,
+    getTargetSat: () => getActiveSatellites().find((s) => s.id === CAMERA_CONFIG.targetId)
+  });
+
   initCameraPanel({
     onAimEarth: () => {
-      virtualCamera.setPanTilt(90, 0);
+      gimbal.setGimbalCommand(90, 0);
     },
     onReset: () => {
-      virtualCamera.setPanTilt(0, 0);
+      gimbal.setGimbalCommand(0, 0);
     },
     onAimTarget: () => {
       const active = getActiveSatellites();
       const targetSat = active.find((s) => s.id === CAMERA_CONFIG.targetId);
       if (targetSat) {
         const gt = virtualCamera.getGroundTruthDirection(targetSat);
-        virtualCamera.setPanTilt(gt.panDeg, gt.tiltDeg);
+        gimbal.setGimbalCommand(gt.panDeg, gt.tiltDeg);
       }
     },
     onNudgePan: (delta) => {
-      const { panDeg, tiltDeg } = virtualCamera.getPanTilt();
-      virtualCamera.setPanTilt(panDeg + delta, tiltDeg);
+      const { panDeg, tiltDeg } = gimbal.getGimbalState();
+      gimbal.setGimbalCommand(panDeg + delta, tiltDeg);
     },
     onNudgeTilt: (delta) => {
-      const { panDeg, tiltDeg } = virtualCamera.getPanTilt();
-      virtualCamera.setPanTilt(panDeg, tiltDeg + delta);
+      const { panDeg, tiltDeg } = gimbal.getGimbalState();
+      gimbal.setGimbalCommand(panDeg, tiltDeg + delta);
     }
   });
 
   // ============================================================
-  // TEMPORARY DEBUG CONTROLS (to be replaced in sub-phase 1C)
-  // Arrow keys nudge pan/tilt by 2° per press; hold Shift for 10°.
+  // MANUAL CONTROLS (sub-phase 1C-2)
+  // Arrow keys command rates (+/- manualRateDegS), Shift doubles rate.
+  // Releasing smoothly decelerates at maxSlewAccel.
   // ============================================================
+  const activeKeys = new Set();
+
+  function updateManualRates() {
+    let pRate = 0;
+    let tRate = 0;
+    const baseRate = CAMERA_CONFIG.manualRateDegS || 20;
+    const rate = activeKeys.has('Shift') ? baseRate * 2 : baseRate;
+
+    if (activeKeys.has('ArrowLeft')) pRate -= rate;
+    if (activeKeys.has('ArrowRight')) pRate += rate;
+    if (activeKeys.has('ArrowUp')) tRate += rate;
+    if (activeKeys.has('ArrowDown')) tRate -= rate;
+
+    const hasArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].some((k) => activeKeys.has(k));
+    if (hasArrow) {
+      gimbal.setGimbalRateCommand(pRate, tRate);
+    } else if (gimbal.getGimbalState().mode === 'RATE') {
+      gimbal.setGimbalRateCommand(0, 0);
+    }
+  }
+
   window.addEventListener('keydown', (e) => {
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return;
-    e.preventDefault();
-
-    const step = e.shiftKey ? 10 : 2;
-    const { panDeg: curPan, tiltDeg: curTilt } = virtualCamera.getPanTilt();
-
-    switch (e.key) {
-      case 'ArrowLeft':
-        virtualCamera.setPanTilt(curPan - step, curTilt);
-        break;
-      case 'ArrowRight':
-        virtualCamera.setPanTilt(curPan + step, curTilt);
-        break;
-      case 'ArrowUp':
-        virtualCamera.setPanTilt(curPan, curTilt + step);
-        break;
-      case 'ArrowDown':
-        virtualCamera.setPanTilt(curPan, curTilt - step);
-        break;
+    if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'].includes(e.key)) {
+      e.preventDefault();
+      activeKeys.add(e.key);
+      updateManualRates();
     }
   });
 
-  // ---- Simulation clock & testing interface (sub-phase 1C-1) ----
-  const simClock = createSimClock({ stepHz: CAMERA_CONFIG.simStepHz || 120 });
+  window.addEventListener('keyup', (e) => {
+    if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'].includes(e.key)) {
+      activeKeys.delete(e.key);
+      updateManualRates();
+    }
+  });
 
   window.__sky = {
     getSimTime: () => simClock.getSimTime(),
@@ -409,7 +436,10 @@ async function main() {
         s1: { x: pos1.x, y: pos1.y, z: pos1.z },
         s2: { x: pos2.x, y: pos2.y, z: pos2.z }
       };
-    }
+    },
+    selfTestGimbal: () => runGimbalSelfTest(gimbal),
+    api: trackingApi,
+    gimbal
   };
 
   // 4. Animation loop
@@ -462,6 +492,9 @@ async function main() {
         beacon.setEnabled(false);
       }
 
+      // Step physical gimbal servo dynamics (sub-phase 1C-2)
+      gimbal.step(fixedDt);
+
       // Update virtual camera rig pose and render feed at fixed cadence
       if (observerSat && observerSat.model && observerSat.model.visible !== false) {
         virtualCamera.syncRig(observerSat);
@@ -481,9 +514,9 @@ async function main() {
       updateCommsConsole(currentActive, deltaTime, hasLOS);
     }
 
-    // Update PiP panel only when observer is active
+    // Update PiP panel only when observer is active (sub-phase 1C-2: pass gimbal state)
     if (observerSat && observerSat.model && observerSat.model.visible !== false) {
-      updateCameraPanel(virtualCamera.getFrame(), virtualCamera.getPanTilt());
+      updateCameraPanel(virtualCamera.getFrame(), gimbal.getGimbalState());
     } else {
       hideCameraPanel();
     }

@@ -71,6 +71,8 @@ export const CAMERA_CONFIG = {
   panWrap: true, // allow pan wrap-around across ±180 deg
   simStepHz: 120, // fixed simulation clock frequency
   maxFeedFramesPerRender: 2, // max feed updates processed per render step
+  manualRateDegS: 20, // manual keyboard slew rate in deg/s
+  activeSlewPreset: 'baseline', // default slew preset ('baseline' | 'ps')
   observerId: 'S-1',
   targetId: 'S-2'
 };
