@@ -1,4 +1,5 @@
 import { CAMERA_CONFIG } from './config.js';
+import { drawOverlay } from './overlay.js';
 
 /**
  * Camera PiP (Picture-in-Picture) panel for the S-1 gimbal camera feed.
@@ -102,15 +103,51 @@ export function initCameraPanel(callbacks = {}) {
   if (btnRight && callbacks.onNudgePan) {
     btnRight.addEventListener('click', () => callbacks.onNudgePan(2));
   }
+
+  // Wire tracking mode buttons
+  const btnAuto = document.getElementById('track-mode-auto');
+  const btnManual = document.getElementById('track-mode-manual');
+  if (btnAuto && callbacks.onSetTrackingMode) {
+    btnAuto.addEventListener('click', () => {
+      setTrackingModeUI('AUTO');
+      callbacks.onSetTrackingMode('AUTO');
+    });
+  }
+  if (btnManual && callbacks.onSetTrackingMode) {
+    btnManual.addEventListener('click', () => {
+      setTrackingModeUI('MANUAL');
+      callbacks.onSetTrackingMode('MANUAL');
+    });
+  }
 }
 
 /**
- * Update the camera PiP panel with a new frame and telemetry info.
+ * Update active button style for tracking mode toggle.
+ *
+ * @param {'AUTO'|'MANUAL'} mode
+ */
+export function setTrackingModeUI(mode) {
+  const btnAuto = document.getElementById('track-mode-auto');
+  const btnManual = document.getElementById('track-mode-manual');
+  if (btnAuto && btnManual) {
+    if (mode === 'AUTO') {
+      btnAuto.classList.add('active');
+      btnManual.classList.remove('active');
+    } else {
+      btnAuto.classList.remove('active');
+      btnManual.classList.add('active');
+    }
+  }
+}
+
+/**
+ * Update the camera PiP panel with a new frame, telemetry info, and tracking overlay.
  *
  * @param {{ width: number, height: number, data: Uint8Array, timestamp: number, frameId: number }} frame
  * @param {{ panDeg: number, tiltDeg: number }} info
+ * @param {Object} [trackingStatus] - Telemetry status from trackingSystem.getStatus()
  */
-export function updateCameraPanel(frame, info) {
+export function updateCameraPanel(frame, info, trackingStatus) {
   if (!ctx || !panelEl || !canvas) return;
 
   panelEl.style.display = 'block';
@@ -144,40 +181,30 @@ export function updateCameraPanel(frame, info) {
     }
 
     ctx.putImageData(imageData, 0, 0);
+
+    // Draw rich tracking overlay (bounding box, sigma circle, badges, crosshairs)
+    if (trackingStatus) {
+      drawOverlay(ctx, trackingStatus, info, PANEL_WIDTH, PANEL_HEIGHT);
+    } else {
+      // Fallback crosshair
+      const cx = PANEL_WIDTH / 2;
+      const cy = PANEL_HEIGHT / 2;
+      ctx.strokeStyle = 'rgba(0, 255, 200, 0.8)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(cx - 12, cy); ctx.lineTo(cx + 12, cy);
+      ctx.moveTo(cx, cy - 12); ctx.lineTo(cx, cy + 12);
+      ctx.stroke();
+    }
   }
-
-  // ---- Crosshair overlay at image center ----
-  const cx = PANEL_WIDTH / 2;
-  const cy = PANEL_HEIGHT / 2;
-  const crossSize = 12;
-
-  ctx.strokeStyle = 'rgba(0, 255, 200, 0.8)';
-  ctx.lineWidth = 1;
-
-  // Horizontal line
-  ctx.beginPath();
-  ctx.moveTo(cx - crossSize, cy);
-  ctx.lineTo(cx + crossSize, cy);
-  ctx.stroke();
-
-  // Vertical line
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - crossSize);
-  ctx.lineTo(cx, cy + crossSize);
-  ctx.stroke();
-
-  // Center dot
-  ctx.fillStyle = 'rgba(0, 255, 200, 0.9)';
-  ctx.beginPath();
-  ctx.arc(cx, cy, 2, 0, Math.PI * 2);
-  ctx.fill();
 
   // ---- Telemetry readout ----
   if (telemetryEl && info) {
     const fov = CAMERA_CONFIG.fovDeg.toFixed(1);
     const pan = info.panDeg.toFixed(1);
     const tilt = info.tiltDeg.toFixed(1);
-    telemetryEl.textContent = `FOV ${fov}° | PAN ${pan}° | TILT ${tilt}°`;
+    const stateStr = trackingStatus ? ` | [${trackingStatus.state}]` : '';
+    telemetryEl.textContent = `FOV ${fov}° | PAN ${pan}° | TILT ${tilt}°${stateStr}`;
   }
 }
 

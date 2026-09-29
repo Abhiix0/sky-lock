@@ -31,10 +31,12 @@ import { createVirtualCamera } from './tracking/virtualCamera.js';
 import { createBeacon } from './tracking/beacon.js';
 import { createGimbal, runGimbalSelfTest } from './tracking/gimbal.js';
 import { createTrackingApi } from './tracking/api.js';
+import { createTrackingSystem } from './tracking/trackingSystem.js';
 import {
   initCameraPanel,
   updateCameraPanel,
-  hideCameraPanel
+  hideCameraPanel,
+  setTrackingModeUI
 } from './tracking/cameraPanel.js';
 import { CAMERA_CONFIG, SAT_ORIENT_SMOOTH_TAU_SEC } from './tracking/config.js';
 import { createSimClock } from './simClock.js';
@@ -354,14 +356,26 @@ async function main() {
     getTargetSat: () => getActiveSatellites().find((s) => s.id === CAMERA_CONFIG.targetId)
   });
 
+  // ---- Autonomous tracking system (sub-phase 2D) ----
+  const trackingSystem = createTrackingSystem(trackingApi);
+
   initCameraPanel({
+    onSetTrackingMode: (mode) => {
+      trackingSystem.setMode(mode);
+    },
     onAimEarth: () => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
       gimbal.setGimbalCommand(90, 0);
     },
     onReset: () => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
       gimbal.setGimbalCommand(0, 0);
     },
     onAimTarget: () => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
       const active = getActiveSatellites();
       const targetSat = active.find((s) => s.id === CAMERA_CONFIG.targetId);
       if (targetSat) {
@@ -370,10 +384,14 @@ async function main() {
       }
     },
     onNudgePan: (delta) => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
       const { panDeg, tiltDeg } = gimbal.getGimbalState();
       gimbal.setGimbalCommand(panDeg + delta, tiltDeg);
     },
     onNudgeTilt: (delta) => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
       const { panDeg, tiltDeg } = gimbal.getGimbalState();
       gimbal.setGimbalCommand(panDeg, tiltDeg + delta);
     }
@@ -409,6 +427,12 @@ async function main() {
     if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'].includes(e.key)) {
       e.preventDefault();
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        if (trackingSystem.getMode() === 'AUTO') {
+          trackingSystem.setMode('MANUAL');
+          setTrackingModeUI('MANUAL');
+        }
+      }
       activeKeys.add(e.key);
       updateManualRates();
     }
@@ -439,7 +463,8 @@ async function main() {
     },
     selfTestGimbal: () => runGimbalSelfTest(gimbal),
     api: trackingApi,
-    gimbal
+    gimbal,
+    tracking: trackingSystem
   };
 
   // 4. Animation loop
@@ -492,14 +517,20 @@ async function main() {
         beacon.setEnabled(false);
       }
 
-      // Step physical gimbal servo dynamics (sub-phase 1C-2)
-      gimbal.step(fixedDt);
-
       // Update virtual camera rig pose and render feed at fixed cadence
       if (observerSat && observerSat.model && observerSat.model.visible !== false) {
         virtualCamera.syncRig(observerSat);
         virtualCamera.renderFeed(observerSat, simTime, targetSat);
+
+        // Process frame through closed-loop tracking system (sub-phase 2D)
+        trackingSystem.onFrame(virtualCamera.getFrame());
       }
+
+      // Step closed-loop tracking system controller (sub-phase 2D)
+      trackingSystem.step(fixedDt);
+
+      // Step physical gimbal servo dynamics (sub-phase 1C-2)
+      gimbal.step(fixedDt);
     });
 
     // Update OrbitControls (smooth damping)
@@ -514,9 +545,9 @@ async function main() {
       updateCommsConsole(currentActive, deltaTime, hasLOS);
     }
 
-    // Update PiP panel only when observer is active (sub-phase 1C-2: pass gimbal state)
+    // Update PiP panel only when observer is active (sub-phase 1C-2/2D: pass gimbal state + tracking status)
     if (observerSat && observerSat.model && observerSat.model.visible !== false) {
-      updateCameraPanel(virtualCamera.getFrame(), gimbal.getGimbalState());
+      updateCameraPanel(virtualCamera.getFrame(), gimbal.getGimbalState(), trackingSystem.getStatus());
     } else {
       hideCameraPanel();
     }
