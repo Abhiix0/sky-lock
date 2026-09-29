@@ -4,6 +4,36 @@
  * NOTE: These values will be aligned with the official PS parameter table later.
  */
 
+export const BEACON_LAYER = 1;
+
+// ============================================================
+// BEACON CONFIGURATION
+// ============================================================
+
+/**
+ * @typedef {Object} BeaconConfig
+ * @property {boolean} enabled - Whether beacon is active
+ * @property {number} color - Hex color of the beacon halo (saturated magenta: 0xff2bd6)
+ * @property {number} coreRadiusPx - Core bright spot radius in pixels
+ * @property {number} haloRadiusPx - Halo glow radius in pixels
+ * @property {number} brightness - Brightness multiplier
+ * @property {number} blinkHz - Blink frequency in Hz (0 = steady)
+ * @property {number} blinkDuty - Blink duty cycle [0, 1]
+ * @property {boolean} hideTargetBodyInFeed - Hide target satellite mesh in feed
+ * @property {boolean} showMarkerInMainView - Show helper ring marker in main view
+ */
+export const BEACON_CONFIG = {
+  enabled: true,
+  color: 0xff2bd6,
+  coreRadiusPx: 3,
+  haloRadiusPx: 12,
+  brightness: 1.0,
+  blinkHz: 0,
+  blinkDuty: 0.5,
+  hideTargetBodyInFeed: true,
+  showMarkerInMainView: false
+};
+
 // ============================================================
 // CAMERA CONFIGURATION
 // ============================================================

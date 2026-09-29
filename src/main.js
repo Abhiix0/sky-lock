@@ -28,6 +28,7 @@ import {
   setCommsConsoleVisible
 } from './tracking/commsConsole.js';
 import { createVirtualCamera } from './tracking/virtualCamera.js';
+import { createBeacon } from './tracking/beacon.js';
 import {
   initCameraPanel,
   updateCameraPanel,
@@ -334,6 +335,10 @@ async function main() {
 
   // ---- Virtual gimbal camera (sub-phase 1A) ----
   const virtualCamera = createVirtualCamera(scene, renderer);
+
+  // ---- Optical beacon on target satellite (sub-phase 1B) ----
+  const beacon = createBeacon(scene, renderer);
+
   initCameraPanel({
     onAimEarth: () => {
       virtualCamera.setPanTilt(90, 0);
@@ -430,10 +435,19 @@ async function main() {
       earth.rotation.y += EARTH_ROTATION_SPEED * simulationDelta;
     }
 
-    // Update virtual camera feed and PiP panel (sub-phase 1A)
+    // Update optical beacon and virtual camera feed (sub-phase 1A/1B)
     const observerSat = currentActive.find((sat) => sat.id === CAMERA_CONFIG.observerId);
+    const targetSat = currentActive.find((sat) => sat.id === CAMERA_CONFIG.targetId);
+
+    if (targetSat && targetSat.model && targetSat.model.visible !== false) {
+      beacon.update(targetSat, currentTime / 1000, observerSat);
+    } else {
+      beacon.setEnabled(false);
+    }
+
+    // Update virtual camera feed and PiP panel (sub-phase 1A/1B)
     if (observerSat && observerSat.model && observerSat.model.visible !== false) {
-      virtualCamera.update(observerSat);
+      virtualCamera.update(observerSat, targetSat);
       updateCameraPanel(virtualCamera.getFrame(), virtualCamera.getPanTilt());
     } else {
       hideCameraPanel();

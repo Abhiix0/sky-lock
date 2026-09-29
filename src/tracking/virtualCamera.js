@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { CAMERA_CONFIG } from './config.js';
+import { CAMERA_CONFIG, BEACON_CONFIG, BEACON_LAYER } from './config.js';
 import { getLinkRoot } from './linkLine.js';
 
 /**
@@ -72,6 +72,7 @@ export function createVirtualCamera(scene, renderer) {
   // ---- PerspectiveCamera ----
   const cam = new THREE.PerspectiveCamera(fovDeg, width / height, near, far);
   cam.position.set(0, 0, -CAMERA_OFFSET_Z);
+  cam.layers.enable(BEACON_LAYER);
   tiltGroup.add(cam);
 
   scene.add(rigRoot);
@@ -141,14 +142,20 @@ export function createVirtualCamera(scene, renderer) {
    * Returns an array of { object, wasVisible } entries.
    *
    * @param {THREE.Object3D} observerModel
+   * @param {THREE.Object3D} [targetModel]
    * @returns {Array<{ object: THREE.Object3D, wasVisible: boolean }>}
    */
-  function collectHiddenObjects(observerModel) {
+  function collectHiddenObjects(observerModel, targetModel) {
     const hidden = [];
 
     // 1. Observer's own model
     if (observerModel) {
       hidden.push({ object: observerModel, wasVisible: observerModel.visible });
+    }
+
+    // Target satellite model if configured (beacon as point source)
+    if (BEACON_CONFIG.hideTargetBodyInFeed && targetModel) {
+      hidden.push({ object: targetModel, wasVisible: targetModel.visible });
     }
 
     // 2. ISL link beam group
@@ -171,8 +178,9 @@ export function createVirtualCamera(scene, renderer) {
    * Update the rig to track the observer satellite, render the feed at feedRateHz.
    *
    * @param {Object} observerSat - Satellite data object with .model property
+   * @param {Object} [targetSat] - Optional target satellite data object with .model property
    */
-  function update(observerSat) {
+  function update(observerSat, targetSat) {
     if (!observerSat || !observerSat.model) return;
 
     // Copy world position and quaternion into the unscaled rig root
@@ -187,7 +195,7 @@ export function createVirtualCamera(scene, renderer) {
     lastFeedTime = now;
 
     // ---- Temporarily hide objects that a real camera wouldn't see ----
-    const hiddenEntries = collectHiddenObjects(observerSat.model);
+    const hiddenEntries = collectHiddenObjects(observerSat.model, targetSat ? targetSat.model : null);
     hiddenEntries.forEach((entry) => {
       entry.object.visible = false;
     });
