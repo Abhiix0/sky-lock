@@ -18,7 +18,10 @@
  * @property {number} feedRateHz    - Camera feed update rate in Hz
  * @property {number} panLimitDeg   - Maximum pan angle in degrees (±)
  * @property {number} tiltLimitDeg  - Maximum tilt angle in degrees (±)
- * @property {number} maxSlewRateDegPerSec - Maximum slew rate in degrees per second
+ * @property {number} maxSlewAccelDegPerSec2 - Maximum slew acceleration in deg/s^2
+ * @property {boolean} panWrap     - Whether pan angle wraps across ±180 degrees
+ * @property {number} simStepHz     - Fixed simulation timestep frequency in Hz
+ * @property {number} maxFeedFramesPerRender - Max feed captures processed per visual render frame
  * @property {string} observerId    - Satellite ID of the observer (camera host)
  * @property {string} targetId      - Satellite ID of the target
  */
@@ -33,7 +36,20 @@ export const CAMERA_CONFIG = {
   feedRateHz: 30,
   panLimitDeg: 180,
   tiltLimitDeg: 90,
-  maxSlewRateDegPerSec: 30,
+  maxSlewRateDegPerSec: 45, // baseline default (peak LOS rate is ~36 deg/s); PS: maxSlewRateDegPerSec = 30
+  maxSlewAccelDegPerSec2: 120, // max slew acceleration in deg/s^2
+  panWrap: true, // allow pan wrap-around across ±180 deg
+  simStepHz: 120, // fixed simulation clock frequency
+  maxFeedFramesPerRender: 2, // max feed updates processed per render step
   observerId: 'S-1',
   targetId: 'S-2'
+};
+
+/**
+ * Slew rate presets (deg/s)
+ * Baseline exists because peak line-of-sight rate is ~36 deg/s; PS is 30 deg/s stress preset.
+ */
+export const SLEW_PRESETS = {
+  baseline: 45,
+  ps: 30
 };

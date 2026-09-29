@@ -226,7 +226,7 @@ export function update(activeSatellites, realDeltaTime = 0, hasLOS = true) {
     const messageTypes = ['POSITION_SYNC', 'RANGING', 'HANDSHAKE', 'DATA_PACKET'];
     const currentType = messageTypes[tickCount % messageTypes.length];
 
-    let logHtml = '';
+    let logHtml;
 
     switch (currentType) {
       case 'POSITION_SYNC': {
