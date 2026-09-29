@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { CAMERA_CONFIG, BEACON_CONFIG, BEACON_LAYER } from './config.js';
 import { getLinkRoot } from './linkLine.js';
+import { disturbances } from './disturbances.js';
 
 /**
  * Virtual gimbal camera mounted on the observer satellite.
@@ -108,6 +109,15 @@ export function createVirtualCamera(scene, renderer) {
 
   // ---- Helpers ----
 
+  // Angular jitter offsets from platform vibration
+  let offsetPanDeg = 0;
+  let offsetTiltDeg = 0;
+
+  function applyRotations() {
+    panGroup.rotation.y = THREE.MathUtils.degToRad(-(panDeg + offsetPanDeg));
+    tiltGroup.rotation.x = THREE.MathUtils.degToRad(tiltDeg + offsetTiltDeg);
+  }
+
   /**
    * Clamp and apply pan/tilt angles.
    *
@@ -117,8 +127,20 @@ export function createVirtualCamera(scene, renderer) {
   function setPanTilt(pan, tilt) {
     panDeg = THREE.MathUtils.clamp(pan, -panLimitDeg, panLimitDeg);
     tiltDeg = THREE.MathUtils.clamp(tilt, -tiltLimitDeg, tiltLimitDeg);
-    panGroup.rotation.y = THREE.MathUtils.degToRad(-panDeg);
-    tiltGroup.rotation.x = THREE.MathUtils.degToRad(tiltDeg);
+    applyRotations();
+  }
+
+  /**
+   * Apply angular jitter offset to the ACTUAL camera pointing without affecting
+   * encoder readings (getPanTilt) or body-relative ground truth.
+   *
+   * @param {number} panOffset  - Angular pan jitter offset in degrees
+   * @param {number} tiltOffset - Angular tilt jitter offset in degrees
+   */
+  function setPointingOffset(panOffset, tiltOffset) {
+    offsetPanDeg = panOffset;
+    offsetTiltDeg = tiltOffset;
+    applyRotations();
   }
 
   // Initialize gimbal at Earth
@@ -129,6 +151,13 @@ export function createVirtualCamera(scene, renderer) {
    */
   function getPanTilt() {
     return { panDeg, tiltDeg };
+  }
+
+  /**
+   * @returns {{ panDeg: number, tiltDeg: number }}
+   */
+  function getPointingOffset() {
+    return { panDeg: offsetPanDeg, tiltDeg: offsetTiltDeg };
   }
 
   /**
@@ -212,6 +241,16 @@ export function createVirtualCamera(scene, renderer) {
     }
 
     syncRig(observerSat);
+
+    // Apply platform vibration angular jitter before rendering feed
+    const vib = disturbances.getVibration(simTimeSec);
+    setPointingOffset(vib.panJitterDeg, vib.tiltJitterDeg);
+
+    // Simulate dropped feed frames if disturbance is active
+    if (disturbances.shouldDropFrame()) {
+      droppedFeedFrames++;
+      return;
+    }
 
     // ---- Temporarily hide objects that a real camera wouldn't see ----
     const hiddenEntries = collectHiddenObjects(observerSat.model, targetSat ? targetSat.model : null);
@@ -319,6 +358,8 @@ export function createVirtualCamera(scene, renderer) {
     rigRoot,
     setPanTilt,
     getPanTilt,
+    setPointingOffset,
+    getPointingOffset,
     getFrame,
     update,
     syncRig,
@@ -327,3 +368,4 @@ export function createVirtualCamera(scene, renderer) {
     getGroundTruthDirection
   };
 }
+

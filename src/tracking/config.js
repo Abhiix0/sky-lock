@@ -121,7 +121,7 @@ export const TRACKING_CONFIG = {
   acquireConfirmFrames: 3,
   acquireTimeoutSec: 1.0,
   lostMissFrames: 5,
-  coastMaxSec: 14.0
+  coastMaxSec: 10.0
 };
 
 // ============================================================
@@ -181,3 +181,64 @@ export const SLEW_PRESETS = {
   baseline: 45,
   ps: 30
 };
+
+// ============================================================
+// DISTURBANCE PRESETS & CONFIGURATION
+// ============================================================
+
+/**
+ * Disturbance presets: Off / Low / Med / High.
+ * Med challenges but maintains lock (>= 80% visible time).
+ * High degrades and recovers via REACQUIRE.
+ */
+export const DISTURBANCE_PRESETS = {
+  OFF: {
+    name: 'Off',
+    wanderRmsPx: 0,
+    wanderCornerHz: 2.0,
+    scintillationSigma: 0,
+    jitterRmsDeg: 0,
+    vibrationHz: 10.0,
+    noiseSigma: 0,
+    hotPixelsCount: 0,
+    blurRadiusPx: 0,
+    dropProbability: 0
+  },
+  LOW: {
+    name: 'Low',
+    wanderRmsPx: 1.0,
+    wanderCornerHz: 2.0,
+    scintillationSigma: 0.15,
+    jitterRmsDeg: 0.04,
+    vibrationHz: 10.0,
+    noiseSigma: 4.0,
+    hotPixelsCount: 2,
+    blurRadiusPx: 1,
+    dropProbability: 0.02
+  },
+  MED: {
+    name: 'Med',
+    wanderRmsPx: 2.5,
+    wanderCornerHz: 2.0,
+    scintillationSigma: 0.35,
+    jitterRmsDeg: 0.15,
+    vibrationHz: 10.0,
+    noiseSigma: 10.0,
+    hotPixelsCount: 6,
+    blurRadiusPx: 2,
+    dropProbability: 0.05
+  },
+  HIGH: {
+    name: 'High',
+    wanderRmsPx: 6.0,
+    wanderCornerHz: 3.0,
+    scintillationSigma: 0.75,
+    jitterRmsDeg: 0.48,
+    vibrationHz: 12.0,
+    noiseSigma: 22.0,
+    hotPixelsCount: 18,
+    blurRadiusPx: 3,
+    dropProbability: 0.18
+  }
+};
+

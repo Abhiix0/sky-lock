@@ -4,6 +4,7 @@ import { createController } from './controller.js';
 import { createStateMachine } from './stateMachine.js';
 import { bodyAnglesToPixel } from './geometry.js';
 import { CAMERA_CONFIG, DETECTOR_CONFIG } from './config.js';
+import { disturbances } from './disturbances.js';
 
 /**
  * Creates the closed-loop autonomous tracking system.
@@ -67,7 +68,10 @@ export function createTrackingSystem(api, options = {}) {
       }
     }
 
-    // 1. Blob detection
+    // 0. Disturbance sensor stage (noise, hot pixels, blur) applied to frame copy
+    disturbances.applySensorStage(frame);
+
+    // 1. Blob detection on post-disturbance frame
     lastDetResult = detector.detect(frame, roi ? { roi } : undefined);
 
     // 2. State machine update
@@ -191,6 +195,8 @@ export function createTrackingSystem(api, options = {}) {
     detector,
     kalman,
     controller,
-    stateMachine
+    stateMachine,
+    disturbances
   };
 }
+

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BEACON_CONFIG, BEACON_LAYER } from './config.js';
+import { disturbances } from './disturbances.js';
 
 /**
  * Reusable vectors to avoid allocations per frame.
@@ -51,13 +52,21 @@ export function createBeacon(scene, renderer) {
       uColor: { value: baseColor },
       uBrightness: { value: brightness },
       uCoreRadiusRatio: { value: BEACON_CONFIG.coreRadiusPx / BEACON_CONFIG.haloRadiusPx },
-      uSize: { value: pointSize }
+      uSize: { value: pointSize },
+      uPixelOffset: { value: new THREE.Vector2(0, 0) },
+      uViewportSize: { value: new THREE.Vector2(640, 480) },
+      uScintillation: { value: 1.0 }
     },
     vertexShader: `
       uniform float uSize;
+      uniform vec2 uPixelOffset;
+      uniform vec2 uViewportSize;
+
       void main() {
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
         gl_Position = projectionMatrix * mvPosition;
+        // Apply turbulence pixel wander before perspective divide
+        gl_Position.xy += (uPixelOffset * (2.0 / uViewportSize)) * gl_Position.w;
         gl_PointSize = uSize;
       }
     `,
@@ -65,6 +74,7 @@ export function createBeacon(scene, renderer) {
       uniform vec3 uColor;
       uniform float uBrightness;
       uniform float uCoreRadiusRatio;
+      uniform float uScintillation;
 
       void main() {
         vec2 coord = gl_PointCoord - vec2(0.5);
@@ -79,7 +89,7 @@ export function createBeacon(scene, renderer) {
 
         // Blend magenta halo with bright near-white core
         vec3 col = mix(uColor, vec3(1.0, 1.0, 1.0), coreAlpha * 0.9);
-        float alpha = haloAlpha * uBrightness;
+        float alpha = haloAlpha * uBrightness * uScintillation;
 
         gl_FragColor = vec4(col * alpha, alpha);
       }
@@ -148,6 +158,11 @@ export function createBeacon(scene, renderer) {
       _targetPos.addScaledVector(_dirToObs, 2.5);
     }
 
+    // Update atmospheric turbulence perturbations (image wander + scintillation)
+    const turb = disturbances.getTurbulence(simTimeSec);
+    material.uniforms.uPixelOffset.value.set(turb.wanderPx[0], turb.wanderPx[1]);
+    material.uniforms.uScintillation.value = turb.scintillation;
+
     pointMesh.position.copy(_targetPos);
     if (markerMesh) {
       markerMesh.position.copy(_targetPos);
@@ -155,6 +170,18 @@ export function createBeacon(scene, renderer) {
         markerMesh.lookAt(_obsPos);
       }
     }
+  }
+
+  /**
+   * Directly set perturbation uniforms.
+   *
+   * @param {number} offsetX - X offset in pixels
+   * @param {number} offsetY - Y offset in pixels
+   * @param {number} scintillation - Multiplicative intensity factor
+   */
+  function setPerturbations(offsetX, offsetY, scintillation = 1.0) {
+    material.uniforms.uPixelOffset.value.set(offsetX, offsetY);
+    material.uniforms.uScintillation.value = scintillation;
   }
 
   /**
@@ -192,6 +219,8 @@ export function createBeacon(scene, renderer) {
     update,
     setEnabled,
     setBrightness,
-    setBlink
+    setBlink,
+    setPerturbations
   };
 }
+
