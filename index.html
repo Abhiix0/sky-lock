@@ -1023,6 +1023,24 @@
         <canvas class="chart-canvas" id="chart-latency" width="420" height="30"></canvas>
         <canvas class="chart-canvas" id="chart-timeline" width="420" height="12"></canvas>
       </div>
+      <!-- Benchmark Controls & Progress (Phase 3D) -->
+      <div style="display: flex; flex-direction: column; gap: 5px; padding-top: 5px; border-top: 1px solid rgba(255,255,255,0.06);">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px;">
+          <button class="gimbal-action-btn" id="btn-run-benchmark" style="background: rgba(34, 197, 94, 0.15); border-color: #22c55e; color: #4ade80; padding: 4px 8px; flex: 1;">
+            RUN BENCHMARK (8 SCENARIOS × 3 SEEDS)
+          </button>
+          <a href="#" id="link-determinism-check" style="color: #94a3b8; font-size: 10px; text-decoration: underline; white-space: nowrap; cursor: pointer;">Determinism Check</a>
+        </div>
+        <div id="benchmark-progress-box" style="display: none; flex-direction: column; gap: 3px;">
+          <div style="display: flex; justify-content: space-between; font-size: 10px; color: #94a3b8;">
+            <span id="benchmark-status-text">Preparing benchmark...</span>
+            <span id="benchmark-percent-text">0%</span>
+          </div>
+          <div style="width: 100%; height: 5px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+            <div id="benchmark-progress-bar" style="width: 0%; height: 100%; background: #22c55e; transition: width 0.1s linear;"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 

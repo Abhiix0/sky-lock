@@ -29,9 +29,11 @@ import {
 } from './tracking/commsConsole.js';
 import { createVirtualCamera } from './tracking/virtualCamera.js';
 import { createBeacon } from './tracking/beacon.js';
+import { createDecoys } from './tracking/decoys.js';
 import { createGimbal, runGimbalSelfTest } from './tracking/gimbal.js';
 import { createTrackingApi } from './tracking/api.js';
 import { createTrackingSystem } from './tracking/trackingSystem.js';
+import { runBenchmark, runDeterminismCheck } from './tracking/benchmark.js';
 import {
   initCameraPanel,
   updateCameraPanel,
@@ -67,6 +69,7 @@ function updateFpsCounter(currentTime) {
 
   if (currentTime - lastFpsUpdate >= fpsUpdateInterval) {
     const fps = Math.round(frameCount / ((currentTime - lastFpsUpdate) / 1000));
+    window.__skyFps = fps;
     document.getElementById('fps-counter').textContent = `FPS: ${fps}`;
     frameCount = 0;
     lastFpsUpdate = currentTime;
@@ -344,6 +347,9 @@ async function main() {
   // ---- Optical beacon on target satellite (sub-phase 1B) ----
   const beacon = createBeacon(scene, renderer);
 
+  // ---- Optical decoys (sub-phase 3B) ----
+  const decoys = createDecoys(scene);
+
   // ---- Simulation clock (sub-phase 1C-1) ----
   const simClock = createSimClock({ stepHz: CAMERA_CONFIG.simStepHz || 120 });
 
@@ -446,6 +452,19 @@ async function main() {
     }
   });
 
+  const simContext = {
+    simClock,
+    gimbal,
+    virtualCamera,
+    beacon,
+    decoys,
+    trackingSystem,
+    getActiveSatellites,
+    scene,
+    renderer,
+    controls
+  };
+
   window.__sky = {
     getSimTime: () => simClock.getSimTime(),
     getSatellitePositions: () => {
@@ -464,8 +483,76 @@ async function main() {
     selfTestGimbal: () => runGimbalSelfTest(gimbal),
     api: trackingApi,
     gimbal,
-    tracking: trackingSystem
+    tracking: trackingSystem,
+    beacon,
+    decoys,
+    runBenchmark: (opts) => runBenchmark(simContext, opts),
+    runDeterminismCheck: () => runDeterminismCheck(simContext)
   };
+
+  // Wire Benchmark button and Determinism check link in HUD panel
+  const benchmarkBtn = document.getElementById('btn-run-benchmark');
+  const determinismLink = document.getElementById('link-determinism-check');
+  const progressBox = document.getElementById('benchmark-progress-box');
+  const statusText = document.getElementById('benchmark-status-text');
+  const percentText = document.getElementById('benchmark-percent-text');
+  const progressBar = document.getElementById('benchmark-progress-bar');
+
+  if (benchmarkBtn) {
+    benchmarkBtn.addEventListener('click', async () => {
+      benchmarkBtn.disabled = true;
+      benchmarkBtn.textContent = 'RUNNING BENCHMARK...';
+      if (progressBox) progressBox.style.display = 'flex';
+
+      try {
+        const results = await runBenchmark(simContext, {
+          onProgress: ({ scenario, seed, runIndex, totalRuns, runProgress }) => {
+            const overall = ((runIndex - 1 + runProgress) / totalRuns) * 100;
+            if (statusText) {
+              statusText.textContent = `${scenario.id} (${scenario.name}) [Seed ${seed}] - Run ${runIndex}/${totalRuns}`;
+            }
+            if (percentText) {
+              percentText.textContent = `${Math.round(overall)}%`;
+            }
+            if (progressBar) {
+              progressBar.style.width = `${overall.toFixed(1)}%`;
+            }
+          }
+        });
+
+        if (statusText) statusText.textContent = 'Benchmark Complete! JSON & CSV exported.';
+        if (percentText) percentText.textContent = '100%';
+        if (progressBar) progressBar.style.width = '100%';
+        console.log('[Benchmark] Finished successfully. Aggregate summary:', results.aggregate);
+      } catch (err) {
+        console.error('[Benchmark] Error running benchmark:', err);
+        if (statusText) statusText.textContent = `Error: ${err.message}`;
+      } finally {
+        benchmarkBtn.disabled = false;
+        benchmarkBtn.textContent = 'RUN BENCHMARK (8 SCENARIOS × 3 SEEDS)';
+      }
+    });
+  }
+
+  if (determinismLink) {
+    determinismLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      determinismLink.textContent = 'Checking...';
+      try {
+        const res = await runDeterminismCheck(simContext);
+        if (res.passed) {
+          determinismLink.textContent = 'Determinism: PASS ✓';
+          determinismLink.style.color = '#22c55e';
+        } else {
+          determinismLink.textContent = 'Determinism: FAIL ✗';
+          determinismLink.style.color = '#ef4444';
+        }
+      } catch (err) {
+        console.error(err);
+        determinismLink.textContent = 'Check Error';
+      }
+    });
+  }
 
   // 4. Animation loop
   let lastTime = performance.now();
@@ -513,8 +600,10 @@ async function main() {
       // Update optical beacon with real simTime
       if (targetSat && targetSat.model && targetSat.model.visible !== false) {
         beacon.update(targetSat, simTime, observerSat);
+        decoys.update(simTime, targetSat.model.position);
       } else {
         beacon.setEnabled(false);
+        decoys.setEnabled(false);
       }
 
       // Update virtual camera rig pose and render feed at fixed cadence
