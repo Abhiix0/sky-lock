@@ -23,32 +23,90 @@ class Trajectory(ABC):
 
 
 class LineTrajectory(Trajectory):
-    """Straight-line trajectory with constant velocity."""
+    """Straight-line trajectory with constant velocity and boundary reflection."""
 
     def __init__(
         self,
         start: tuple[float, float],
         speed_deg_s: float,
         heading_deg: float,
+        bounds_deg: tuple[float, float, float, float] | None = None,
     ) -> None:
         self.start = start
         self.speed_deg_s = speed_deg_s
         self.heading_deg = heading_deg
+        self.bounds_deg = bounds_deg  # (min_az, max_az, min_el, max_el)
         rad = math.radians(heading_deg)
         self._vx = speed_deg_s * math.cos(rad)
         self._vy = speed_deg_s * math.sin(rad)
+        
+        # Track actual position and velocity with reflections
+        self._pos = list(start)
+        self._vel = [self._vx, self._vy]
+        self._last_t = 0.0
 
     def position(self, t: float) -> tuple[float, float]:
-        az = self.start[0] + self._vx * t
-        el = self.start[1] + self._vy * t
-        return (az, el)
+        if self.bounds_deg is None:
+            # No bounds - simple linear motion
+            az = self.start[0] + self._vx * t
+            el = self.start[1] + self._vy * t
+            return (az, el)
+        
+        # With bounds - simulate with reflections
+        if t < self._last_t:
+            # Time went backwards (reset), restart from beginning
+            self._pos = list(self.start)
+            self._vel = [self._vx, self._vy]
+            self._last_t = 0.0
+        
+        dt_total = t - self._last_t
+        if dt_total <= 0:
+            return (self._pos[0], self._pos[1])
+        
+        # Simulate in small steps to catch reflections accurately
+        dt_step = 0.01  # 10ms steps
+        min_az, max_az, min_el, max_el = self.bounds_deg
+        
+        t_sim = self._last_t
+        while t_sim < t:
+            dt = min(dt_step, t - t_sim)
+            
+            # Predict next position
+            next_x = self._pos[0] + self._vel[0] * dt
+            next_y = self._pos[1] + self._vel[1] * dt
+            
+            # Check and reflect at boundaries
+            if next_x < min_az:
+                next_x = 2.0 * min_az - next_x
+                self._vel[0] = abs(self._vel[0])  # Reflect velocity
+            elif next_x > max_az:
+                next_x = 2.0 * max_az - next_x
+                self._vel[0] = -abs(self._vel[0])
+            
+            if next_y < min_el:
+                next_y = 2.0 * min_el - next_y
+                self._vel[1] = abs(self._vel[1])
+            elif next_y > max_el:
+                next_y = 2.0 * max_el - next_y
+                self._vel[1] = -abs(self._vel[1])
+            
+            # Clamp to bounds
+            self._pos[0] = max(min_az, min(max_az, next_x))
+            self._pos[1] = max(min_el, min(max_el, next_y))
+            
+            t_sim += dt
+        
+        self._last_t = t
+        return (self._pos[0], self._pos[1])
 
     def reset(self) -> None:
-        pass
+        self._pos = list(self.start)
+        self._vel = [self._vx, self._vy]
+        self._last_t = 0.0
 
 
 class CircleTrajectory(Trajectory):
-    """Circular trajectory with constant radius and period."""
+    """Circular trajectory with constant radius and period, clamped to bounds."""
 
     def __init__(
         self,
@@ -56,17 +114,26 @@ class CircleTrajectory(Trajectory):
         radius_deg: float,
         period_s: float,
         phase_rad: float = 0.0,
+        bounds_deg: tuple[float, float, float, float] | None = None,
     ) -> None:
         self.center = center
         self.radius_deg = radius_deg
         self.period_s = period_s
         self.phase_rad = phase_rad
+        self.bounds_deg = bounds_deg
         self._omega = 2.0 * math.pi / period_s
 
     def position(self, t: float) -> tuple[float, float]:
         angle = self._omega * t + self.phase_rad
         az = self.center[0] + self.radius_deg * math.cos(angle)
         el = self.center[1] + self.radius_deg * math.sin(angle)
+        
+        # Clamp to bounds if specified
+        if self.bounds_deg is not None:
+            min_az, max_az, min_el, max_el = self.bounds_deg
+            az = max(min_az, min(max_az, az))
+            el = max(min_el, min(max_el, el))
+        
         return (az, el)
 
     def reset(self) -> None:
@@ -74,7 +141,7 @@ class CircleTrajectory(Trajectory):
 
 
 class Figure8Trajectory(Trajectory):
-    """Figure-8 (Lemniscate of Gerono) trajectory.
+    """Figure-8 (Lemniscate of Gerono) trajectory, clamped to bounds.
 
     Crosses the centre at t=0 and completes each closed cycle in period_s.
     """
@@ -85,17 +152,26 @@ class Figure8Trajectory(Trajectory):
         width_deg: float,
         height_deg: float,
         period_s: float,
+        bounds_deg: tuple[float, float, float, float] | None = None,
     ) -> None:
         self.center = center
         self.width_deg = width_deg
         self.height_deg = height_deg
         self.period_s = period_s
+        self.bounds_deg = bounds_deg
         self._omega = 2.0 * math.pi / period_s
 
     def position(self, t: float) -> tuple[float, float]:
         wt = self._omega * t
         az = self.center[0] + self.width_deg * math.sin(wt)
         el = self.center[1] + self.height_deg * math.sin(wt) * math.cos(wt)
+        
+        # Clamp to bounds if specified
+        if self.bounds_deg is not None:
+            min_az, max_az, min_el, max_el = self.bounds_deg
+            az = max(min_az, min(max_az, az))
+            el = max(min_el, min(max_el, el))
+        
         return (az, el)
 
     def reset(self) -> None:

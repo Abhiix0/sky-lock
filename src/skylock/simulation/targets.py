@@ -98,9 +98,15 @@ class Target:
 class TargetSet:
     """Collection of targets parameterized by TargetSetConfig and root seed."""
 
-    def __init__(self, config: TargetSetConfig, seed: int) -> None:
+    def __init__(
+        self,
+        config: TargetSetConfig,
+        seed: int,
+        screen_bounds_deg: tuple[float, float, float, float] | None = None,
+    ) -> None:
         self.config = config
         self.seed = seed
+        self.screen_bounds_deg = screen_bounds_deg
         self.targets: list[Target] = []
         self._init_targets()
 
@@ -110,8 +116,13 @@ class TargetSet:
         self.targets.clear()
         for idx, t_cfg in enumerate(self.config.targets):
             if t_cfg.initial == "random":
-                az = float(init_rng.uniform(-1.0, 1.0))
-                el = float(init_rng.uniform(-0.75, 0.75))
+                if self.screen_bounds_deg is not None:
+                    min_az, max_az, min_el, max_el = self.screen_bounds_deg
+                    az = float(init_rng.uniform(min_az, max_az))
+                    el = float(init_rng.uniform(min_el, max_el))
+                else:
+                    az = float(init_rng.uniform(-1.0, 1.0))
+                    el = float(init_rng.uniform(-0.75, 0.75))
                 start = (az, el)
             else:
                 start = t_cfg.initial_pos_deg
@@ -122,6 +133,7 @@ class TargetSet:
                     start=start,
                     speed_deg_s=motion.speed_deg_s,
                     heading_deg=motion.heading_deg,
+                    bounds_deg=self.screen_bounds_deg,
                 )
             elif isinstance(motion, CircleMotion):
                 traj = CircleTrajectory(
@@ -129,6 +141,7 @@ class TargetSet:
                     radius_deg=motion.radius_deg,
                     period_s=motion.period_s,
                     phase_rad=motion.phase_rad,
+                    bounds_deg=self.screen_bounds_deg,
                 )
             elif isinstance(motion, Figure8Motion):
                 traj = Figure8Trajectory(
@@ -136,18 +149,28 @@ class TargetSet:
                     width_deg=motion.width_deg,
                     height_deg=motion.height_deg,
                     period_s=motion.period_s,
+                    bounds_deg=self.screen_bounds_deg,
                 )
             elif isinstance(motion, RandomMotion):
+                # RandomMotion already has bounds_deg in config, but use screen bounds if not specified
+                bounds = motion.bounds_deg if motion.bounds_deg != (-1.5, 1.5, -1.0, 1.0) else self.screen_bounds_deg
+                if bounds is None:
+                    bounds = (-1.5, 1.5, -1.0, 1.0)  # fallback
                 traj = RandomTrajectory(
                     start=start,
                     speed_deg_s=motion.speed_deg_s,
                     correlation_s=motion.correlation_s,
-                    bounds_deg=motion.bounds_deg,
+                    bounds_deg=bounds,
                     seed=self.seed,
                     target_index=idx,
                 )
             else:
-                traj = LineTrajectory(start=start, speed_deg_s=0.5, heading_deg=0.0)
+                traj = LineTrajectory(
+                    start=start,
+                    speed_deg_s=0.5,
+                    heading_deg=0.0,
+                    bounds_deg=self.screen_bounds_deg,
+                )
 
             sprite = make_sprite(t_cfg.shape, t_cfg.size_px)
             target = Target(spec=t_cfg, trajectory=traj, sprite=sprite)

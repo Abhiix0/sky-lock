@@ -15,6 +15,7 @@ if TYPE_CHECKING:
         InputConfig,
         KalmanConfig,
         RequirementsConfig,
+        ScreenConfig,
         SearchConfig,
         SkyLockConfig,
         TargetConfig,
@@ -32,6 +33,16 @@ class ConfigError(ValueError):
             f"Configuration validation failed with {len(violations)} violation(s):\n  - "
             + "\n  - ".join(violations)
         )
+
+
+def validate_screen(screen: ScreenConfig) -> list[str]:
+    """Validate virtual screen configuration."""
+    violations: list[str] = []
+    if screen.width_px < 640:
+        violations.append(f"screen.width_px must be >= 640, got {screen.width_px}")
+    if screen.height_px < 480:
+        violations.append(f"screen.height_px must be >= 480, got {screen.height_px}")
+    return violations
 
 
 def validate_camera(camera: CameraConfig) -> list[str]:
@@ -355,6 +366,7 @@ def validate_root(cfg: SkyLockConfig) -> list[str]:
     violations: list[str] = []
 
     # Section validations
+    violations.extend(validate_screen(cfg.screen))
     violations.extend(validate_camera(cfg.camera))
     violations.extend(validate_gimbal(cfg.gimbal))
     violations.extend(validate_target_set(cfg.target))
@@ -404,6 +416,22 @@ def validate_root(cfg: SkyLockConfig) -> list[str]:
         violations.append(
             f"control.deadband_px ({cfg.control.deadband_px}) "
             f"must be < requirements.lock_radius_px ({cfg.requirements.lock_radius_px})"
+        )
+
+    # Screen extent vs gimbal limits
+    px_per_deg = cfg.camera.px_per_deg
+    left, right, bottom, top = cfg.screen.world_extent_deg(px_per_deg)
+    
+    if cfg.gimbal.pan_limit_deg[0] < left or cfg.gimbal.pan_limit_deg[1] > right:
+        violations.append(
+            f"gimbal.pan_limit_deg {cfg.gimbal.pan_limit_deg} extends beyond screen bounds "
+            f"({left:.2f}, {right:.2f}) deg"
+        )
+    
+    if cfg.gimbal.tilt_limit_deg[0] < bottom or cfg.gimbal.tilt_limit_deg[1] > top:
+        violations.append(
+            f"gimbal.tilt_limit_deg {cfg.gimbal.tilt_limit_deg} extends beyond screen bounds "
+            f"({bottom:.2f}, {top:.2f}) deg"
         )
 
     return violations

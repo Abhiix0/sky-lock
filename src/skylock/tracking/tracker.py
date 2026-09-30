@@ -58,18 +58,28 @@ class Tracker:
             self.camera = config.camera
             self.tracking_cfg = config.tracking
             self.detection_cfg = config.detection
+            self.screen_cfg = config.screen
         else:
             self.camera = camera if camera is not None else CameraConfig()
             self.tracking_cfg = tracking if tracking is not None else TrackingConfig()
             self.detection_cfg = detection if detection is not None else DetectionConfig()
+            self.screen_cfg = None
 
         self.candidate_tracker = CandidateTracker(self.tracking_cfg)
         self.kalman = KalmanFilter(self.tracking_cfg.kalman)
         self.state_machine = StateMachine(self.tracking_cfg, self.tracking_cfg.search)
 
+        # Compute field of regard from screen bounds if available, else use config default
+        if self.screen_cfg is not None:
+            px_per_deg = self.camera.px_per_deg
+            left, right, bottom, top = self.screen_cfg.world_extent_deg(px_per_deg)
+            field_of_regard = (right - left, top - bottom)
+        else:
+            field_of_regard = self.tracking_cfg.search.field_of_regard_deg
+
         self.raster_scan = RasterScan(
-            field_of_regard=self.tracking_cfg.search.field_of_regard_deg,
-            fov=self.camera.fov_v_deg,
+            field_of_regard=field_of_regard,
+            fov=(self.camera.fov_h_deg, self.camera.fov_v_deg),
             overlap=self.tracking_cfg.search.raster_overlap,
             scan_rate=self.tracking_cfg.search.scan_rate_deg_s,
         )
@@ -280,6 +290,8 @@ class Tracker:
             self.kalman.reset()
             self.candidate_tracker.reset()
             self.spiral_scan = None
+            # Recenter raster scan at current pointing to start search from where we are
+            self.raster_scan.recenter((pointing.pan_deg, pointing.tilt_deg))
 
         # 6. Build TargetEstimate
         estimate: TargetEstimate | None = None

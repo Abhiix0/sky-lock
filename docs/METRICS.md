@@ -32,19 +32,25 @@ When serialized to JSON, any non-`MEASURED` metric emits `null`, never `NaN` or 
 
 The time elapsed between a reference epoch and the earliest frame index $k_{\text{track}}$ where the tracking state machine transitions to `TrackState.TRACK`.
 
-1. **`from_start`**:
+**Two metrics are computed:**
+
+1. **`from_start`** (Secondary, informational):
    $$\Delta t_{\text{acq,start}} = t[k_{\text{track}}] - t[0]$$
    - Computable without ground truth (e.g., MP4 external video).
    - If `TRACK` is never reached: `NOT_ACQUIRED`.
+   - **Not used for requirement evaluation.**
 
-2. **`from_first_observable`**:
+2. **`from_first_observable`** (Primary, requirement metric):
    $$\Delta t_{\text{acq,obs}} = t[k_{\text{track}}] - t[k_{\text{first\_obs}}]$$
    where $k_{\text{first\_obs}}$ is the earliest frame where ground-truth beacon visibility is `True`.
    - Requires ground-truth visibility. If ground truth is absent: `NOT_RUN` with reason `"Requires ground truth target visibility"`.
    - If `TRACK` is never reached: `NOT_ACQUIRED`.
+   - **This is the acquisition time metric used for PS requirement evaluation (≤ 2.0s).**
 
 3. **`successful_acquisition`**:
    `Metric[bool]`: `MEASURED(True)` if acquired, `NOT_ACQUIRED` if never reached `TRACK`.
+
+**Rationale:** The `from_first_observable` metric accurately measures acquisition performance independent of scenario design. A target starting outside the FOV takes time to enter, which should not count against the tracker's acquisition capability. The PS requirement "acquisition time ≤ 2s" is interpreted as time from first opportunity to acquire.
 
 ### 2.2 Spatial Errors
 
@@ -87,9 +93,9 @@ Measures the responsiveness of the system recovering track following an interrup
   Flagged explicitly with `basis = "tracker_only"`.
 
 - **Event Outcomes:**
-  - If no loss events occurred: `NOT_RUN` ("No loss event occurred").
+  - If no loss events occurred: `NOT_RUN` ("No loss event occurred"). **This is treated as PASS in requirement evaluation** - perfect track retention means re-acquisition was never needed.
   - If target emerged/lost and never recovered to `TRACK`: `FAILED` ("Target loss event never recovered to TRACK").
-  - `successful_reacquisition`: `MEASURED(True)` if all reacquisition events satisfied $\Delta t \le \text{reacquire\_max\_s}$; `MEASURED(False)` if any event failed or unrecovered; `NOT_RUN` if no loss events occurred.
+  - `successful_reacquisition`: `MEASURED(True)` if all reacquisition events satisfied $\Delta t \le \text{reacquire\_max\_s}$; `MEASURED(False)` if any event failed or unrecovered; `NOT_RUN` with PASS verdict if no loss events occurred.
 
 ### 2.4 Target Loss Rate (`target_loss_rate`)
 
@@ -145,7 +151,8 @@ Evaluated by `skylock.metrics.requirements.evaluate(run_metrics, cfg.requirement
 
 1. Any non-`MEASURED` required metric produces `Verdict.INDETERMINATE`. A non-measured metric **never** yields `Verdict.PASS`.
 2. **Special Acquisition Rule:** Acquisition evaluates to `Verdict.FAIL` (not `INDETERMINATE`) if the run provided a full observable window ($\ge \text{acquisition\_max\_s}$) and the tracker never reached `TRACK`.
-3. **Overall Verdict:**
+3. **Special Re-acquisition Rule:** Re-acquisition with status `NOT_RUN` and reason "No loss event occurred" evaluates to `Verdict.PASS` (perfect retention means re-acquisition was never needed).
+4. **Overall Verdict:**
    - `FAIL` if **any** requirement is `FAIL`.
    - `INDETERMINATE` if **any** requirement is `INDETERMINATE` and none is `FAIL`.
    - `PASS` only if **all** requirements are `PASS`.

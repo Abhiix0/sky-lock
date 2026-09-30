@@ -28,6 +28,7 @@ from skylock.config.models import (
     RandomMotion,
     RequirementsConfig,
     SaltPepperConfig,
+    ScreenConfig,
     SearchConfig,
     SkyLockConfig,
     TargetConfig,
@@ -101,7 +102,9 @@ def _build_dataclass(cls: type[Any], data: dict[str, Any]) -> Any:
         val = data[f.name]
 
         # Handle specific nested models
-        if f.name == "camera" and isinstance(val, dict):
+        if f.name == "screen" and isinstance(val, dict):
+            kwargs[f.name] = _build_dataclass(ScreenConfig, val)
+        elif f.name == "camera" and isinstance(val, dict):
             kwargs[f.name] = _build_dataclass(CameraConfig, val)
         elif f.name == "gimbal" and isinstance(val, dict):
             g_dict = dict(val)

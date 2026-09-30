@@ -20,11 +20,37 @@ from skylock.config.validation import (
     validate_kalman,
     validate_requirements,
     validate_root,
+    validate_screen,
     validate_search,
     validate_target,
     validate_target_set,
     validate_tracking,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class ScreenConfig:
+    """Virtual screen coordinate system for simulation.
+    
+    The PS defines a virtual SCREEN over which the camera FOV moves.
+    Default 2000x2000 px. World extent = ±(width_px/2)/px_per_deg degrees.
+    Gimbal pan/tilt limits and target motion must stay within screen bounds.
+    Initial gimbal pointing = (0,0) = screen centre.
+    """
+
+    width_px: int = 2000
+    height_px: int = 2000
+
+    def __post_init__(self) -> None:
+        violations = validate_screen(self)
+        if violations:
+            raise ConfigError(violations)
+
+    def world_extent_deg(self, px_per_deg: float) -> tuple[float, float, float, float]:
+        """Return world extent in degrees: (left, right, bottom, top)."""
+        half_w_deg = (self.width_px / 2.0) / px_per_deg
+        half_h_deg = (self.height_px / 2.0) / px_per_deg
+        return (-half_w_deg, half_w_deg, -half_h_deg, half_h_deg)
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,13 +102,14 @@ class GimbalConfig:
     """Pan/tilt gimbal physical parameters.
 
     PS_SPEC §3: Slew rate 5–10°/s, default 5°/s.
+    Default limits chosen to fit within default 2000x2000px screen (~±6.25 deg).
     """
 
     slew_rate_deg_s: float = 5.0
     max_slew_rate_deg_s: float = 10.0
     accel_deg_s2: float = 120.0
-    pan_limit_deg: tuple[float, float] = (-45.0, 45.0)
-    tilt_limit_deg: tuple[float, float] = (-30.0, 30.0)
+    pan_limit_deg: tuple[float, float] = (-6.0, 6.0)
+    tilt_limit_deg: tuple[float, float] = (-6.0, 6.0)
     initial: tuple[float, float] = (0.0, 0.0)
     substeps: int = 4
 
@@ -130,13 +157,13 @@ MotionConfig = LineMotion | CircleMotion | Figure8Motion | RandomMotion
 class TargetConfig:
     """Target optical beacon spot specification.
 
-    PS_SPEC §4: 10×10 px default, 5×5 to 20×20 px range.
+    PS_SPEC §4: 10×10 px default, 5×5 to 20×20 px range. Default shape "square".
     PS_SPEC §5: Straight line, circular, figure-8, random motion models.
     """
 
     id: str = "target_0"
     size_px: int = 10
-    shape: str = "disc"
+    shape: str = "square"
     brightness: float = 220.0
     initial: str = "random"
     initial_pos_deg: tuple[float, float] = (0.0, 0.0)
@@ -172,7 +199,7 @@ class DetectionConfig:
     min_area_px: int = 6
     max_area_px: int = 900
     max_blobs: int = 8
-    roi_margin_px: int = 48
+    roi_margin_px: int = 80
     median_filter: bool = True
 
     def __post_init__(self) -> None:
@@ -184,7 +211,7 @@ class DetectionConfig:
 @dataclass(frozen=True, slots=True)
 class KalmanConfig:
     q_accel_deg_s2: float = 25.0
-    r_meas_px: float = 1.0
+    r_meas_px: float = 12.0
     gate_sigma: float = 4.0
 
     def __post_init__(self) -> None:
@@ -195,9 +222,9 @@ class KalmanConfig:
 
 @dataclass(frozen=True, slots=True)
 class SearchConfig:
-    field_of_regard_deg: tuple[float, float] = (10.0, 8.0)
+    field_of_regard_deg: tuple[float, float] = (12.5, 12.5)
     raster_overlap: float = 0.2
-    scan_rate_deg_s: float = 4.0
+    scan_rate_deg_s: float = 5.0  # Use max gimbal slew rate for fast search
 
     def __post_init__(self) -> None:
         violations = validate_search(self)
@@ -216,7 +243,7 @@ class TrackingConfig:
     coast_max_s: float = 0.5
     reacquire_timeout_s: float = 1.0
     reacquire_radius_deg: float = 1.0
-    association_gate_px: float = 30.0
+    association_gate_px: float = 50.0
     kalman: KalmanConfig = field(default_factory=KalmanConfig)
     search: SearchConfig = field(default_factory=SearchConfig)
 
@@ -357,6 +384,7 @@ class RequirementsConfig:
 class SkyLockConfig:
     """Root configuration holding all sub-system configs and run seed."""
 
+    screen: ScreenConfig = field(default_factory=ScreenConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     target: TargetSetConfig = field(default_factory=TargetSetConfig)
     detection: DetectionConfig = field(default_factory=DetectionConfig)

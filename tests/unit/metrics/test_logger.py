@@ -22,7 +22,7 @@ from skylock.core.types import (
     TargetEstimate,
     TargetTruth,
 )
-from skylock.metrics.logger import FrameLogger, write_run_record
+from skylock.metrics.logger import CSVFrameLogger, FrameLogger, write_run_record
 from skylock.metrics.requirements import evaluate
 from skylock.metrics.status import Metric, RunMetrics
 
@@ -181,3 +181,114 @@ def test_write_run_record() -> None:
         parsed = json.loads(saved_text)
         assert parsed["metrics_version"] == "1"
         assert "NaN" not in saved_text
+
+
+def test_csv_frame_logger_with_ground_truth() -> None:
+    """CSVFrameLogger writes CSV rows with gt_ columns when include_ground_truth=True."""
+    stream = io.StringIO()
+    logger = CSVFrameLogger(stream, include_ground_truth=True)
+
+    step = _build_step(with_gt=True)
+    logger.log(step)
+
+    content = stream.getvalue()
+    lines = content.strip().split("\n")
+    assert len(lines) == 2  # header + 1 data row
+
+    # Parse header
+    header = lines[0].split(",")
+    assert "index" in header
+    assert "state" in header
+    assert "estimate_px" in header
+    assert "gt_primary_px_x" in header
+    assert "gt_primary_visible" in header
+    assert "gt_disturbance_offset_px_x" in header
+
+    # Parse data row
+    import csv as csv_mod
+    reader = csv_mod.DictReader(io.StringIO(content))
+    row = next(reader)
+    
+    assert row["index"] == "0"
+    assert row["state"] == "TRACK"
+    assert float(row["estimate_px"]) == 320.0
+    assert float(row["estimate_py"]) == 240.0
+    assert float(row["latency_ms"]) == 12.5
+    assert float(row["command_pan_rate_deg_s"]) == 0.5
+    
+    # Ground truth fields
+    assert float(row["gt_primary_px_x"]) == 322.0
+    assert float(row["gt_primary_px_y"]) == 241.0
+    assert row["gt_primary_visible"] == "True"
+    assert float(row["gt_boresight_error_px"]) == 2.236
+    assert float(row["gt_disturbance_offset_px_x"]) == 0.1
+    assert float(row["gt_disturbance_offset_px_y"]) == -0.1
+
+
+def test_csv_frame_logger_without_ground_truth() -> None:
+    """CSVFrameLogger omits gt_ columns entirely when include_ground_truth=False."""
+    stream = io.StringIO()
+    logger = CSVFrameLogger(stream, include_ground_truth=False)
+
+    step = _build_step(with_gt=True)
+    logger.log(step)
+
+    content = stream.getvalue()
+    lines = content.strip().split("\n")
+    header = lines[0].split(",")
+    
+    # No gt_ columns should exist in header
+    assert not any("gt_" in col for col in header)
+    assert "index" in header
+    assert "state" in header
+
+
+def test_csv_frame_logger_null_handling() -> None:
+    """When estimate is None, CSV logger writes empty strings for estimate fields."""
+    stream = io.StringIO()
+    logger = CSVFrameLogger(stream, include_ground_truth=False)
+
+    step = _build_step(with_gt=False)
+    # Clear estimate
+    output_no_est = PipelineOutput(
+        frame_index=0,
+        timestamp_s=0.0,
+        state=TrackState.SEARCH,
+        estimate=None,
+        detections=(),
+        selected=None,
+        intent=ControlIntent(mode=ControlIntentMode.HOLD),
+        latency_ms=5.0,
+    )
+    step_no_est = StepResult(
+        frame=step.frame,
+        output=output_no_est,
+        command=step.command,
+        truth=None,
+    )
+    logger.log(step_no_est)
+
+    content = stream.getvalue()
+    import csv as csv_mod
+    reader = csv_mod.DictReader(io.StringIO(content))
+    row = next(reader)
+    
+    assert row["index"] == "0"
+    assert row["state"] == "SEARCH"
+    assert row["estimate_px"] == ""  # Empty string for None
+    assert row["estimate_py"] == ""
+    assert float(row["latency_ms"]) == 5.0
+
+
+def test_csv_frame_logger_context_manager() -> None:
+    """CSVFrameLogger works as a context manager and closes the file."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        path = Path(tmp_dir) / "frames.csv"
+        with CSVFrameLogger(path, include_ground_truth=True) as logger:
+            step = _build_step(with_gt=True)
+            logger.log(step)
+        
+        # File should be closed and readable
+        content = path.read_text(encoding="utf-8")
+        assert "index,t,state" in content
+        assert "TRACK" in content

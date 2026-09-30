@@ -16,7 +16,7 @@ class RasterScan:
     """Boustrophedon horizontal raster scan across a specified field of regard.
 
     Sweeps alternating left-to-right and right-to-left across rows spaced by
-    fov_v * (1 - overlap).
+    fov_v * (1 - overlap). Can be centered at any starting position (typically current pointing).
     """
 
     def __init__(
@@ -34,7 +34,7 @@ class RasterScan:
             fov: Vertical FOV deg or (fov_h_deg, fov_v_deg).
             overlap: Fractional row overlap in [0, 1).
             scan_rate: Scanning slew rate in deg/s.
-            center: (center_pan_deg, center_tilt_deg).
+            center: (center_pan_deg, center_tilt_deg) - starting point for search.
         """
         self.center = (float(center[0]), float(center[1]))
         self.pan_width = float(field_of_regard[0])
@@ -42,15 +42,33 @@ class RasterScan:
         self.scan_rate = float(scan_rate)
         self.overlap = float(overlap)
 
-        fov_v = float(fov[1]) if isinstance(fov, (tuple, list)) else float(fov)
-        self.fov_v = fov_v
+        if isinstance(fov, (tuple, list)):
+            self.fov_h = float(fov[0])
+            self.fov_v = float(fov[1])
+        else:
+            self.fov_v = float(fov)
+            self.fov_h = self.fov_v  # assume square FOV if only one value given
 
-        step = fov_v * (1.0 - self.overlap)
-        self._row_spacing = step if step > 0.0 else fov_v
+        # Row spacing accounts for overlap
+        step = self.fov_v * (1.0 - self.overlap)
+        self._row_spacing = step if step > 0.0 else self.fov_v
 
+        # Number of rows needed to cover the field of regard
         self._num_rows = max(1, math.ceil(self.tilt_height / self._row_spacing) + 1)
+        
+        # Time to sweep one row
         self._sweep_time = self.pan_width / self.scan_rate if self.scan_rate > 0.0 else 1.0
+        
+        # Total cycle time
         self._cycle_time = self._sweep_time * self._num_rows
+
+    def recenter(self, new_center: tuple[float, float]) -> None:
+        """Update the center point of the raster scan.
+        
+        Args:
+            new_center: (pan_deg, tilt_deg) new center position.
+        """
+        self.center = (float(new_center[0]), float(new_center[1]))
 
     @property
     def row_spacing(self) -> float:
@@ -74,6 +92,9 @@ class RasterScan:
 
     def setpoint(self, elapsed: float) -> tuple[float, float]:
         """Compute (pan_deg, tilt_deg) setpoint at the given elapsed time.
+
+        The scan starts from the current center and expands outward, scanning
+        rows from top to bottom in a boustrophedon pattern.
 
         Args:
             elapsed: Elapsed time in seconds since pattern start.

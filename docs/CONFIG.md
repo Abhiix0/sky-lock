@@ -18,7 +18,26 @@
 
 ## 2. Configuration Schema & Parameter Reference
 
-### 2.1 Camera (`camera: CameraConfig`)
+### 2.1 Screen (`screen: ScreenConfig`)
+
+The PS defines a virtual SCREEN over which the camera FOV viewport moves. This defines the simulation coordinate system.
+
+| Field | Type | Default | Range / Allowed | Description |
+|---|---|---|---|---|
+| `width_px` | `int` | `2000` | `[640, inf)` | Virtual screen width in pixels |
+| `height_px` | `int` | `2000` | `[480, inf)` | Virtual screen height in pixels |
+
+**Coordinate System:**
+- Origin at screen center (0, 0)
+- World extent in degrees: `±(width_px/2) / px_per_deg` horizontally, `±(height_px/2) / px_per_deg` vertically
+- With default 2000×2000 px and 160 px/deg: extent is ±6.25° × ±6.25°
+- Initial gimbal pointing = (0, 0) = screen center
+- Gimbal limits and target motion must stay within screen bounds
+- Targets reflect/bounce at screen edges
+
+---
+
+### 2.2 Camera (`camera: CameraConfig`)
 
 | Field | Type | Default | Range / Allowed | PS_SPEC Ref | Description |
 |---|---|---|---|---|---|
@@ -41,14 +60,21 @@
 
 ---
 
-### 2.2 Gimbal (`gimbal: GimbalConfig`)
+### 2.3 Gimbal (`gimbal: GimbalConfig`)
 
 | Field | Type | Default | Range / Allowed | PS_SPEC Ref | Description |
 |---|---|---|---|---|---|
 | `slew_rate_deg_s` | `float` | `5.0` | `(0, max_slew_rate]` | §3 | Default tracking slew rate (deg/s) |
 | `max_slew_rate_deg_s` | `float` | `10.0` | `(0, 10.0]` | §3 | Maximum physical slew rate (deg/s) |
 | `accel_deg_s2` | `float` | `120.0` | `(0, inf)` | Dynamics | Maximum gimbal acceleration (deg/s²) |
-| `pan_limit_deg` | `tuple[float, float]` | `(-45.0, 45.0)` | `min < max` | — | Pan travel limits (azimuth) |
+| `pan_limit_deg` | `tuple[float, float]` | `(-6.0, 6.0)` | `min < max`, within screen bounds | — | Pan travel limits (azimuth) |
+| `tilt_limit_deg` | `tuple[float, float]` | `(-6.0, 6.0)` | `min < max`, within screen bounds | — | Tilt travel limits (elevation) |
+| `initial` | `tuple[float, float]` | `(0.0, 0.0)` | Screen center | — | Initial (pan, tilt) pointing |
+| `substeps` | `int` | `4` | `[1, inf)` | — | Integration substeps per camera frame |
+
+**Notes:**
+- Gimbal limits are validated against screen extent. With default 2000×2000 px screen (±6.25°), limits must fit within bounds.
+- Initial pointing (0, 0) corresponds to screen center.
 | `tilt_limit_deg` | `tuple[float, float]` | `(-30.0, 30.0)` | `min < max` | — | Tilt travel limits (elevation) |
 | `initial` | `tuple[float, float]` | `(0.0, 0.0)` | Within limits | — | Initial pan/tilt pointing (deg) |
 | `substeps` | `int` | `4` | `[1, inf)` | Sim | Numerical integration substeps per frame |
@@ -109,7 +135,13 @@ Contains `count: int` and a tuple of `TargetConfig` items.
 | `reacquire_radius_deg` | `float` | `1.0` | `(0, inf)` | — | Maximum spiral search radius |
 | `association_gate_px` | `float` | `30.0` | `[target.size_px, inf)` | — | Spatial gating threshold for detection matching |
 | `kalman` | `KalmanConfig` | `q=25.0, r=1.0, gate=4.0` | — | — | 4-state constant-velocity filter parameters |
-| `search` | `SearchConfig` | `field=(10,8), scan_rate=4.0` | `scan_rate <= slew_rate` | — | Raster scan search pattern parameters |
+| `search` | `SearchConfig` | `field=(12.5,12.5), scan_rate=5.0` | `scan_rate <= slew_rate` | — | Raster scan search pattern (covers full screen) |
+
+**Search Pattern Notes:**
+- The `field_of_regard_deg` is automatically set to cover the entire screen (default 12.5×12.5 deg for 2000×2000 px screen).
+- Search starts from the **current pointing** when entering SEARCH state, not from a fixed corner.
+- Raster scan uses boustrophedon (alternating row direction) with configurable overlap for complete coverage.
+- At 5°/s scan rate with 20% overlap, full screen coverage takes ~17.5 seconds.
 
 ---
 

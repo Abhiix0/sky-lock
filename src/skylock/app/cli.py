@@ -167,7 +167,7 @@ def _run_bench(args: argparse.Namespace) -> int:
             count += 1
             print(f"[{count}/{total}] Running {scenario.id} seed={seed}...", flush=True)
             try:
-                record = runner.run(scenario, seed, isolate=args.isolate)
+                record = runner.run(scenario, seed, isolate=args.isolate, output_dir=out_dir)
                 records.append(record)
                 print(
                     f"  -> {record.overall_verdict} "

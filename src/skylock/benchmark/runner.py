@@ -22,6 +22,7 @@ from skylock.config.io import config_hash, to_dict
 from skylock.config.models import SkyLockConfig
 from skylock.core.enums import Verdict
 from skylock.metrics.collector import MetricsCollector
+from skylock.metrics.logger import CSVFrameLogger
 from skylock.metrics.requirements import evaluate
 
 
@@ -100,6 +101,7 @@ class BenchmarkRunner:
         scenario: Scenario,
         seed: int,
         isolate: bool = False,
+        output_dir: Path | None = None,
     ) -> RunRecord:
         """Execute a single benchmark scenario with given seed.
 
@@ -107,6 +109,7 @@ class BenchmarkRunner:
             scenario: Scenario descriptor to execute.
             seed: Explicit deterministic seed.
             isolate: If True, run in a spawned subprocess for global state isolation.
+            output_dir: Optional directory for per-run CSV logs (e.g. frames.csv).
 
         Returns:
             Complete RunRecord with metrics, verdicts, and provenance.
@@ -117,7 +120,7 @@ class BenchmarkRunner:
         if isolate:
             return _run_isolated(self.base_config, scenario, seed)
 
-        return _run_in_process(self.base_config, scenario, seed)
+        return _run_in_process(self.base_config, scenario, seed, output_dir)
 
 
 def _get_git_commit() -> str | None:
@@ -172,6 +175,7 @@ def _run_in_process(
     base_config: SkyLockConfig,
     scenario: Scenario,
     seed: int,
+    output_dir: Path | None = None,
 ) -> RunRecord:
     """Execute a benchmark run in the current process."""
     # Deterministic threading
@@ -191,6 +195,15 @@ def _run_in_process(
     session = build_session(cfg)
     session.collector = collector
 
+    # Optional CSV frame logging
+    csv_logger = None
+    if output_dir is not None:
+        csv_path = output_dir / f"{scenario.id}_seed{seed}_frames.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        # Include ground truth for simulation runs
+        include_gt = (scenario.input_kind == "simulation")
+        csv_logger = CSVFrameLogger(csv_path, include_ground_truth=include_gt)
+
     # Run with wall-clock timing only around the loop
     t0 = time.perf_counter()
     results = (
@@ -199,6 +212,12 @@ def _run_in_process(
         else session.run()
     )
     wall_time_s = time.perf_counter() - t0
+
+    # Write frame logs if enabled
+    if csv_logger is not None:
+        for result in results:
+            csv_logger.log(result)
+        csv_logger.close()
 
     # Finalize metrics
     run_metrics = collector.finalize()

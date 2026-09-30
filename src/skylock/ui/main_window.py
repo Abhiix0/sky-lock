@@ -104,6 +104,7 @@ class MainWindow(QMainWindow):
         self.controls_panel.start_clicked.connect(self._worker.start_running)
         self.controls_panel.stop_clicked.connect(self._worker.stop_running)
         self.controls_panel.reset_clicked.connect(self._worker.reset_session)
+        self.controls_panel.reset_clicked.connect(self._on_reset_ui)
         self.controls_panel.config_changed.connect(self._worker.apply_config)
 
         # Worker -> Views
@@ -114,6 +115,11 @@ class MainWindow(QMainWindow):
 
     def _on_toggle_gt(self, checked: bool) -> None:
         self.camera_view.show_ground_truth = checked
+
+    def _on_reset_ui(self) -> None:
+        """Clear camera and telemetry displays on reset."""
+        self.camera_view.clear()
+        self.telemetry_panel.clear()
 
     def _on_session_error(self, err: str) -> None:
         self.status_bar.showMessage(f"Error: {err}", 5000)

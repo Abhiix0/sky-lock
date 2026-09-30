@@ -69,29 +69,64 @@ def to_markdown_report(records: list[RunRecord]) -> str:
 
     # Per-scenario table
     lines.append("## Results\n")
-    lines.append("| Scenario | Seed | Verdict | Frames | Acq (s) | Err (px) | Loss Rate | Status |")
-    lines.append("|----------|------|---------|--------|---------|----------|-----------|--------|")
+    lines.append("| Scenario | Seed | Verdict | Frames | Acq (s) | Err (px) | Loss Rate | FPS | Status |")
+    lines.append("|----------|------|---------|--------|---------|----------|-----------|-----|--------|")
 
     for r in records:
         acq_val = _extract_metric_value(r.metrics, "acquisition_time_from_observable_s")
         trk_val = _extract_metric_rms(r.metrics, "tracking_error_px")
         loss_val = _extract_metric_value(r.metrics, "target_loss_rate")
+        fps_val = _extract_metric_value(r.metrics, "fps_pipeline")
 
         acq_str = f"{acq_val:.3f}" if acq_val is not None else "—"
         trk_str = f"{trk_val:.2f}" if trk_val is not None else "—"
         loss_str = f"{loss_val:.4f}" if loss_val is not None else "—"
+        fps_str = f"{fps_val:.1f}" if fps_val is not None else "—"
 
         lines.append(
             f"| {r.scenario_id} | {r.seed} | {r.overall_verdict} | "
-            f"{r.frames} | {acq_str} | {trk_str} | {loss_str} | {r.status} |"
+            f"{r.frames} | {acq_str} | {trk_str} | {loss_str} | {fps_str} | {r.status} |"
         )
 
+    lines.append("")
+
+    # Performance summary
+    lines.append("## Performance Summary\n")
+    
+    fps_pipeline_values = [
+        v for r in records
+        if (v := _extract_metric_value(r.metrics, "fps_pipeline")) is not None
+    ]
+    fps_wall_values = [
+        v for r in records
+        if (v := _extract_metric_value(r.metrics, "fps_wall")) is not None
+    ]
+    latency_mean_values = [
+        v.get("mean") for r in records
+        if (entry := r.metrics.get("latency_ms", {}))
+        and entry.get("status") == "MEASURED"
+        and (v := entry.get("value"))
+        and isinstance(v, dict)
+    ]
+    
+    if fps_pipeline_values:
+        fps_pipe_stats = _stats_over(fps_pipeline_values)
+        lines.append(f"- **Pipeline FPS**: mean={fps_pipe_stats['mean']:.1f}, min={fps_pipe_stats['min']:.1f}, max={fps_pipe_stats['max']:.1f} (n={fps_pipe_stats['n']})")
+    
+    if fps_wall_values:
+        fps_wall_stats = _stats_over(fps_wall_values)
+        lines.append(f"- **Wall-clock FPS**: mean={fps_wall_stats['mean']:.1f}, min={fps_wall_stats['min']:.1f}, max={fps_wall_stats['max']:.1f} (n={fps_wall_stats['n']})")
+    
+    if latency_mean_values:
+        lat_stats = _stats_over(latency_mean_values)
+        lines.append(f"- **Mean Latency**: {lat_stats['mean']:.2f} ms (avg over runs)")
+    
     lines.append("")
 
     # Aggregated statistics (only over MEASURED values)
     summary = _build_summary(records)
     if summary.get("aggregated"):
-        lines.append("## Aggregated Statistics (MEASURED values only)\n")
+        lines.append("## Aggregated Tracking Metrics (MEASURED values only)\n")
         for key, stats in summary["aggregated"].items():
             n = stats.get("n", 0)
             if n > 0:

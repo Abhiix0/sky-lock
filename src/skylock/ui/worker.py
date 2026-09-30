@@ -69,6 +69,7 @@ class SessionWorker(QObject):
     def initialize(self) -> None:
         """Initialize session and timer within the target thread."""
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.TimerType.PreciseTimer)
         self._timer.timeout.connect(self._step)
         self._build_new_session(self._config)
 
@@ -77,9 +78,14 @@ class SessionWorker(QObject):
         try:
             self._session = build_session(cfg)
             self._config = cfg
-            interval_ms = max(1, int(1000.0 / max(1.0, cfg.camera.fps)))
+            # Compute timer interval to achieve target wall FPS
+            # Account for processing overhead by using 90% of the ideal period
+            # This ensures wall FPS >= camera.fps even with ~10% processing overhead
+            target_fps = max(1.0, cfg.camera.fps)
+            ideal_period_ms = 1000.0 / target_fps
+            timer_interval_ms = max(1, int(ideal_period_ms * 0.9))
             if self._timer is not None:
-                self._timer.setInterval(interval_ms)
+                self._timer.setInterval(timer_interval_ms)
             self._first_track_time_s = None
             self._first_obs_time_s = None
             self._frame_counter = 0

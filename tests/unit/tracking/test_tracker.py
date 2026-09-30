@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from skylock.config.models import CameraConfig, DetectionConfig, SkyLockConfig, TrackingConfig
+from skylock.config.models import CameraConfig, DetectionConfig, GimbalConfig, SkyLockConfig, TrackingConfig
 from skylock.core.enums import ControlIntentMode, TrackState
 from skylock.core.types import Detection, Frame, Pointing
 from skylock.tracking.tracker import Tracker
@@ -62,7 +62,8 @@ def test_tracker_roi_behavior() -> None:
 
 def test_tracker_measurement_selection_in_track() -> None:
     cam = CameraConfig(width=640, height=512, fov_h_deg=3.0, fov_v_deg=2.4)
-    cfg = SkyLockConfig(camera=cam)
+    gimbal = GimbalConfig(pan_limit_deg=(-4.0, 4.0), tilt_limit_deg=(-4.0, 4.0))
+    cfg = SkyLockConfig(camera=cam, gimbal=gimbal)
     tracker = Tracker(cfg)
 
     # Move to TRACK with target at center

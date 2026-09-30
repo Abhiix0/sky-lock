@@ -13,7 +13,7 @@ from skylock.metrics.calculators import (
     calculate_tracking_error,
 )
 from skylock.metrics.collector import MetricsCollector
-from skylock.metrics.logger import FrameLogger, write_run_record
+from skylock.metrics.logger import CSVFrameLogger, FrameLogger, write_run_record
 from skylock.metrics.requirements import evaluate
 from skylock.metrics.sidecar import GroundTruthSidecar
 from skylock.metrics.status import (
@@ -27,6 +27,7 @@ from skylock.metrics.status import (
 )
 
 __all__ = (
+    "CSVFrameLogger",
     "ErrorStats",
     "FrameLogger",
     "GroundTruthSidecar",

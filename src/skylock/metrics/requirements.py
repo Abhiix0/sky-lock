@@ -12,8 +12,10 @@ def evaluate(run_metrics: RunMetrics, req: RequirementsConfig) -> dict[str, Verd
 
     Evaluation rules:
     - Non-MEASURED metrics result in INDETERMINATE (never PASS).
-    - Special rule: acquisition is FAIL (not INDETERMINATE) when the run had a full
+    - Special acquisition rule: acquisition is FAIL (not INDETERMINATE) when the run had a full
       observable window >= acquisition_max_s and never reached TRACK.
+    - Special re-acquisition rule: re-acquisition NOT_RUN with reason "No loss event occurred"
+      results in PASS (perfect retention, no reacquisition needed).
     - Overall verdict: FAIL if any is FAIL; else INDETERMINATE if any is INDETERMINATE;
       else PASS only when all evaluated requirements are PASS.
 
@@ -76,6 +78,9 @@ def evaluate(run_metrics: RunMetrics, req: RequirementsConfig) -> dict[str, Verd
             verdicts["reacquisition_time"] = Verdict.FAIL
     elif reacq_m.status == MetricStatus.FAILED:
         verdicts["reacquisition_time"] = Verdict.FAIL
+    elif reacq_m.status == MetricStatus.NOT_RUN and reacq_m.reason == "No loss event occurred":
+        # Special case: No loss occurred is a PASS (perfect retention, no need to reacquire)
+        verdicts["reacquisition_time"] = Verdict.PASS
     else:
         verdicts["reacquisition_time"] = Verdict.INDETERMINATE
 

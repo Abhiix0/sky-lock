@@ -51,7 +51,7 @@ def test_motion_models() -> None:
 def test_target_config_defaults() -> None:
     target = TargetConfig()
     assert target.size_px == 10
-    assert target.shape == "disc"
+    assert target.shape == "square"
     assert target.brightness == 220.0
     assert target.strict_spec is True
 

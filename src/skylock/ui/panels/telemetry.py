@@ -93,6 +93,21 @@ class TelemetryPanel(QWidget):
         ):
             lbl.setStyleSheet(mono_style)
 
+    def clear(self) -> None:
+        """Reset all telemetry to idle state."""
+        from skylock.core.enums import TrackState
+        self.badge.set_state(TrackState.SEARCH)
+        self.lbl_lock.setText("LOCK: UNLOCKED")
+        self.lbl_lock.setStyleSheet("font-weight: bold; color: #9CA3AF;")
+        self.lbl_pointing.setText("+0.00° / +0.00°")
+        self.lbl_mode.setText("AUTO")
+        self.lbl_cmd_rate.setText("+0.00 / +0.00 °/s")
+        self.lbl_acq_time.setText(_EM_DASH)
+        self.lbl_track_err.setText(_EM_DASH)
+        self.lbl_fps_pipe.setText(_EM_DASH)
+        self.lbl_fps_wall.setText(_EM_DASH)
+        self.lbl_latency.setText(_EM_DASH)
+
     def update_telemetry(self, fv: FrameView) -> None:
         """Update all telemetry labels from the incoming FrameView.
 

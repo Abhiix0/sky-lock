@@ -38,6 +38,11 @@ class CameraView(QWidget):
         self._frame_view = frame_view
         self.update()
 
+    def clear(self) -> None:
+        """Clear the camera view back to idle state."""
+        self._frame_view = None
+        self.update()
+
     def paintEvent(self, _event: Any) -> None:  # noqa: ANN401
         """Draw sensor frame and HUD overlays."""
         painter = QPainter(self)
