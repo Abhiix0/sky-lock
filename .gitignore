@@ -8,15 +8,17 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
-dist
-dist-ssr
-release
+dist/
+dist-ssr/
+release/
+runs/
+.vite/
 *.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
@@ -31,5 +33,10 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .ruff_cache/
+.mypy_cache/
 build/
 *.egg-info/
+
+# Packaging
+*.spec
+!packaging/skylock.spec

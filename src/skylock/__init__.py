@@ -1,3 +1,3 @@
-"""Sky Lock — AI-Based Virtual Camera Tracking System for Mobile FSOC Terminal Coarse Alignment."""
+"""SkyLock package."""
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"

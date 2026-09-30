@@ -1,21 +1,28 @@
 [project]
 name = "skylock"
-version = "1.0.0"
+version = "0.1.0"
 description = "AI-Based Virtual Camera Tracking System for Coarse Alignment of Mobile FSOC Terminals"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "numpy>=2.0.0",
-    "opencv-python>=4.10.0.84",
-    "pyside6>=6.7.0",
+    "numpy>=2.0",
+    "opencv-python-headless>=4.10",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.8.0",
-    "pyinstaller>=6.0.0",
+gui = [
+    "pyside6>=6.7",
 ]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+    "ruff>=0.8",
+    "mypy>=1.10",
+    "pyinstaller>=6",
+]
+
+[project.scripts]
+skylock = "skylock.app.main:main"
 
 [build-system]
 requires = ["setuptools>=61.0"]
@@ -26,15 +33,28 @@ where = ["src"]
 include = ["skylock*"]
 
 [tool.ruff]
-line-length = 120
+line-length = 100
 target-version = "py312"
+extend-exclude = ["legacy"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "B"]
-ignore = []
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests_python"]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gui: marks tests requiring GUI",
+    "perf: marks performance benchmark tests",
+]
+
+[tool.mypy]
+python_version = "3.12"
+exclude = ["legacy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "skylock.core.*",
+    "skylock.config.*",
+]
+strict = true
