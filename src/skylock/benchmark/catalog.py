@@ -303,14 +303,17 @@ def _s12_occlusion_reacq() -> Scenario:
     return Scenario(
         id="S12_occlusion_reacq",
         description=(
-            "Line motion with 0.5 s visibility gap at t=2.5-3.0 s. "
-            "Target visible [0.0, 2.5] and [3.0, 10.0]. Target at (2.0, 1.0) deg. "
+            "Line motion with a 0.5 s occlusion window at t=2.5-3.0 s. "
+            "Target occluded during [2.5, 3.0] s; visible all other times. "
+            "Target at (2.0, 1.0) deg. Tests LOST→REACQUIRE→TRACK cycle. "
+            "NOTE (bug-fix): visibility_windows are OCCLUSION windows in the simulation "
+            "code (target hidden while inside the window). "
             "Tests reacquisition within 1.0 s timeout."
         ),
         overrides={
             "target.count": 1,
             "target.targets": [_base_target(
-                visibility_windows=[[0.0, 2.5], [3.0, 10.0]],
+                visibility_windows=[[2.5, 3.0]],  # Single occlusion gap: hidden 2.5–3.0 s
             )],
         },
         duration_s=6.0,
