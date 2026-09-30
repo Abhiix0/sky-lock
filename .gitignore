@@ -34,6 +34,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+.coverage*
 build/
 *.egg-info/
 
