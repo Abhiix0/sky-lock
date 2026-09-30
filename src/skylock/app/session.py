@@ -28,6 +28,7 @@ class Session:
         source: FrameSource | None = None,
         pipeline: TrackingPipeline | None = None,
         controller: PointingController | None = None,
+        collector: Any | None = None,
     ) -> None:
         """Initialize Session.
 
@@ -36,6 +37,7 @@ class Session:
             source: Video or simulation frame source. If None, built via factory.
             pipeline: Vision and tracking pipeline. If None, built via factory.
             controller: Gimbal pointing controller. If None, built via factory.
+            collector: Optional metrics collector receiving step results.
         """
         self.config = config
 
@@ -50,7 +52,7 @@ class Session:
         self.source = source
         self.pipeline = pipeline
         self.controller = controller
-        self.collector: Any | None = None
+        self.collector: Any | None = collector
 
         self._latency_frames: int = config.control.latency_frames
         self._cmd_queue: collections.deque[ControlCommand] = collections.deque(
