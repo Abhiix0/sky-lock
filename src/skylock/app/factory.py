@@ -39,20 +39,45 @@ def create_session_components(
     Returns:
         Tuple of (source, pipeline, controller).
     """
-    pipeline = build_pipeline(config)
-    controller = PointingController(
-        config.control,
-        config.camera,
-        max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
-    )
-
-    if config.input.kind == InputKind.SIMULATION:
+    if config.input.kind in (InputKind.SIMULATION, "simulation"):
+        pipeline = build_pipeline(config)
+        controller = PointingController(
+            config.control,
+            config.camera,
+            max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
+        )
         gimbal = VirtualGimbal(config.gimbal)
         source: FrameSource = SimulationSource(config, gimbal=gimbal)
-    elif config.input.kind == InputKind.MP4:
-        raise NotImplementedError(
-            "MP4 input source will be implemented in Phase 7. Set input.kind to SIMULATION."
+    elif config.input.kind in (InputKind.MP4, "mp4"):
+        from dataclasses import replace
+
+        from skylock.input.video import Mp4Source
+
+        mp4_source = Mp4Source(config.input)
+        mp4_source.open()
+
+        w = mp4_source.width
+        h = mp4_source.height
+        fov_h = config.input.mp4_assumed_fov_h_deg
+        fov_v = fov_h * (float(h) / float(w))
+
+        effective_camera = replace(
+            config.camera,
+            width=w,
+            height=h,
+            fov_h_deg=fov_h,
+            fov_v_deg=fov_v,
+            fps=mp4_source.fps,
+            allow_below_spec_fps=True,
         )
+        effective_config = replace(config, camera=effective_camera)
+        pipeline = TrackingPipeline(effective_config)
+        controller = PointingController(
+            config.control,
+            effective_camera,
+            max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
+        )
+        source = mp4_source
     else:
         raise ValueError(f"Unknown input kind: {config.input.kind}")
 

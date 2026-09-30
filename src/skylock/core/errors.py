@@ -11,3 +11,7 @@ class FrameError(SkyLockError):
 
 class GeometryError(SkyLockError):
     """Raised when geometric or angular transformations fail."""
+
+
+class SourceError(SkyLockError):
+    """Raised when frame source initialization, reading, or format parsing fails."""

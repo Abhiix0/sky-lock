@@ -12,6 +12,7 @@ if TYPE_CHECKING:
         DetectionConfig,
         DisturbanceConfig,
         GimbalConfig,
+        InputConfig,
         KalmanConfig,
         RequirementsConfig,
         SearchConfig,
@@ -336,6 +337,19 @@ def validate_requirements(req: RequirementsConfig) -> list[str]:
     return violations
 
 
+def validate_input(inp: InputConfig) -> list[str]:
+    violations: list[str] = []
+    if inp.kind not in ("simulation", "mp4"):
+        violations.append(f"input.kind must be 'simulation' or 'mp4', got '{inp.kind}'")
+    if inp.mp4_assumed_fov_h_deg <= 0.0 or inp.mp4_assumed_fov_h_deg >= 180.0:
+        violations.append(
+            f"input.mp4_assumed_fov_h_deg must be in (0, 180), got {inp.mp4_assumed_fov_h_deg}"
+        )
+    if inp.fps_override is not None and inp.fps_override <= 0.0:
+        violations.append(f"input.fps_override must be > 0.0, got {inp.fps_override}")
+    return violations
+
+
 def validate_root(cfg: SkyLockConfig) -> list[str]:
     """Validate all individual sections and cross-field constraints."""
     violations: list[str] = []
@@ -348,6 +362,7 @@ def validate_root(cfg: SkyLockConfig) -> list[str]:
     violations.extend(validate_tracking(cfg.tracking))
     violations.extend(validate_control(cfg.control))
     violations.extend(validate_disturbances(cfg.disturbances))
+    violations.extend(validate_input(cfg.input))
     violations.extend(validate_requirements(cfg.requirements))
 
     # Cross-field rules

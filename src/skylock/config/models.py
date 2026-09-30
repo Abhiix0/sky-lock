@@ -16,6 +16,7 @@ from skylock.config.validation import (
     validate_detection,
     validate_disturbances,
     validate_gimbal,
+    validate_input,
     validate_kalman,
     validate_requirements,
     validate_root,
@@ -318,6 +319,12 @@ class InputConfig:
     mp4_path: str = ""
     mp4_assumed_fov_h_deg: float = 4.0
     loop: bool = False
+    fps_override: float | None = None
+
+    def __post_init__(self) -> None:
+        violations = validate_input(self)
+        if violations:
+            raise ConfigError(violations)
 
 
 @dataclass(frozen=True, slots=True)

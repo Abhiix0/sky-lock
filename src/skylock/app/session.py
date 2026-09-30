@@ -106,7 +106,8 @@ class Session:
         output = self.pipeline.process(frame)
 
         # 3. Step controller (image-space error, estimate, and gimbal pointing)
-        dt = 1.0 / self.config.camera.fps
+        fps = self.source.fps if getattr(self.source, "fps", 0.0) > 0.0 else self.config.camera.fps
+        dt = 1.0 / fps
         cmd = self.controller.step(
             intent=output.intent,
             estimate=output.estimate,
@@ -153,13 +154,14 @@ class Session:
         Returns:
             List of StepResult instances for all executed steps.
         """
+        fps = self.source.fps if getattr(self.source, "fps", 0.0) > 0.0 else self.config.camera.fps
         max_frames: int | None = None
         if frames is not None and seconds is not None:
-            max_frames = min(frames, int(round(seconds * self.config.camera.fps)))
+            max_frames = min(frames, round(seconds * fps))
         elif frames is not None:
             max_frames = frames
         elif seconds is not None:
-            max_frames = int(round(seconds * self.config.camera.fps))
+            max_frames = round(seconds * fps)
 
         results: list[StepResult] = []
         count = 0
