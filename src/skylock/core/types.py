@@ -94,8 +94,8 @@ class ControlIntent:
     """Desired control intent from tracking state machine."""
 
     mode: ControlIntentMode
-    setpoint_pan_deg: float
-    setpoint_tilt_deg: float
+    setpoint_pan_deg: float = 0.0
+    setpoint_tilt_deg: float = 0.0
     image_error_px: tuple[float, float] | None = None
 
 
@@ -163,3 +163,17 @@ class GroundTruthSample:
     boresight_error_px: float | None
     pointing: Pointing
     disturbance_offset_px: tuple[float, float] = (0.0, 0.0)
+
+
+@dataclass(frozen=True, slots=True)
+class StepResult:
+    """Comprehensive output produced by a single Session step.
+
+    Passed to callers and metrics collectors; truth is passed through untouched
+    and never inspected or processed by the tracking pipeline or controller.
+    """
+
+    frame: Frame
+    output: PipelineOutput
+    command: ControlCommand
+    truth: GroundTruthSample | None = None

@@ -9,6 +9,7 @@ from skylock.core.types import ControlCommand, Frame, GroundTruthSample, Pointin
 from skylock.simulation.camera import VirtualCamera
 from skylock.simulation.disturbances.base import DisturbanceContext
 from skylock.simulation.disturbances.stack import DisturbanceStack
+from skylock.simulation.gimbal import VirtualGimbal
 from skylock.simulation.ground_truth import build_ground_truth
 from skylock.simulation.targets import TargetSet
 
@@ -41,11 +42,7 @@ class SimulationSource(FrameSource):
         gimbal: GimbalPlant | None = None,
     ) -> None:
         self.config = config
-        init_pointing = Pointing(
-            pan_deg=config.gimbal.initial[0],
-            tilt_deg=config.gimbal.initial[1],
-        )
-        self.gimbal = gimbal if gimbal is not None else FixedPointingGimbal(init_pointing)
+        self.gimbal = gimbal if gimbal is not None else VirtualGimbal(config.gimbal)
         self.camera = VirtualCamera(config.camera)
         self.target_set = TargetSet(config.target, seed=config.seed)
         self.disturbances = DisturbanceStack(
