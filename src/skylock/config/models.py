@@ -274,7 +274,7 @@ class JitterConfig:
 class PlatformConfig:
     enabled: bool = False
     kind: str = "linear"
-    velocity_px_frame: float = 0.0
+    velocity_px_frame: float | tuple[float, float] = 0.0
     max_px_frame: float = 0.0
 
 

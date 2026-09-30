@@ -143,7 +143,7 @@ Each disturbance is independently toggled and parameterized:
 | `gaussian` | `enabled: bool`, `sigma_levels: float` | `sigma_levels in [0, 20.0]` | §6 (interpreted as grey levels) |
 | `poisson` | `enabled: bool`, `photon_scale: float` | `photon_scale > 0` | §6 |
 | `camera_jitter` | `enabled: bool`, `max_px_frame: float`, `correlation: float` | `|max_px_frame| <= 20.0`, `correlation in [0, 1]` | §6 |
-| `platform` | `enabled: bool`, `kind: str`, `velocity_px_frame: float`, `max_px_frame: float` | `|velocity| <= 20.0`, `|max_px| <= 20.0` | §6 (linear platform motion) |
+| `platform` | `enabled: bool`, `kind: str`, `velocity_px_frame: float | tuple[float, float]`, `max_px_frame: float` | `\|velocity\| <= 20.0`, `\|max_px\| <= 20.0` | §6 (linear platform motion) |
 | `atmosphere` | `enabled: bool`, `mode: str`, `strength: float` | `mode in ('clear','haze','fog','rain','low_light')`, `strength in [0, 1]` | §6 |
 | `blur` | `enabled: bool`, `sigma_px: float` | `sigma_px >= 0` | Optical defocus / seeing |
 

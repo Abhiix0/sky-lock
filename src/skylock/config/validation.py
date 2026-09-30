@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -268,7 +269,17 @@ def validate_disturbances(disturbances: DisturbanceConfig) -> list[str]:
         )
 
     plat = disturbances.platform
-    if abs(plat.velocity_px_frame) > 20.0:
+    if isinstance(plat.velocity_px_frame, (int, float)):
+        v_mag = abs(plat.velocity_px_frame)
+    elif isinstance(plat.velocity_px_frame, tuple) and len(plat.velocity_px_frame) == 2:
+        v_mag = math.hypot(plat.velocity_px_frame[0], plat.velocity_px_frame[1])
+    else:
+        v_mag = 21.0
+        violations.append(
+            f"disturbances.platform.velocity_px_frame must be float or (vx, vy), "
+            f"got {plat.velocity_px_frame}"
+        )
+    if v_mag > 20.0 and not any("velocity_px_frame must be float" in v for v in violations):
         violations.append(
             f"disturbances.platform.velocity_px_frame must be <= 20 px/frame (PS_SPEC §6), "
             f"got {plat.velocity_px_frame}"

@@ -17,6 +17,7 @@ def build_ground_truth(
     targets: list[Target],
     pointing: Pointing,
     camera: CameraConfig,
+    disturbance_offset_px: tuple[float, float] = (0.0, 0.0),
 ) -> GroundTruthSample:
     """Construct a GroundTruthSample for evaluation.
 
@@ -60,4 +61,5 @@ def build_ground_truth(
         primary_visible=primary_visible,
         boresight_error_px=boresight_error_px,
         pointing=pointing,
+        disturbance_offset_px=disturbance_offset_px,
     )

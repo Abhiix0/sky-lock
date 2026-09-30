@@ -148,3 +148,4 @@ class GroundTruthSample:
     primary_visible: bool
     boresight_error_px: float | None
     pointing: Pointing
+    disturbance_offset_px: tuple[float, float] = (0.0, 0.0)
