@@ -106,7 +106,7 @@ class MetricsCollector:
                 self._gt_px.append((float(truth.primary_px[0]), float(truth.primary_px[1])))
             else:
                 self._gt_px.append(None)
-            self._gt_visible.append(bool(truth.primary_visible))
+            self._gt_visible.append(truth.primary_visible)
         else:
             if self._has_seen_truth:
                 self._gt_px.append(None)

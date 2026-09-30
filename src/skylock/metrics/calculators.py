@@ -36,7 +36,7 @@ def calculate_error_stats(errors: Sequence[float] | np.ndarray) -> ErrorStats:
     rms_val = float(np.sqrt(np.mean(arr**2)))
     p95_val = float(np.percentile(arr, 95))
     max_val = float(np.max(arr))
-    n_val = int(arr.size)
+    n_val = arr.size
 
     return ErrorStats(
         mean=mean_val,

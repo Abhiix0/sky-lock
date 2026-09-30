@@ -38,7 +38,7 @@ class FrameLogger:
         truth = step.truth
 
         record: dict[str, Any] = {
-            "index": int(frame.index),
+            "index": frame.index,
             "t": float(frame.timestamp_s),
             "state": output.state.value,
             "estimate": (
@@ -66,7 +66,7 @@ class FrameLogger:
                 if truth.primary_px is not None
                 else None
             )
-            record["gt_primary_visible"] = bool(truth.primary_visible)
+            record["gt_primary_visible"] = truth.primary_visible
             record["gt_boresight_error_px"] = (
                 float(truth.boresight_error_px)
                 if truth.boresight_error_px is not None
