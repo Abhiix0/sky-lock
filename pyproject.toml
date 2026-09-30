@@ -59,3 +59,7 @@ module = [
     "skylock.config.*",
 ]
 strict = true
+
+[tool.pyright]
+include = ["src", "tests"]
+extraPaths = ["src", "."]

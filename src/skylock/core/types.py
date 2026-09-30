@@ -122,6 +122,20 @@ class PipelineOutput:
 
 
 @dataclass(frozen=True, slots=True)
+class StateEvent:
+    """State transition event emitted by the tracking state machine."""
+
+    timestamp_s: float
+    from_state: TrackState
+    to_state: TrackState
+    reason: str
+
+    @property
+    def t(self) -> float:
+        return self.timestamp_s
+
+
+@dataclass(frozen=True, slots=True)
 class TargetTruth:
     """Ground truth state for a single simulated target."""
 

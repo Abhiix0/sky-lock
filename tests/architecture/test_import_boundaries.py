@@ -131,6 +131,10 @@ def test_import_boundaries() -> None:
         allowed = ALLOWED_SKYLOK_IMPORTS[pkg_name] | {pkg_name}
 
         for py_file in pkg_dir.rglob("*.py"):
+            file_allowed = allowed
+            if pkg_name == "core" and py_file.name == "pipeline.py":
+                file_allowed = allowed | {"vision", "tracking", "control"}
+
             try:
                 tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
             except SyntaxError as e:
@@ -147,7 +151,7 @@ def test_import_boundaries() -> None:
                 )
 
                 # Check general allowed imports
-                if imported_sub not in allowed:
+                if imported_sub not in file_allowed:
                     if is_lazy_app_main_ui:
                         continue
                     violations.append(

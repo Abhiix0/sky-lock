@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 
-from skylock.core.types import Frame
+from skylock.core.types import Frame, Pointing
 
 
 def make_frame(
@@ -17,6 +17,7 @@ def make_frame(
     salt_pepper_density: float = 0.0,
     frame_index: int = 0,
     timestamp_s: float = 0.0,
+    pointing: Pointing | None = None,
     seed: int | None = None,
 ) -> Frame:
     """Generate a synthetic monochrome Frame independent of the simulation subsystem.
@@ -77,4 +78,5 @@ def make_frame(
         index=frame_index,
         timestamp_s=timestamp_s,
         source_id="synthetic",
+        pointing=pointing,
     )
