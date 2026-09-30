@@ -66,6 +66,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to MP4 file for S16_mp4 scenario",
     )
 
+    # gui subcommand
+    sub.add_parser("gui", help="Launch the SkyLock graphical user interface")
+
     return parser
 
 
@@ -78,11 +81,21 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
         parser.print_help()
         return 0
 
+    if args.command == "gui":
+        return _run_gui(args)
+
     if args.command == "bench":
         return _run_bench(args)
 
     parser.print_help()
     return 0
+
+
+def _run_gui(_args: argparse.Namespace) -> int:
+    """Launch GUI delegating to skylock.app.main._run_gui."""
+    from skylock.app.main import _run_gui as launch_gui
+
+    return launch_gui()
 
 
 def _run_bench(args: argparse.Namespace) -> int:

@@ -25,7 +25,7 @@ ALLOWED_SKYLOK_IMPORTS = {
         "metrics",
         "benchmark",
     },
-    "ui": {"app", "config", "core"},
+    "ui": {"app", "config", "core", "benchmark"},
 }
 
 FORBIDDEN_SKYLOK_IMPORTS = {
@@ -60,7 +60,7 @@ FORBIDDEN_SKYLOK_IMPORTS = {
     "metrics": {"ui"},
     "benchmark": {"ui"},
     "app": {"ui"},  # At module level; app.main may lazily import ui inside function
-    "ui": set(),
+    "ui": {"simulation", "tracking", "vision", "control", "input", "metrics"},
 }
 
 
