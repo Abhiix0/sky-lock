@@ -29,6 +29,7 @@
 | `fps` | `float` | `30.0` | `[30.0, inf)` | §2 | Minimum sensor frame rate (Hz) |
 | `monochrome` | `bool` | `True` | `{True, False}` | §2 | Monochrome focal plane array |
 | `bit_depth` | `int` | `8` | `{8, 16}` | §2 | Pixel depth |
+| `background_level` | `float` | `20.0` | `[0.0, 255.0]` | Sim | Baseline dark sensor level (grey levels) |
 | `allow_below_spec_fps` | `bool` | `False` | `{True, False}` | — | Test-only escape hatch to permit `fps < 30.0` |
 
 **Derived Read-Only Properties:**

@@ -63,6 +63,11 @@ def validate_camera(camera: CameraConfig) -> list[str]:
     if camera.bit_depth not in (8, 16):
         violations.append(f"camera.bit_depth must be 8 or 16, got {camera.bit_depth}")
 
+    if not (0.0 <= camera.background_level <= 255.0):
+        violations.append(
+            f"camera.background_level must be in [0, 255], got {camera.background_level}"
+        )
+
     return violations
 
 

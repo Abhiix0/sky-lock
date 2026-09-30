@@ -41,6 +41,7 @@ class CameraConfig:
     fps: float = 30.0
     monochrome: bool = True
     bit_depth: int = 8
+    background_level: float = 20.0
     allow_below_spec_fps: bool = False
 
     def __post_init__(self) -> None:
