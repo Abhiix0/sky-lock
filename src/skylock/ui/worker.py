@@ -181,7 +181,7 @@ class SessionWorker(QObject):
         # Track first observable and acquisition times
         has_visible_truth = (
             is_sim and res.truth is not None
-            and res.truth.visible
+            and res.truth.primary_visible
         )
         if has_visible_truth and self._first_obs_time_s is None:
             self._first_obs_time_s = frame.timestamp_s
@@ -197,8 +197,16 @@ class SessionWorker(QObject):
         # Tracking error px
         tracking_err: float | None = None
         gt_px: tuple[float, float] | None = None
-        if is_sim and res.truth is not None and res.truth.in_fov and res.truth.visible:
-            gt_px = (float(res.truth.px), float(res.truth.py))
+        has_gt_position = (
+            is_sim and res.truth is not None
+            and res.truth.primary_visible
+            and res.truth.primary_px is not None
+        )
+        if has_gt_position:
+            gt_px = (
+                float(res.truth.primary_px[0]),  # type: ignore[index]
+                float(res.truth.primary_px[1]),  # type: ignore[index]
+            )
             if out.state == TrackState.TRACK and out.estimate is not None:
                 dx = out.estimate.px - gt_px[0]
                 dy = out.estimate.py - gt_px[1]
@@ -235,7 +243,7 @@ class SessionWorker(QObject):
             track_state=out.state,
             detections=det_tuples,
             estimate=est_px,
-            gate_px=float(out.gate_px),
+            gate_px=float(self._config.tracking.association_gate_px),
             boresight_px=(bx, by),
             pointing_pan_deg=p_pan,
             pointing_tilt_deg=p_tilt,
@@ -248,8 +256,8 @@ class SessionWorker(QObject):
             tracking_error_px=tracking_err,
             is_locked=(out.state == TrackState.TRACK),
             control_mode=mode_str,
-            command_pan_rate=float(res.command.pan_rate),
-            command_tilt_rate=float(res.command.tilt_rate),
+            command_pan_rate=float(res.command.pan_rate_deg_s),
+            command_tilt_rate=float(res.command.tilt_rate_deg_s),
         )
 
 

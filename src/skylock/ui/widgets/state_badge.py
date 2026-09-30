@@ -16,8 +16,6 @@ def _get_state_style(state: TrackState) -> str:
         return "background-color: #78350F; color: #FDE68A; border: 1px solid #F59E0B;"
     if state == TrackState.TRACK:
         return "background-color: #064E3B; color: #6EE7B7; border: 1px solid #10B981;"
-    if state == TrackState.COAST:
-        return "background-color: #4C1D95; color: #DDD6FE; border: 1px solid #8B5CF6;"
     if state == TrackState.LOST:
         return "background-color: #881337; color: #FECDD3; border: 1px solid #F43F5E;"
     if state == TrackState.REACQUIRE:
