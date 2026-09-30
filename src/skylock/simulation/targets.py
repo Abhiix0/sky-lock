@@ -38,7 +38,7 @@ def make_sprite(shape: str, size_px: int, custom_mask: np.ndarray | None = None)
         dist_sq = (x_indices - cx) ** 2 + (y_indices - cy) ** 2
         disc = (dist_sq <= (radius**2)).astype(np.float32)
         if disc.max() == 0.0:
-            disc[int(round(cy)), int(round(cx))] = 1.0
+            disc[round(cy), round(cx)] = 1.0
         return disc
 
     if shape == "gaussian":

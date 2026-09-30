@@ -181,7 +181,7 @@ class RandomTrajectory(Trajectory):
         if t < 0.0:
             return self.start
 
-        k = int(math.floor(t / self.DT_GRID))
+        k = math.floor(t / self.DT_GRID)
         self._step_until(k + 1)
 
         p0 = self._history_pos[k]
