@@ -116,9 +116,9 @@ def test_joint_limits_clamping_and_flags() -> None:
 
     assert g.pointing.pan_deg == pytest.approx(20.0, abs=1e-6)
     assert g.pointing.tilt_deg == pytest.approx(15.0, abs=1e-6)
-    assert g.at_limit_pan is True
-    assert g.at_limit_tilt is True
-    assert g.at_limit is True
+    assert g.at_limit_pan
+    assert g.at_limit_tilt
+    assert g.at_limit
     assert g.pan_rate_deg_s == pytest.approx(0.0)
     assert g.tilt_rate_deg_s == pytest.approx(0.0)
 
@@ -127,8 +127,8 @@ def test_joint_limits_clamping_and_flags() -> None:
     g.command(cmd_reverse, dt)
     assert g.pointing.pan_deg < 20.0
     assert g.pointing.tilt_deg < 15.0
-    assert g.at_limit_pan is False
-    assert g.at_limit_tilt is False
+    assert not g.at_limit_pan
+    assert not g.at_limit_tilt
 
 
 def test_goto_position_mode() -> None:
@@ -174,4 +174,4 @@ def test_reset_behavior() -> None:
     assert g.pointing.tilt_deg == pytest.approx(-1.0)
     assert g.pan_rate_deg_s == pytest.approx(0.0)
     assert g.tilt_rate_deg_s == pytest.approx(0.0)
-    assert g.at_limit is False
+    assert not g.at_limit
