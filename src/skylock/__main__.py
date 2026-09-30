@@ -1,9 +1,4 @@
-from skylock import __version__
-
-
-def main() -> None:
-    print(__version__)
-
+from skylock.app.main import main
 
 if __name__ == "__main__":
     main()
