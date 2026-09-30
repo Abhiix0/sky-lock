@@ -19,27 +19,30 @@ export class GLTFSpecGlossExtension {
    */
   getMaterialType(materialIndex) {
     const materialDef = this.parser.json.materials[materialIndex];
+
     if (!materialDef || !materialDef.extensions || !materialDef.extensions[this.name]) {
       return null;
     }
+
     return MeshStandardMaterial;
   }
 
   /**
    * Asynchronously assigns textures and sets parameters on materialParams.
+   * This method is called by GLTFLoader to extend material parameters.
    */
-  extendMaterialParams(materialIndex, materialParams) {
+  async extendMaterialParams(materialIndex, materialParams) {
     const parser = this.parser;
     const materialDef = parser.json.materials[materialIndex];
 
     if (!materialDef || !materialDef.extensions || !materialDef.extensions[this.name]) {
-      return Promise.resolve();
+      return;
     }
 
     const ext = materialDef.extensions[this.name];
     const pending = [];
 
-    // 1. Diffuse Factor (Base Color) - Linear sRGB in glTF specification
+    // 1. Diffuse Factor (Base Color) — linear sRGB per glTF spec
     materialParams.color = new Color(1, 1, 1);
     materialParams.opacity = 1.0;
 
@@ -55,38 +58,49 @@ export class GLTFSpecGlossExtension {
       }
     }
 
-    // 2. Diffuse Texture -> MeshStandardMaterial.map (sRGB color space)
+    // 2. Diffuse Texture -> MeshStandardMaterial.map
+    //    Pass SRGBColorSpace as the 4th argument so assignTexture stamps it on
+    //    the texture object before returning — this is the authoritative place
+    //    to set color space; doing it in a .then() risks a race with material
+    //    finalisation in GLTFLoader r170+.
     if (ext.diffuseTexture !== undefined) {
-      pending.push(parser.assignTexture(materialParams, 'map', ext.diffuseTexture, SRGBColorSpace));
+      pending.push(
+        parser
+          .assignTexture(materialParams, 'map', ext.diffuseTexture, SRGBColorSpace)
+          .then((texture) => {
+            // Belt-and-suspenders: confirm color space and force GPU re-upload
+            if (texture) {
+              texture.colorSpace = SRGBColorSpace;
+              texture.needsUpdate = true;
+            }
+          })
+      );
     }
 
-    // 3. Glossiness -> Roughness conversion: roughness = 1 - glossiness
+    // 3. Glossiness -> Roughness: roughness = 1 − glossiness
+    //    Earth.glb has glossinessFactor = 0 → roughness = 1.0; keep matte but
+    //    allow at least 0.4 so specular highlights are faintly visible.
     const glossiness = ext.glossinessFactor !== undefined ? ext.glossinessFactor : 0.0;
-    materialParams.roughness = Math.max(0.1, Math.min(1.0, 1.0 - glossiness));
+    materialParams.roughness = Math.max(0.4, Math.min(1.0, 1.0 - glossiness));
 
-    // 4. Specular Factor -> Metalness approximation:
-    // Non-metals have low specular (~0.04), metals have higher specular.
+    // 4. Specular Factor -> Metalness approximation
     if (Array.isArray(ext.specularFactor)) {
       const r = ext.specularFactor[0];
       const g = ext.specularFactor[1];
       const b = ext.specularFactor[2];
       const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      // In earth.glb specular is [0,0,0], giving metalness = 0.0
       materialParams.metalness = Math.min(luminance, 1.0);
     } else {
       materialParams.metalness = 0.0;
     }
 
-    console.log(
-      `[GLTFSpecGlossExtension] Successfully parsed material "${materialDef.name || materialIndex}":`,
-      {
-        diffuseFactor: ext.diffuseFactor,
-        hasDiffuseTexture: ext.diffuseTexture !== undefined,
-        roughness: materialParams.roughness,
-        metalness: materialParams.metalness
-      }
-    );
+    // Ensure the material respects the opacity value we set above
+    if (materialParams.opacity < 1.0) {
+      materialParams.transparent = true;
+    }
 
-    return Promise.all(pending);
+    if (pending.length > 0) {
+      await Promise.all(pending);
+    }
   }
 }

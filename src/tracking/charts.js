@@ -24,19 +24,49 @@ const STATE_COLORS = {
 export function createCharts({ errorCanvas, latencyCanvas, timelineCanvas }, metricsEngine) {
   let timerId = null;
   const WINDOW_SEC = 60.0; // Last 60 seconds of history
+  
+  // Track last known dimensions to avoid unnecessary resizes
+  const lastDimensions = new Map();
 
   function resizeCanvas(canvas) {
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
+    if (!canvas) return false;
+
+    // Use offsetWidth/offsetHeight which respect the CSS fixed height constraints.
+    // getBoundingClientRect().height can drift if the canvas element itself is
+    // the thing growing — offsetHeight reads the CSS-constrained layout size.
+    const cssW = canvas.offsetWidth;
+    const cssH = canvas.offsetHeight;
+    if (cssW === 0 || cssH === 0) return false;
+
     const dpr = window.devicePixelRatio || 1;
-    const targetW = Math.round(rect.width * dpr);
-    const targetH = Math.round(rect.height * dpr);
-    if (canvas.width !== targetW || canvas.height !== targetH) {
-      canvas.width = targetW;
-      canvas.height = targetH;
+    const targetW = Math.round(cssW * dpr);
+    const targetH = Math.round(cssH * dpr);
+
+    // Only resize if dimensions actually changed — prevents feedback loop
+    const key = canvas.id || canvas;
+    const last = lastDimensions.get(key);
+    if (last && last.w === targetW && last.h === targetH) {
+      return false;
     }
+
+    canvas.width = targetW;
+    canvas.height = targetH;
+    lastDimensions.set(key, { w: targetW, h: targetH });
+    return true;
   }
+
+  // Resize all canvases only on window resize events, never on every redraw tick
+  function handleResize() {
+    resizeCanvas(errorCanvas);
+    resizeCanvas(latencyCanvas);
+    resizeCanvas(timelineCanvas);
+  }
+
+  // Initial sizing — runs once after construction
+  handleResize();
+
+  // Only re-size when the window itself changes dimensions
+  window.addEventListener('resize', handleResize);
 
   /**
    * Redraw all three chart components.
@@ -61,7 +91,6 @@ export function createCharts({ errorCanvas, latencyCanvas, timelineCanvas }, met
 
   function drawErrorChart(samples, tMin, tMax) {
     if (!errorCanvas) return;
-    resizeCanvas(errorCanvas);
     const ctx = errorCanvas.getContext('2d');
     if (!ctx) return;
 
@@ -121,7 +150,6 @@ export function createCharts({ errorCanvas, latencyCanvas, timelineCanvas }, met
 
   function drawLatencyChart(samples, tMin, tMax) {
     if (!latencyCanvas) return;
-    resizeCanvas(latencyCanvas);
     const ctx = latencyCanvas.getContext('2d');
     if (!ctx) return;
 
@@ -174,7 +202,6 @@ export function createCharts({ errorCanvas, latencyCanvas, timelineCanvas }, met
 
   function drawTimelineStrip(samples, tMin, tMax) {
     if (!timelineCanvas) return;
-    resizeCanvas(timelineCanvas);
     const ctx = timelineCanvas.getContext('2d');
     if (!ctx) return;
 
@@ -207,6 +234,7 @@ export function createCharts({ errorCanvas, latencyCanvas, timelineCanvas }, met
       clearInterval(timerId);
       timerId = null;
     }
+    window.removeEventListener('resize', handleResize);
   }
 
   return {

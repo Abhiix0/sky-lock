@@ -38,9 +38,11 @@ import {
   initCameraPanel,
   updateCameraPanel,
   hideCameraPanel,
-  setTrackingModeUI
+  setTrackingModeUI,
+  setObserverSelectorUI
 } from './tracking/cameraPanel.js';
 import { CAMERA_CONFIG, SAT_ORIENT_SMOOTH_TAU_SEC } from './tracking/config.js';
+import { getObserverId, getTargetId, setObserver } from './tracking/observerState.js';
 import { createSimClock } from './simClock.js';
 import { requestCapture, captureFrame } from './tracking/capture.js';
 
@@ -360,7 +362,7 @@ async function main() {
     virtualCamera,
     gimbal,
     simClock,
-    getTargetSat: () => getActiveSatellites().find((s) => s.id === CAMERA_CONFIG.targetId)
+    getTargetSat: () => getActiveSatellites().find((s) => s.id === getTargetId())
   });
 
   // ---- Autonomous tracking system (sub-phase 2D) ----
@@ -370,39 +372,42 @@ async function main() {
     onSetTrackingMode: (mode) => {
       trackingSystem.setMode(mode);
     },
+    onObserverChange: (newObserverId) => {
+      const allIds = getActiveSatellites().map((s) => s.id);
+      if (!allIds.includes(newObserverId)) return; // observer not currently active
+
+      const changed = setObserver(newObserverId, allIds);
+      if (!changed) return;
+
+      // Reset tracking so it searches from the new observer's vantage point
+      trackingSystem.stateMachine.reset(trackingApi.getSimTime());
+      trackingSystem.setMode('AUTO');
+      setTrackingModeUI('AUTO');
+
+      // Re-home gimbal
+      gimbal.setGimbalCommand(90, 0);
+
+      setObserverSelectorUI(newObserverId);
+    },
     onAimEarth: () => {
       trackingSystem.setMode('MANUAL');
       setTrackingModeUI('MANUAL');
       gimbal.setGimbalCommand(90, 0);
     },
-    onReset: () => {
-      trackingSystem.setMode('MANUAL');
-      setTrackingModeUI('MANUAL');
-      gimbal.setGimbalCommand(0, 0);
-    },
     onAimTarget: () => {
       trackingSystem.setMode('MANUAL');
       setTrackingModeUI('MANUAL');
       const active = getActiveSatellites();
-      const targetSat = active.find((s) => s.id === CAMERA_CONFIG.targetId);
+      const targetSat = active.find((s) => s.id === getTargetId());
       if (targetSat) {
         const gt = virtualCamera.getGroundTruthDirection(targetSat);
         gimbal.setGimbalCommand(gt.panDeg, gt.tiltDeg);
       }
-    },
-    onNudgePan: (delta) => {
-      trackingSystem.setMode('MANUAL');
-      setTrackingModeUI('MANUAL');
-      const { panDeg, tiltDeg } = gimbal.getGimbalState();
-      gimbal.setGimbalCommand(panDeg + delta, tiltDeg);
-    },
-    onNudgeTilt: (delta) => {
-      trackingSystem.setMode('MANUAL');
-      setTrackingModeUI('MANUAL');
-      const { panDeg, tiltDeg } = gimbal.getGimbalState();
-      gimbal.setGimbalCommand(panDeg, tiltDeg + delta);
     }
   });
+
+  // Initialize observer selector UI to match default (S-1)
+  setObserverSelectorUI(getObserverId());
 
   // ============================================================
   // MANUAL CONTROLS (sub-phase 1C-2)
@@ -598,8 +603,8 @@ async function main() {
       }
 
       // Observer and target satellites
-      const observerSat = activeSats.find((sat) => sat.id === CAMERA_CONFIG.observerId);
-      const targetSat = activeSats.find((sat) => sat.id === CAMERA_CONFIG.targetId);
+      const observerSat = activeSats.find((sat) => sat.id === getObserverId());
+      const targetSat = activeSats.find((sat) => sat.id === getTargetId());
 
       // Update optical beacon with real simTime
       if (targetSat && targetSat.model && targetSat.model.visible !== false) {
@@ -630,7 +635,7 @@ async function main() {
     controls.update();
 
     const currentActive = getActiveSatellites();
-    const observerSat = currentActive.find((sat) => sat.id === CAMERA_CONFIG.observerId);
+    const observerSat = currentActive.find((sat) => sat.id === getObserverId());
 
     // Update inter-satellite link line and comms console telemetry (when enabled)
     if (islLinkEnabled) {
@@ -642,6 +647,17 @@ async function main() {
     if (observerSat && observerSat.model && observerSat.model.visible !== false) {
       updateCameraPanel(virtualCamera.getFrame(), gimbal.getGimbalState(), trackingSystem.getStatus());
     } else {
+      // Selected observer has gone inactive — try to fall back to the other satellite
+      const allActive = currentActive.filter(
+        (s) => s.model && s.model.visible !== false && !s.paused
+      );
+      if (allActive.length > 0 && allActive[0].id !== getObserverId()) {
+        const fallbackId = allActive[0].id;
+        setObserver(fallbackId, allActive.map((s) => s.id));
+        setObserverSelectorUI(fallbackId);
+      } else if (allActive.length === 0) {
+        setObserverSelectorUI('S-1', true); // NO OBSERVER
+      }
       hideCameraPanel();
     }
 

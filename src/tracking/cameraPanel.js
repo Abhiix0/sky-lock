@@ -1,4 +1,5 @@
 import { CAMERA_CONFIG } from './config.js';
+import { getObserverId, getTargetId } from './observerState.js';
 import { drawOverlay } from './overlay.js';
 
 /**
@@ -45,11 +46,10 @@ let lastBlitFrameId = -1;
  * Initialize the camera PiP panel. Creates and caches DOM references.
  *
  * @param {Object} [callbacks={}] - Optional control callbacks
- * @param {Function} [callbacks.onAimEarth]
- * @param {Function} [callbacks.onAimTarget]
- * @param {Function} [callbacks.onReset]
- * @param {Function} [callbacks.onNudgePan]
- * @param {Function} [callbacks.onNudgeTilt]
+ * @param {Function} [callbacks.onAimEarth]      - Aim at Earth button
+ * @param {Function} [callbacks.onAimTarget]     - Aim at current target button
+ * @param {Function} [callbacks.onSetTrackingMode] - AUTO/MANUAL mode toggle
+ * @param {Function} [callbacks.onObserverChange]  - Observer selector (S-1 | S-2)
  */
 export function initCameraPanel(callbacks = {}) {
   panelEl = document.getElementById('gimbal-cam-panel');
@@ -68,6 +68,14 @@ export function initCameraPanel(callbacks = {}) {
   // Pre-allocate ImageData buffer
   imageData = ctx.createImageData(PANEL_WIDTH, PANEL_HEIGHT);
 
+  // Wire observer selector buttons (S-1 / S-2)
+  const btnS1 = document.getElementById('obs-btn-s1');
+  const btnS2 = document.getElementById('obs-btn-s2');
+  if (btnS1 && btnS2 && callbacks.onObserverChange) {
+    btnS1.addEventListener('click', () => callbacks.onObserverChange('S-1'));
+    btnS2.addEventListener('click', () => callbacks.onObserverChange('S-2'));
+  }
+
   // Wire on-screen control buttons
   const btnEarth = document.getElementById('cam-btn-earth');
   if (btnEarth && callbacks.onAimEarth) {
@@ -77,31 +85,6 @@ export function initCameraPanel(callbacks = {}) {
   const btnTarget = document.getElementById('cam-btn-target');
   if (btnTarget && callbacks.onAimTarget) {
     btnTarget.addEventListener('click', callbacks.onAimTarget);
-  }
-
-  const btnReset = document.getElementById('cam-btn-reset');
-  if (btnReset && callbacks.onReset) {
-    btnReset.addEventListener('click', callbacks.onReset);
-  }
-
-  const btnUp = document.getElementById('cam-btn-up');
-  if (btnUp && callbacks.onNudgeTilt) {
-    btnUp.addEventListener('click', () => callbacks.onNudgeTilt(2));
-  }
-
-  const btnDown = document.getElementById('cam-btn-down');
-  if (btnDown && callbacks.onNudgeTilt) {
-    btnDown.addEventListener('click', () => callbacks.onNudgeTilt(-2));
-  }
-
-  const btnLeft = document.getElementById('cam-btn-left');
-  if (btnLeft && callbacks.onNudgePan) {
-    btnLeft.addEventListener('click', () => callbacks.onNudgePan(-2));
-  }
-
-  const btnRight = document.getElementById('cam-btn-right');
-  if (btnRight && callbacks.onNudgePan) {
-    btnRight.addEventListener('click', () => callbacks.onNudgePan(2));
   }
 
   // Wire tracking mode buttons
@@ -137,6 +120,52 @@ export function setTrackingModeUI(mode) {
       btnAuto.classList.remove('active');
       btnManual.classList.add('active');
     }
+  }
+}
+
+/**
+ * Update the observer selector segmented buttons and panel header to reflect
+ * the currently active observer satellite.
+ *
+ * @param {string} observerId - e.g. 'S-1' or 'S-2'
+ * @param {boolean} [disabled=false] - True when neither satellite is a valid observer
+ */
+export function setObserverSelectorUI(observerId, disabled = false) {
+  const btnS1 = document.getElementById('obs-btn-s1');
+  const btnS2 = document.getElementById('obs-btn-s2');
+  const headerTitle = document.getElementById('gimbal-cam-header-title');
+  const targetId = observerId === 'S-1' ? 'S-2' : 'S-1';
+
+  if (btnS1 && btnS2) {
+    if (disabled) {
+      btnS1.classList.remove('active');
+      btnS2.classList.remove('active');
+      btnS1.disabled = true;
+      btnS2.disabled = true;
+    } else {
+      btnS1.disabled = false;
+      btnS2.disabled = false;
+      if (observerId === 'S-1') {
+        btnS1.classList.add('active');
+        btnS2.classList.remove('active');
+      } else {
+        btnS1.classList.remove('active');
+        btnS2.classList.add('active');
+      }
+    }
+  }
+
+  if (headerTitle) {
+    headerTitle.textContent = disabled
+      ? 'NO OBSERVER — GIMBAL CAM'
+      : `${observerId} GIMBAL CAM → ${targetId}`;
+  }
+
+  // Update the AIM button label to reflect the current target
+  const btnTarget = document.getElementById('cam-btn-target');
+  if (btnTarget) {
+    btnTarget.textContent = disabled ? 'AIM —' : `AIM ${targetId}`;
+    btnTarget.title = disabled ? 'No target available' : `Aim toward target satellite ${targetId}`;
   }
 }
 
@@ -206,7 +235,9 @@ export function updateCameraPanel(frame, info, trackingStatus) {
     const pan = info.panDeg.toFixed(1);
     const tilt = info.tiltDeg.toFixed(1);
     const stateStr = trackingStatus ? ` | [${trackingStatus.state}]` : '';
-    telemetryEl.textContent = `FOV ${fov}° | PAN ${pan}° | TILT ${tilt}°${stateStr}`;
+    const obsId = getObserverId();
+    const tgtId = getTargetId();
+    telemetryEl.textContent = `${obsId}→${tgtId} | FOV ${fov}° | PAN ${pan}° | TILT ${tilt}°${stateStr}`;
   }
 }
 

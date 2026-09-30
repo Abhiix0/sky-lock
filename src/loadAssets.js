@@ -111,12 +111,20 @@ function normalizeModel(model, targetSize, label) {
 
 /**
  * Detailed inspection and verification for the loaded Earth GLB.
+ * Also enforces correct SRGBColorSpace on the diffuse map as a safety net,
+ * since the KHR_materials_pbrSpecularGlossiness extension resolves the texture
+ * asynchronously and this function runs after all promises are settled.
  */
 function inspectAndVerifyEarth(earthGltf) {
   const root = earthGltf.scene;
   const stats = collectMeshStats(root);
 
   let meshCount = 0;
+  let hasBaseColorTexture = false;
+  let textureDimensions = 'N/A';
+  let textureColorSpace = 'N/A';
+  let hasUVs = false;
+  let hasNormals = false;
   const uniqueMaterials = new Set();
   const uniqueTextures = new Set();
 
@@ -125,113 +133,78 @@ function inspectAndVerifyEarth(earthGltf) {
     console.log('Scene children:', root.children.length);
   }
 
-  // Traverse the entire hierarchy as instructed
   root.traverse((child) => {
-    if (child.isMesh) {
-      meshCount++;
+    if (!child.isMesh) return;
+
+    meshCount++;
+
+    if (DEBUG_MODE) {
+      console.log('Earth mesh:', child.name || child.uuid);
+    }
+
+    // Geometry attributes
+    const geo = child.geometry;
+    if (geo && geo.attributes) {
+      if (geo.attributes.uv) hasUVs = true;
+      if (geo.attributes.normal) hasNormals = true;
       if (DEBUG_MODE) {
-        console.log('Earth mesh:', child);
-        console.log('Geometry:', child.geometry);
-        console.log('Material:', child.material);
+        console.log(
+          `  UVs: ${geo.attributes.uv ? geo.attributes.uv.count : 'none'}`,
+          `  Normals: ${geo.attributes.normal ? geo.attributes.normal.count : 'none'}`
+        );
       }
+    }
 
-      if (child.material) {
-        uniqueMaterials.add(child.material);
-        if (child.material.map) {
-          uniqueTextures.add(child.material.map);
-        }
+    const mat = child.material;
+    if (!mat) return;
+    uniqueMaterials.add(mat);
+
+    if (DEBUG_MODE) {
+      console.log('  Material type:', mat.type);
+      console.log('  mat.map:', mat.map ? `present (colorSpace=${mat.map.colorSpace})` : 'NULL');
+      console.log('  mat.color:', mat.color ? `#${mat.color.getHexString()}` : null);
+      console.log('  mat.emissive:', mat.emissive ? `#${mat.emissive.getHexString()}` : null);
+      console.log('  mat.emissiveIntensity:', mat.emissiveIntensity);
+      console.log('  mat.roughness:', mat.roughness, '  mat.metalness:', mat.metalness);
+    }
+
+    if (mat.map) {
+      uniqueTextures.add(mat.map);
+      hasBaseColorTexture = true;
+
+      // Authoritative color-space stamp: diffuse/albedo maps must be sRGB.
+      // GLTFSpecGlossExtension already stamps this, but we enforce it here
+      // as a belt-and-suspenders after all async texture work is settled.
+      mat.map.colorSpace = THREE.SRGBColorSpace;
+      mat.map.needsUpdate = true;
+      textureColorSpace = mat.map.colorSpace;
+
+      const img = mat.map.image || (mat.map.source && mat.map.source.data);
+      if (img) textureDimensions = `${img.width}x${img.height}`;
+
+      mat.needsUpdate = true;
+
+      if (DEBUG_MODE) {
+        console.log(`  Texture colorSpace set to: ${textureColorSpace}`);
+        console.log(`  Texture dimensions: ${textureDimensions}`);
       }
+    } else if (DEBUG_MODE) {
+      console.warn('  ⚠️  mat.map is NULL — diffuse texture not loaded');
     }
   });
 
-  const materialCount = uniqueMaterials.size;
-  const textureCount = uniqueTextures.size;
-
-  if (DEBUG_MODE) {
-    console.log(`Mesh count: ${meshCount}`);
-    console.log(`Material count: ${materialCount}`);
-    console.log(`Texture count: ${textureCount}`);
-    console.log(`Triangle count: ${stats.triangleCount.toLocaleString()}`);
-  }
-
-  // Inspect materials and enforce proper color space on color/albedo textures
-  let hasBaseColorTexture = false;
-  let textureDimensions = 'N/A';
-  let textureColorSpace = 'N/A';
-  let hasUVs = false;
-  let hasNormals = false;
-
-  root.traverse((child) => {
-    if (child.isMesh) {
-      const geo = child.geometry;
-      if (geo && geo.attributes) {
-        if (geo.attributes.uv) {
-          hasUVs = true;
-          if (DEBUG_MODE) {
-            console.log(
-              `Geometry UVs: count=${geo.attributes.uv.count}, itemSize=${geo.attributes.uv.itemSize}`
-            );
-          }
-        }
-        if (geo.attributes.normal) {
-          hasNormals = true;
-          if (DEBUG_MODE) {
-            console.log(
-              `Geometry Normals: count=${geo.attributes.normal.count}, itemSize=${geo.attributes.normal.itemSize}`
-            );
-          }
-        }
-      }
-
-      const mat = child.material;
-      if (mat) {
-        if (DEBUG_MODE) {
-          console.log('--- Earth Mesh Material Inspection ---', {
-            'material.type': mat.type,
-            'material.map': mat.map ? mat.map.name || 'Texture present' : null,
-            'material.color': mat.color ? `#${mat.color.getHexString()}` : null,
-            'material.normalMap': mat.normalMap ? 'Present' : null,
-            'material.roughnessMap': mat.roughnessMap ? 'Present' : null,
-            'material.metalnessMap': mat.metalnessMap ? 'Present' : null,
-            'material.emissiveMap': mat.emissiveMap ? 'Present' : null,
-            'material.transparent': mat.transparent,
-            'material.opacity': mat.opacity,
-            'material.roughness': mat.roughness,
-            'material.metalness': mat.metalness
-          });
-        }
-
-        // Step 4: Fix texture color space correctly for color/albedo map
-        if (mat.map) {
-          hasBaseColorTexture = true;
-          mat.map.colorSpace = THREE.SRGBColorSpace;
-          mat.map.needsUpdate = true;
-          textureColorSpace = mat.map.colorSpace;
-
-          if (mat.map.image) {
-            textureDimensions = `${mat.map.image.width}x${mat.map.image.height}`;
-          } else if (mat.map.source && mat.map.source.data) {
-            textureDimensions = `${mat.map.source.data.width}x${mat.map.source.data.height}`;
-          }
-
-          mat.needsUpdate = true;
-        }
-      }
-    }
-  });
-
-  // Critical Debugging Checklist
   if (DEBUG_MODE) {
     console.log('========================================');
-    console.log('CRITICAL DEBUGGING CHECKLIST:');
-    console.log('GLB loads?          YES');
-    console.log(`Geometry loads?     ${meshCount > 0 ? 'YES' : 'NO'}`);
-    console.log(`UVs exist?          ${hasUVs ? 'YES' : 'NO'}`);
-    console.log(`Normals exist?      ${hasNormals ? 'YES' : 'NO'}`);
-    console.log(`Material exists?    ${materialCount > 0 ? 'YES' : 'NO'}`);
-    console.log(`Base-color texture? ${hasBaseColorTexture ? 'YES' : 'NO'}`);
-    console.log(`Texture dimensions: ${textureDimensions}`);
-    console.log(`Texture color space: ${textureColorSpace}`);
+    console.log('EARTH GLB CHECKLIST:');
+    console.log(`  GLB loads?          YES`);
+    console.log(`  Mesh count:         ${meshCount}`);
+    console.log(`  Triangle count:     ${stats.triangleCount.toLocaleString()}`);
+    console.log(`  UVs exist?          ${hasUVs ? 'YES' : 'NO'}`);
+    console.log(`  Normals exist?      ${hasNormals ? 'YES' : 'NO'}`);
+    console.log(`  Material count:     ${uniqueMaterials.size}`);
+    console.log(`  Base-color texture? ${hasBaseColorTexture ? 'YES' : 'NO'}`);
+    console.log(`  Texture dimensions: ${textureDimensions}`);
+    console.log(`  Texture colorSpace: ${textureColorSpace}`);
     console.log('========================================');
   }
 }

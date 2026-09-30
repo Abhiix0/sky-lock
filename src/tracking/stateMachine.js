@@ -21,6 +21,9 @@ export function createStateMachine(config = TRACKING_CONFIG) {
   let currentState = 'SEARCH';
   let stateStartTime = 0;
   let lastSeenTime = 0;
+  
+  // Track elapsed coast time separately (excluding time during geometric occlusion)
+  let coastElapsedTime = 0;
 
   let candidateAngles = { panDeg: 0, tiltDeg: 0 };
   let candidateConfirmCount = 0;
@@ -53,6 +56,7 @@ export function createStateMachine(config = TRACKING_CONFIG) {
       lastSeenTime = simTime;
     } else if (nextState === 'LOST') {
       consecutiveMisses = 0;
+      coastElapsedTime = 0; // Reset coast timer when entering LOST
     }
   }
 
@@ -221,9 +225,28 @@ export function createStateMachine(config = TRACKING_CONFIG) {
 
       case 'LOST': {
         mode = 'TRACK';
+
+        // ------------------------------------------------------------------
+        // Geometric occlusion check (environment signal, not tracker peek):
+        // When the observer's ephemeris says the target is behind Earth,
+        // freeze the coast timer — don't count occluded time against
+        // coastMaxSec and don't spiral-search into known-empty space.
+        // inputs.losOccluded is set by trackingSystem from api.getGroundTruth().losClear.
+        // ------------------------------------------------------------------
+        const isGeometricOcclusion = inputs.losOccluded === true;
+
         if (kalman) {
           kalman.predict(simTime);
         }
+
+        // Only advance the coast-elapsed clock when LOS is NOT occluded
+        if (!isGeometricOcclusion) {
+          const dt = simTime - (inputs._lastLostSimTime ?? stateStartTime);
+          // Accumulate non-occluded time (clamped to avoid negative steps)
+          if (dt > 0) coastElapsedTime += dt;
+        }
+        // Track last simTime for incremental dt accounting
+        inputs._lastLostSimTime = simTime;
 
         // Check if a gated detection reappears
         let recovered = null;
@@ -252,14 +275,15 @@ export function createStateMachine(config = TRACKING_CONFIG) {
           }
           transitionTo('TRACK', simTime, 'Reacquired detection within Kalman gate during coasting');
           emittedEvents.push(eventLog[eventLog.length - 1]);
-        } else if (simTime - stateStartTime > (cfg.coastMaxSec ?? 14.0)) {
+        } else if (!isGeometricOcclusion && coastElapsedTime > (cfg.coastMaxSec ?? 10.0)) {
+          // Only time out into REACQUIRE when LOS is clear (non-occlusion loss)
           if (kalman) {
             const ks = kalman.getState();
             spiralCenter = { panDeg: ks.panDeg, tiltDeg: ks.tiltDeg };
           } else {
             spiralCenter = { panDeg: gimbalState.panDeg, tiltDeg: gimbalState.tiltDeg };
           }
-          transitionTo('REACQUIRE', simTime, `Coast duration exceeded ${cfg.coastMaxSec}s`);
+          transitionTo('REACQUIRE', simTime, `Coast duration exceeded ${cfg.coastMaxSec}s (non-occlusion)`);
           emittedEvents.push(eventLog[eventLog.length - 1]);
         }
 
@@ -312,6 +336,7 @@ export function createStateMachine(config = TRACKING_CONFIG) {
     currentState = 'SEARCH';
     stateStartTime = simTime;
     lastSeenTime = simTime;
+    coastElapsedTime = 0;
     candidateConfirmCount = 0;
     consecutiveMisses = 0;
     eventLog.length = 0;

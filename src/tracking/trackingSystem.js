@@ -111,6 +111,12 @@ export function createTrackingSystem(api, options = {}) {
     confirmedCandidate = getConfirmedCandidate(evaluatedCandidates);
 
     // 3. State machine update (feeding identified candidate)
+    // losOccluded: environment/geometry signal (like ephemeris) — NOT a tracker input.
+    // True when Earth geometry says the target cannot be visible (used only to pause
+    // the LOST coast timer; detection/Kalman logic is unchanged).
+    const gt = api.getGroundTruth ? api.getGroundTruth() : null;
+    const losOccluded = gt ? !gt.losClear : false;
+
     smResult = stateMachine.update({
       simTime: frame.timestamp,
       detections: lastDetResult.blobs,
@@ -119,7 +125,8 @@ export function createTrackingSystem(api, options = {}) {
       allCandidates: evaluatedCandidates,
       kalman,
       gimbalState,
-      cameraCfg: CAMERA_CONFIG
+      cameraCfg: CAMERA_CONFIG,
+      losOccluded
     });
 
     const t1 = typeof performance !== 'undefined' ? performance.now() : Date.now();
@@ -130,7 +137,7 @@ export function createTrackingSystem(api, options = {}) {
     if (timingCount < timingBuffer.length) timingCount++;
 
     // 4. Emit sample to performance metrics engine
-    const gt = api.getGroundTruth ? api.getGroundTruth() : null;
+    // (gt already fetched above for losOccluded)
     let estimatePx = null;
     if (kalman && gimbalState) {
       const pred = kalman.getState();
