@@ -6,8 +6,9 @@ Provides validated override dictionaries and constants for config editing.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any
 
 from skylock.config.io import to_dict
 from skylock.config.models import (
@@ -204,6 +205,38 @@ def atmosphere_override(cfg: SkyLockConfig, mode: str) -> dict[str, Any]:
     return overrides
 
 
+def target_count_override(cfg: SkyLockConfig, n: int) -> dict[str, Any]:
+    """Build override dict adjusting the target count.
+
+    Grows the list by cloning target 0 (with offset ``i * 0.4`` deg in azimuth
+    and id ``target_{i}``); shrinks by truncation.
+
+    Args:
+        cfg: Current config to base changes on.
+        n: Desired target count (1..4).
+
+    Returns:
+        Override dict with ``target.count`` and ``target.targets``.
+    """
+    cfg_dict = to_dict(cfg)
+    existing = cfg_dict["target"]["targets"]
+
+    result: list[dict[str, Any]] = []
+    for i in range(n):
+        if i < len(existing):
+            t = existing[i].copy()
+        else:
+            # Clone target 0 with offset
+            t = existing[0].copy()
+            t["id"] = f"target_{i}"
+            pos = list(t.get("initial_pos_deg", [0.0, 0.0]))
+            pos[0] = pos[0] + i * 0.4
+            t["initial_pos_deg"] = pos
+        result.append(t)
+
+    return {"target.count": n, "target.targets": result}
+
+
 __all__ = (
     "ATMOSPHERE_MODES",
     "SHAPES",
@@ -211,6 +244,7 @@ __all__ = (
     "DISTURBANCE_DEFAULTS",
     "motion_override",
     "target_override",
+    "target_count_override",
     "slew_override",
     "disturbance_toggle_override",
     "atmosphere_override",

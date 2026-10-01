@@ -1,10 +1,5 @@
 """Tests that document known bugs (a)–(f) in ControlsPanel config binding.
 
-Every test is decorated with @pytest.mark.xfail(strict=True) so it:
-  - XFAIL (expected failure)  while the bug is present  → green in CI
-  - XPASS (unexpected pass)   when the bug is fixed      → CI blocks until
-                                                           the xfail is removed
-
 Bug IDs follow the Phase G0 spec:
   G-0A  invalid disturbance key "disturbances.jitter.enabled" /
               "disturbances.atmosphere.kind" → ConfigError
@@ -13,6 +8,8 @@ Bug IDs follow the Phase G0 spec:
   G-0D  slew_rate 3.0 fails cross-field validation against scan_rate
   G-0E  enabling a disturbance checkbox leaves magnitude at 0.0 → no effect
   G-0F  "Low light" atmosphere option is absent from the combo
+
+All bugs were fixed in G1.  Tests verify they stay fixed.
 """
 
 from __future__ import annotations
@@ -28,11 +25,10 @@ pytestmark = pytest.mark.gui
 
 def test_gaussian_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking Gaussian noise must produce enabled=True AND sigma_levels > 0."""
-    controls.chk_gauss.setChecked(True)
+    controls.dist_gaussian.chk.setChecked(True)
 
-    # Error label must not be visible (config update succeeded)
-    assert not controls.lbl_error.isVisible(), (
-        f"Unexpected config error: {controls.lbl_error.text()}"
+    assert not controls._has_violations(), (
+        f"Unexpected config error"
     )
     assert controls.editor.config.disturbances.gaussian.enabled is True
     assert controls.editor.config.disturbances.gaussian.sigma_levels > 0, (
@@ -42,11 +38,9 @@ def test_gaussian_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN0
 
 def test_salt_pepper_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking Salt & Pepper must produce enabled=True AND density > 0."""
-    controls.chk_sp.setChecked(True)
+    controls.dist_salt_pepper.chk.setChecked(True)
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Unexpected config error: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     assert controls.editor.config.disturbances.salt_pepper.enabled is True
     assert controls.editor.config.disturbances.salt_pepper.density > 0, (
         "density must be > 0 when S&P noise is enabled"
@@ -55,11 +49,9 @@ def test_salt_pepper_checkbox_enables_valid_config(controls) -> None:  # noqa: A
 
 def test_jitter_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking camera jitter must succeed and set max_px_frame > 0."""
-    controls.chk_jitter.setChecked(True)
+    controls.dist_jitter.chk.setChecked(True)
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Config error raised: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     assert controls.editor.config.disturbances.camera_jitter.enabled is True
     assert controls.editor.config.disturbances.camera_jitter.max_px_frame > 0, (
         "max_px_frame must be > 0 when jitter is enabled"
@@ -68,11 +60,9 @@ def test_jitter_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
 
 def test_drift_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking platform drift must succeed and set max_px_frame > 0."""
-    controls.chk_drift.setChecked(True)
+    controls.dist_drift.chk.setChecked(True)
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Config error raised: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     assert controls.editor.config.disturbances.platform.enabled is True
     assert controls.editor.config.disturbances.platform.max_px_frame > 0, (
         "max_px_frame must be > 0 when platform drift is enabled"
@@ -81,11 +71,9 @@ def test_drift_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
 
 def test_blur_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking optical blur must produce enabled=True AND sigma_px > 0."""
-    controls.chk_blur.setChecked(True)
+    controls.dist_blur.chk.setChecked(True)
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Config error raised: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     assert controls.editor.config.disturbances.blur.enabled is True
     assert controls.editor.config.disturbances.blur.sigma_px > 0, (
         "sigma_px must be > 0 when blur is enabled"
@@ -99,11 +87,9 @@ def test_blur_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
 
 def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
     """Changing the atmosphere combo to Haze must not show a config error."""
-    controls.cmb_atmos.setCurrentText("Haze")
+    controls.atmos_section.cmb_mode.setCurrentText("Haze")
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Config error raised when changing atmosphere: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     assert controls.editor.config.disturbances.atmosphere.mode == "haze"
 
 
@@ -113,9 +99,10 @@ def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
 
 def test_atmosphere_options_complete(controls) -> None:  # noqa: ANN001
     """Atmosphere combo must include all five PS_SPEC modes including low_light."""
+    cmb = controls.atmos_section.cmb_mode
     items_normalised = {
-        controls.cmb_atmos.itemText(i).lower().replace(" ", "_")
-        for i in range(controls.cmb_atmos.count())
+        cmb.itemText(i).lower().replace(" ", "_")
+        for i in range(cmb.count())
     }
     expected = {"clear", "haze", "fog", "rain", "low_light"}
     assert items_normalised == expected, (
@@ -131,9 +118,7 @@ def test_figure8_valid(controls) -> None:  # noqa: ANN001
     """Selecting figure8 motion must not produce a config error."""
     controls.cmb_tgt_motion.setCurrentText("figure8")
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Config error when selecting figure8: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     t0 = controls.editor.config.target.targets[0]
     assert t0.motion.kind == "figure8"
 
@@ -147,9 +132,9 @@ def test_all_shape_options_valid(controls) -> None:  # noqa: ANN001
     errors = []
     for i in range(controls.cmb_tgt_shape.count()):
         controls.cmb_tgt_shape.setCurrentIndex(i)
-        if controls.lbl_error.isVisible():
+        if controls._has_violations():
             errors.append(
-                f"shape '{controls.cmb_tgt_shape.currentText()}': {controls.lbl_error.text()}"
+                f"shape '{controls.cmb_tgt_shape.currentText()}': violation"
             )
     assert not errors, "Invalid shape(s) in combo:\n" + "\n".join(errors)
 
@@ -162,32 +147,18 @@ def test_slew_3_is_valid(controls) -> None:  # noqa: ANN001
     """Setting slew rate to 3.0 deg/s must not show a config error."""
     controls.spn_slew.setValue(3.0)
 
-    assert not controls.lbl_error.isVisible(), (
-        f"Config error when setting slew=3: {controls.lbl_error.text()}"
-    )
+    assert not controls._has_violations()
     assert controls.editor.config.gimbal.slew_rate_deg_s == pytest.approx(3.0)
 
 
 # ---------------------------------------------------------------------------
-# G-0E (visual): disabled Start button must have a :disabled style rule
+# G-07 (visual): disabled Start button must have a :disabled style rule
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0E (visual): btn_start styleSheet has no :disabled rule, "
-    "so it looks enabled even when disabled by a config error"
-))
 def test_start_button_disabled_looks_disabled(controls) -> None:  # noqa: ANN001
-    """After a config error the Start button stylesheet must contain a :disabled rule."""
-    # Force a config error by using the jitter checkbox (bug G-0A triggers the error)
-    controls.chk_jitter.setChecked(True)
-
-    # Confirm an error is visible (precondition)
-    assert controls.lbl_error.isVisible(), (
-        "Precondition failed: no error was shown after ticking jitter"
-    )
-
+    """The Start button stylesheet must contain a :disabled rule."""
     ss = controls.btn_start.styleSheet()
     assert ":disabled" in ss, (
-        f"btn_start styleSheet has no ':disabled' rule while button is disabled.\n"
+        f"btn_start styleSheet has no ':disabled' rule.\n"
         f"Current styleSheet: {ss!r}"
     )

@@ -67,7 +67,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # gui subcommand
-    sub.add_parser("gui", help="Launch the SkyLock graphical user interface")
+    gui_parser = sub.add_parser("gui", help="Launch the SkyLock graphical user interface")
+    gui_parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to JSON config file to load at startup",
+    )
 
     return parser
 
@@ -91,11 +97,34 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _run_gui(_args: argparse.Namespace) -> int:
+def _run_gui(args: argparse.Namespace) -> int:
     """Launch GUI delegating to skylock.app.main._run_gui."""
+    initial_config = None
+    if args.config:
+        from skylock.config.io import from_json
+        from skylock.config.validation import ConfigError
+
+        config_path = Path(args.config)
+        if not config_path.exists():
+            print(f"Error: config file not found: {config_path}", file=sys.stderr)
+            return 2
+        try:
+            text = config_path.read_text(encoding="utf-8")
+            initial_config = from_json(text)
+        except ConfigError as e:
+            print(
+                f"Error: invalid config file {config_path}:\n"
+                + "\n".join(e.violations),
+                file=sys.stderr,
+            )
+            return 2
+        except Exception as e:
+            print(f"Error: cannot load config {config_path}: {e}", file=sys.stderr)
+            return 2
+
     from skylock.app.main import _run_gui as launch_gui
 
-    return launch_gui()
+    return launch_gui(initial_config=initial_config)
 
 
 def _run_bench(args: argparse.Namespace) -> int:

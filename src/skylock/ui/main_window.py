@@ -258,6 +258,11 @@ class MainWindow(QMainWindow):
         # Manual steering
         self._steering_filter.rate_changed.connect(self._worker.set_manual_rates)
 
+        # Manual rate from controls -> steering filter
+        self.controls_panel.spn_manual_rate.valueChanged.connect(
+            self._steering_filter.set_manual_rate
+        )
+
         # Back-pressure: camera view acknowledges frames
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
 
@@ -317,10 +322,13 @@ class MainWindow(QMainWindow):
         event.accept()
 
 
-def run_app(argv: list[str] | None = None) -> int:
+def run_app(
+    argv: list[str] | None = None,
+    initial_config: SkyLockConfig | None = None,
+) -> int:
     """Launch the SkyLock graphical user interface."""
     app = QApplication(argv if argv is not None else sys.argv)
-    window = MainWindow()
+    window = MainWindow(initial_config=initial_config)
     window.show()
     return app.exec()
 
