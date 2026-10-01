@@ -26,7 +26,6 @@ pytestmark = pytest.mark.gui
 # G-0E: enabling disturbance checkboxes — magnitude stays 0.0
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="G-0E: chk_gauss sets enabled but sigma_levels stays 0.0")
 def test_gaussian_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking Gaussian noise must produce enabled=True AND sigma_levels > 0."""
     controls.chk_gauss.setChecked(True)
@@ -41,7 +40,6 @@ def test_gaussian_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN0
     )
 
 
-@pytest.mark.xfail(strict=True, reason="G-0E: chk_sp sets enabled but density stays 0.0")
 def test_salt_pepper_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking Salt & Pepper must produce enabled=True AND density > 0."""
     controls.chk_sp.setChecked(True)
@@ -55,10 +53,6 @@ def test_salt_pepper_checkbox_enables_valid_config(controls) -> None:  # noqa: A
     )
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0A: _on_dist_changed sends 'disturbances.jitter.enabled' (real key: camera_jitter); "
-    "G-0E: max_px_frame stays 0.0"
-))
 def test_jitter_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking camera jitter must succeed and set max_px_frame > 0."""
     controls.chk_jitter.setChecked(True)
@@ -72,10 +66,6 @@ def test_jitter_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     )
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0A: _on_dist_changed sends 'disturbances.jitter.enabled' (real key: camera_jitter); "
-    "G-0E: platform.max_px_frame stays 0.0 / velocity_px_frame not set"
-))
 def test_drift_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking platform drift must succeed and set max_px_frame > 0."""
     controls.chk_drift.setChecked(True)
@@ -89,7 +79,6 @@ def test_drift_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     )
 
 
-@pytest.mark.xfail(strict=True, reason="G-0E: chk_blur sets enabled but sigma_px stays 0.0")
 def test_blur_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
     """Ticking optical blur must produce enabled=True AND sigma_px > 0."""
     controls.chk_blur.setChecked(True)
@@ -108,10 +97,6 @@ def test_blur_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
 # (real key is "disturbances.atmosphere.mode")
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0A: _on_dist_changed sends 'disturbances.atmosphere.kind' "
-    "(real key: disturbances.atmosphere.mode) → ConfigError on every combo change"
-))
 def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
     """Changing the atmosphere combo to Haze must not show a config error."""
     controls.cmb_atmos.setCurrentText("Haze")
@@ -126,10 +111,6 @@ def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
 # G-0F: "Low light" option absent from atmosphere combo
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0F: atmosphere combo only has Clear/Haze/Fog/Rain; "
-    "Low light (low_light) is missing"
-))
 def test_atmosphere_options_complete(controls) -> None:  # noqa: ANN001
     """Atmosphere combo must include all five PS_SPEC modes including low_light."""
     items_normalised = {
@@ -146,10 +127,6 @@ def test_atmosphere_options_complete(controls) -> None:  # noqa: ANN001
 # G-0B: figure8 sends unknown field "extent_deg"
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0B: _on_target_changed sends motion={'kind':'figure8','extent_deg':1.0,'period_s':8.0}; "
-    "real fields are width_deg, height_deg, period_s"
-))
 def test_figure8_valid(controls) -> None:  # noqa: ANN001
     """Selecting figure8 motion must not produce a config error."""
     controls.cmb_tgt_motion.setCurrentText("figure8")
@@ -165,10 +142,6 @@ def test_figure8_valid(controls) -> None:  # noqa: ANN001
 # G-0C: "rect" is not a valid shape
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0C: shape combo contains 'rect' which is not in "
-    "('square','disc','gaussian','cross','custom_mask') → ConfigError on selection"
-))
 def test_all_shape_options_valid(controls) -> None:  # noqa: ANN001
     """Every item in the shape combo must be a valid TargetConfig shape."""
     errors = []
@@ -185,11 +158,6 @@ def test_all_shape_options_valid(controls) -> None:  # noqa: ANN001
 # G-0D: slew_rate 3.0 fails cross-field validation (scan_rate default 5.0 > 3.0)
 # ---------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason=(
-    "G-0D: setting slew to 3.0 triggers ConfigError because "
-    "tracking.search.scan_rate_deg_s (5.0) > gimbal.slew_rate_deg_s (3.0); "
-    "the panel does not update scan_rate automatically"
-))
 def test_slew_3_is_valid(controls) -> None:  # noqa: ANN001
     """Setting slew rate to 3.0 deg/s must not show a config error."""
     controls.spn_slew.setValue(3.0)

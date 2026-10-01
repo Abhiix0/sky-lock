@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 
 from skylock.config.models import SkyLockConfig
+from skylock.ui.config_editor import ConfigEditor
 from skylock.ui.panels.benchmark import BenchmarkPanel
 from skylock.ui.panels.controls import ControlsPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
@@ -38,13 +39,15 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("SkyLock — Electro-Optical Tracking System")
         self.resize(1280, 800)
 
-        self._config = initial_config if initial_config is not None else SkyLockConfig()
+        # Single source of truth for configuration
+        initial = initial_config if initial_config is not None else SkyLockConfig()
+        self.editor = ConfigEditor(initial)
         self._manual_pan = 0.0
         self._manual_tilt = 0.0
 
         # Initialize worker and thread
         self._worker_thread = QThread(self)
-        self._worker = SessionWorker(self._config)
+        self._worker = SessionWorker(self.editor.config)
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.initialize)
 
@@ -75,7 +78,7 @@ class MainWindow(QMainWindow):
 
         # Left Dock: Controls
         self.dock_controls = QDockWidget("Controls", self)
-        self.controls_panel = ControlsPanel(self._config)
+        self.controls_panel = ControlsPanel(self.editor)
         self.dock_controls.setWidget(self.controls_panel)
         self.dock_controls.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.dock_controls)

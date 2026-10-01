@@ -21,6 +21,7 @@ import pytest  # noqa: E402  (re-import with full binding after importorskip gua
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from skylock.config.models import SkyLockConfig  # noqa: E402
+from skylock.ui.config_editor import ConfigEditor  # noqa: E402
 from skylock.ui.panels.controls import ControlsPanel  # noqa: E402
 
 # All tests in tests/ui/ carry the gui marker automatically.
@@ -40,7 +41,8 @@ def qapp():
 @pytest.fixture()
 def controls(qapp):  # noqa: ANN001
     """Fresh ControlsPanel backed by a default SkyLockConfig, shown offscreen."""
-    panel = ControlsPanel(SkyLockConfig())
+    editor = ConfigEditor(SkyLockConfig())
+    panel = ControlsPanel(editor)
     panel.show()
     yield panel
     panel.close()

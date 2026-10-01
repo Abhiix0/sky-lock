@@ -42,6 +42,16 @@ class ConfigEditor:
         except Exception as e:
             return None, [str(e)]
 
+    def apply(
+        self, overrides: dict[str, Any]
+    ) -> tuple[SkyLockConfig | None, list[str]]:
+        """Alias for apply_overrides for consistency."""
+        return self.apply_overrides(overrides)
+
+    def reset_to(self, cfg: SkyLockConfig) -> None:
+        """Reset the editor to a new configuration."""
+        self._current_config = cfg
+
     def to_dict(self) -> dict[str, Any]:
         """Convert current configuration to a plain dictionary."""
         return to_dict(self._current_config)
