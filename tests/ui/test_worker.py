@@ -83,6 +83,10 @@ class TestWorkerPacing:
 class TestWorkerShutdown:
     """Test that shutdown() cleans up the thread without Qt timer warnings."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="MainWindow creation causes access violations on Windows with offscreen Qt in pytest"
+    )
     def test_clean_shutdown_no_qt_warnings(self, qapp, capsys, caplog):
         """Construct MainWindow, start, close; verify thread stopped and no 'killTimer' message."""
         # Capture Qt messages (we need a custom message handler for Qt warnings)
@@ -337,6 +341,10 @@ class TestWorkerEndOfStream:
 class TestManualSteeringFilter:
     """Test that ManualSteeringFilter handles key events correctly."""
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="MainWindow creation causes access violations on Windows with offscreen Qt in pytest"
+    )
     def test_arrow_keys_emit_rates_in_manual_mode(self, qapp):
         """Simulate arrow key presses in MANUAL mode -> set_manual_rates called."""
         window = MainWindow()
@@ -384,6 +392,10 @@ class TestManualSteeringFilter:
 
         window.close()
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="MainWindow creation causes access violations on Windows with offscreen Qt in pytest"
+    )
     def test_auto_repeat_ignored(self, qapp):
         """Auto-repeat events should be ignored."""
         window = MainWindow()
@@ -412,6 +424,10 @@ class TestManualSteeringFilter:
 
         window.close()
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="MainWindow creation causes access violations on Windows with offscreen Qt in pytest"
+    )
     def test_mode_switch_clears_rates(self, qapp):
         """Switching from MANUAL to AUTO should clear rates."""
         window = MainWindow()
