@@ -6,7 +6,8 @@ Provides validated override dictionaries and constants for config editing.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 from skylock.config.io import to_dict
 from skylock.config.models import (
@@ -27,15 +28,20 @@ SHAPES = ("square", "disc", "gaussian", "cross")
 MOTION_KINDS = ("line", "circle", "figure8", "random")
 
 # Default disturbance magnitudes (applied when enabling a disturbance that's at 0)
-DISTURBANCE_DEFAULTS: dict[str, dict[str, Any]] = {
-    "gaussian": {"sigma_levels": 10.0},
-    "salt_pepper": {"density": 0.005},
-    "poisson": {"photon_scale": 10.0},
-    "camera_jitter": {"max_px_frame": 10.0, "correlation": 0.5},
-    "platform": {"velocity_px_frame": 3.0, "max_px_frame": 10.0},
-    "blur": {"sigma_px": 1.0},
-    "atmosphere": {"strength": 0.5},
-}
+DISTURBANCE_DEFAULTS: Mapping[str, Mapping[str, Any]] = MappingProxyType(
+    {
+        name: MappingProxyType(values)
+        for name, values in (
+            ("gaussian", {"sigma_levels": 10.0}),
+            ("salt_pepper", {"density": 0.005}),
+            ("poisson", {"photon_scale": 10.0}),
+            ("camera_jitter", {"max_px_frame": 10.0, "correlation": 0.5}),
+            ("platform", {"velocity_px_frame": 3.0, "max_px_frame": 10.0}),
+            ("blur", {"sigma_px": 1.0}),
+            ("atmosphere", {"strength": 0.5}),
+        )
+    }
+)
 
 
 def motion_override(kind: str) -> dict[str, Any]:

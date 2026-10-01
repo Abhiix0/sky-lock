@@ -42,6 +42,7 @@ class TestWorkerPacing:
 
         def capture_frame(fv):
             frame_times.append((fv.frame_index, time.perf_counter()))
+            worker.ack_frame()
 
         worker.frame_ready.connect(capture_frame)
         worker.start_running()
@@ -158,6 +159,7 @@ class TestWorkerControlMode:
 
         def capture(fv):
             frame_views.append(fv)
+            worker.ack_frame()
 
         worker.frame_ready.connect(capture)
         worker.start_running()
@@ -245,6 +247,7 @@ class TestWorkerFPSValues:
 
         def capture(fv):
             frame_views.append(fv)
+            worker.ack_frame()
 
         worker.frame_ready.connect(capture)
         worker.start_running()
@@ -357,7 +360,7 @@ class TestManualSteeringFilter:
         def capture_rates(pan, tilt):
             rates_received.append((pan, tilt))
 
-        window._worker.set_manual_rates = capture_rates
+        window._steering_filter.rate_changed.connect(capture_rates)
 
         # Give focus to the spinbox (this tests that keys still work)
         spinbox.setFocus()
@@ -395,7 +398,7 @@ class TestManualSteeringFilter:
         def capture_rates(pan, tilt):
             rates_received.append((pan, tilt))
 
-        window._worker.set_manual_rates = capture_rates
+        window._steering_filter.rate_changed.connect(capture_rates)
 
         # Simulate key press
         QTest.keyPress(window, Qt.Key.Key_Up)
@@ -420,7 +423,7 @@ class TestManualSteeringFilter:
         def capture_rates(pan, tilt):
             rates_received.append((pan, tilt))
 
-        window._worker.set_manual_rates = capture_rates
+        window._steering_filter.rate_changed.connect(capture_rates)
 
         # Set to MANUAL and press a key
         window.controls_panel.cmb_mode.setCurrentText("MANUAL")

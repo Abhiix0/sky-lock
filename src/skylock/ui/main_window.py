@@ -36,7 +36,7 @@ class ManualSteeringFilter(QObject):
     - Only active when control mode is MANUAL
     - Ignores auto-repeat events
     - Works even when child widgets (spinboxes, combos) have focus
-    - Exception: ignores events when QLineEdit/QSpinBox/QComboBox has focus
+    - Exception: ignores events when QLineEdit has focus
       and is actively being edited
     - Tracks multiple simultaneous key presses (e.g., Up + Right)
     - Sends (0, 0) rates when window loses focus
@@ -98,7 +98,7 @@ class ManualSteeringFilter(QObject):
             return False
 
         # Check if focus widget should block steering
-        focused = QApplication.focusWidget()
+        focused = watched if isinstance(watched, QWidget) else QApplication.focusWidget()
         if self._should_ignore_focus(focused):
             return False
 
@@ -126,12 +126,13 @@ class ManualSteeringFilter(QObject):
         if widget is None:
             return False
 
-        # Block for text input widgets
+        # Block standalone text input, but allow the internal editor used by spinboxes.
         if isinstance(widget, QLineEdit):
-            return True
-
-        # Block for spinboxes
-        if isinstance(widget, QAbstractSpinBox):
+            parent = widget.parentWidget()
+            while parent is not None:
+                if isinstance(parent, QAbstractSpinBox):
+                    return False
+                parent = parent.parentWidget()
             return True
 
         # Block for combo boxes with open popups
@@ -290,6 +291,10 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event: Any) -> None:  # noqa: ANN401
         """Cleanly shut down worker thread on application close."""
+        app = QApplication.instance()
+        if app is not None:
+            app.removeEventFilter(self._steering_filter)
+
         # Shutdown benchmark panel if it has the method (Phase G5)
         if hasattr(self.bench_panel, "shutdown"):
             self.bench_panel.shutdown()
