@@ -5,7 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from skylock.config.models import CameraConfig, DetectionConfig, GimbalConfig, SkyLockConfig, TrackingConfig
+from skylock.config.models import (
+    CameraConfig,
+    DetectionConfig,
+    GimbalConfig,
+    SkyLockConfig,
+    TrackingConfig,
+)
 from skylock.core.enums import ControlIntentMode, TrackState
 from skylock.core.types import Detection, Frame, Pointing
 from skylock.tracking.tracker import Tracker

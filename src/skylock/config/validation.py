@@ -421,13 +421,13 @@ def validate_root(cfg: SkyLockConfig) -> list[str]:
     # Screen extent vs gimbal limits
     px_per_deg = cfg.camera.px_per_deg
     left, right, bottom, top = cfg.screen.world_extent_deg(px_per_deg)
-    
+
     if cfg.gimbal.pan_limit_deg[0] < left or cfg.gimbal.pan_limit_deg[1] > right:
         violations.append(
             f"gimbal.pan_limit_deg {cfg.gimbal.pan_limit_deg} extends beyond screen bounds "
             f"({left:.2f}, {right:.2f}) deg"
         )
-    
+
     if cfg.gimbal.tilt_limit_deg[0] < bottom or cfg.gimbal.tilt_limit_deg[1] > top:
         violations.append(
             f"gimbal.tilt_limit_deg {cfg.gimbal.tilt_limit_deg} extends beyond screen bounds "

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from skylock.core.enums import TrackState

@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
+from PySide6.QtGui import QFont, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from skylock.core.enums import TrackState

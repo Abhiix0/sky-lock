@@ -16,7 +16,7 @@ from PySide6.QtWidgets import QSpinBox
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from skylock.config.io import override
-from skylock.config.models import CameraConfig, InputConfig, SkyLockConfig
+from skylock.config.models import SkyLockConfig
 from skylock.ui.main_window import MainWindow
 from skylock.ui.worker import SessionWorker
 

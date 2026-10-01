@@ -208,14 +208,14 @@ def test_csv_frame_logger_with_ground_truth() -> None:
     import csv as csv_mod
     reader = csv_mod.DictReader(io.StringIO(content))
     row = next(reader)
-    
+
     assert row["index"] == "0"
     assert row["state"] == "TRACK"
     assert float(row["estimate_px"]) == 320.0
     assert float(row["estimate_py"]) == 240.0
     assert float(row["latency_ms"]) == 12.5
     assert float(row["command_pan_rate_deg_s"]) == 0.5
-    
+
     # Ground truth fields
     assert float(row["gt_primary_px_x"]) == 322.0
     assert float(row["gt_primary_px_y"]) == 241.0
@@ -236,7 +236,7 @@ def test_csv_frame_logger_without_ground_truth() -> None:
     content = stream.getvalue()
     lines = content.strip().split("\n")
     header = lines[0].split(",")
-    
+
     # No gt_ columns should exist in header
     assert not any("gt_" in col for col in header)
     assert "index" in header
@@ -272,7 +272,7 @@ def test_csv_frame_logger_null_handling() -> None:
     import csv as csv_mod
     reader = csv_mod.DictReader(io.StringIO(content))
     row = next(reader)
-    
+
     assert row["index"] == "0"
     assert row["state"] == "SEARCH"
     assert row["estimate_px"] == ""  # Empty string for None
@@ -287,7 +287,7 @@ def test_csv_frame_logger_context_manager() -> None:
         with CSVFrameLogger(path, include_ground_truth=True) as logger:
             step = _build_step(with_gt=True)
             logger.log(step)
-        
+
         # File should be closed and readable
         content = path.read_text(encoding="utf-8")
         assert "index,t,state" in content

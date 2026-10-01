@@ -9,7 +9,6 @@ from skylock.config.models import (
     GaussianConfig,
     PoissonConfig,
     SaltPepperConfig,
-    SkyLockConfig,
 )
 from skylock.config.presets import preset_low_light, preset_rain
 from skylock.simulation.source import SimulationSource
@@ -27,7 +26,7 @@ def _evaluate_scenario(
         (detection_rate_pct, false_positives_per_frame)
     """
     from skylock.config.io import from_dict
-    
+
     # Use fixed target position within FOV to ensure it's always visible
     cfg = from_dict({
         "seed": seed,

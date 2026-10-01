@@ -92,7 +92,7 @@ def to_markdown_report(records: list[RunRecord]) -> str:
 
     # Performance summary
     lines.append("## Performance Summary\n")
-    
+
     fps_pipeline_values = [
         v for r in records
         if (v := _extract_metric_value(r.metrics, "fps_pipeline")) is not None
@@ -108,19 +108,19 @@ def to_markdown_report(records: list[RunRecord]) -> str:
         and (v := entry.get("value"))
         and isinstance(v, dict)
     ]
-    
+
     if fps_pipeline_values:
         fps_pipe_stats = _stats_over(fps_pipeline_values)
         lines.append(f"- **Pipeline FPS**: mean={fps_pipe_stats['mean']:.1f}, min={fps_pipe_stats['min']:.1f}, max={fps_pipe_stats['max']:.1f} (n={fps_pipe_stats['n']})")
-    
+
     if fps_wall_values:
         fps_wall_stats = _stats_over(fps_wall_values)
         lines.append(f"- **Wall-clock FPS**: mean={fps_wall_stats['mean']:.1f}, min={fps_wall_stats['min']:.1f}, max={fps_wall_stats['max']:.1f} (n={fps_wall_stats['n']})")
-    
+
     if latency_mean_values:
         lat_stats = _stats_over(latency_mean_values)
         lines.append(f"- **Mean Latency**: {lat_stats['mean']:.2f} ms (avg over runs)")
-    
+
     lines.append("")
 
     # Aggregated statistics (only over MEASURED values)

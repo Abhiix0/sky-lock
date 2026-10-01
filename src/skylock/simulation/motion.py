@@ -39,7 +39,7 @@ class LineTrajectory(Trajectory):
         rad = math.radians(heading_deg)
         self._vx = speed_deg_s * math.cos(rad)
         self._vy = speed_deg_s * math.sin(rad)
-        
+
         # Track actual position and velocity with reflections
         self._pos = list(start)
         self._vel = [self._vx, self._vy]
@@ -51,30 +51,30 @@ class LineTrajectory(Trajectory):
             az = self.start[0] + self._vx * t
             el = self.start[1] + self._vy * t
             return (az, el)
-        
+
         # With bounds - simulate with reflections
         if t < self._last_t:
             # Time went backwards (reset), restart from beginning
             self._pos = list(self.start)
             self._vel = [self._vx, self._vy]
             self._last_t = 0.0
-        
+
         dt_total = t - self._last_t
         if dt_total <= 0:
             return (self._pos[0], self._pos[1])
-        
+
         # Simulate in small steps to catch reflections accurately
         dt_step = 0.01  # 10ms steps
         min_az, max_az, min_el, max_el = self.bounds_deg
-        
+
         t_sim = self._last_t
         while t_sim < t:
             dt = min(dt_step, t - t_sim)
-            
+
             # Predict next position
             next_x = self._pos[0] + self._vel[0] * dt
             next_y = self._pos[1] + self._vel[1] * dt
-            
+
             # Check and reflect at boundaries
             if next_x < min_az:
                 next_x = 2.0 * min_az - next_x
@@ -82,20 +82,20 @@ class LineTrajectory(Trajectory):
             elif next_x > max_az:
                 next_x = 2.0 * max_az - next_x
                 self._vel[0] = -abs(self._vel[0])
-            
+
             if next_y < min_el:
                 next_y = 2.0 * min_el - next_y
                 self._vel[1] = abs(self._vel[1])
             elif next_y > max_el:
                 next_y = 2.0 * max_el - next_y
                 self._vel[1] = -abs(self._vel[1])
-            
+
             # Clamp to bounds
             self._pos[0] = max(min_az, min(max_az, next_x))
             self._pos[1] = max(min_el, min(max_el, next_y))
-            
+
             t_sim += dt
-        
+
         self._last_t = t
         return (self._pos[0], self._pos[1])
 
@@ -127,13 +127,13 @@ class CircleTrajectory(Trajectory):
         angle = self._omega * t + self.phase_rad
         az = self.center[0] + self.radius_deg * math.cos(angle)
         el = self.center[1] + self.radius_deg * math.sin(angle)
-        
+
         # Clamp to bounds if specified
         if self.bounds_deg is not None:
             min_az, max_az, min_el, max_el = self.bounds_deg
             az = max(min_az, min(max_az, az))
             el = max(min_el, min(max_el, el))
-        
+
         return (az, el)
 
     def reset(self) -> None:
@@ -165,13 +165,13 @@ class Figure8Trajectory(Trajectory):
         wt = self._omega * t
         az = self.center[0] + self.width_deg * math.sin(wt)
         el = self.center[1] + self.height_deg * math.sin(wt) * math.cos(wt)
-        
+
         # Clamp to bounds if specified
         if self.bounds_deg is not None:
             min_az, max_az, min_el, max_el = self.bounds_deg
             az = max(min_az, min(max_az, az))
             el = max(min_el, min(max_el, el))
-        
+
         return (az, el)
 
     def reset(self) -> None:

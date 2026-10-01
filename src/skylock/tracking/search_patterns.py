@@ -55,10 +55,10 @@ class RasterScan:
 
         # Number of rows needed to cover the field of regard
         self._num_rows = max(1, math.ceil(self.tilt_height / self._row_spacing) + 1)
-        
+
         # Time to sweep one row
         self._sweep_time = self.pan_width / self.scan_rate if self.scan_rate > 0.0 else 1.0
-        
+
         # Total cycle time
         self._cycle_time = self._sweep_time * self._num_rows
 

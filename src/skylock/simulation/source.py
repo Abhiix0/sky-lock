@@ -44,11 +44,11 @@ class SimulationSource(FrameSource):
         self.config = config
         self.gimbal = gimbal if gimbal is not None else VirtualGimbal(config.gimbal)
         self.camera = VirtualCamera(config.camera)
-        
+
         # Compute screen bounds in degrees for target motion
         px_per_deg = config.camera.px_per_deg
         screen_bounds_deg = config.screen.world_extent_deg(px_per_deg)
-        
+
         self.target_set = TargetSet(
             config.target,
             seed=config.seed,

@@ -28,7 +28,7 @@ def test_gaussian_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN0
     controls.dist_gaussian.chk.setChecked(True)
 
     assert not controls._has_violations(), (
-        f"Unexpected config error"
+        "Unexpected config error"
     )
     assert controls.editor.config.disturbances.gaussian.enabled is True
     assert controls.editor.config.disturbances.gaussian.sigma_levels > 0, (

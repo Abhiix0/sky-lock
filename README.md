@@ -159,25 +159,66 @@ sky-lock/
 ## Getting Started
 
 ### Prerequisites
-- Node.js 18+ (tested on Node.js 20 and 24)
-- npm 9+
+- Python 3.10+ 
+- pip (Python package manager)
+- (Optional) Node.js 18+ and npm 9+ for legacy web version
 
 ### Installation
+
+Install SkyLock with GUI and development dependencies:
+
 ```bash
 # Clone the repository
 git clone https://github.com/Abhiix0/sky-lock.git
 cd sky-lock
 
-# Install dependencies
+# Install Python package with GUI support
+pip install -e ".[gui,dev]"
+```
+
+For legacy web/Electron version:
+```bash
+# Install Node.js dependencies
 npm install
 ```
 
-### Running Locally
+### Running the GUI
+
+Launch the graphical user interface:
+
 ```bash
-# Start local development server
-npm run dev
+# Start GUI with default configuration
+skylock gui
+
+# Start GUI with specific configuration file
+skylock gui --config path/to/config.json
 ```
-Navigate to `http://localhost:3000` in your web browser.
+
+The GUI provides:
+- **Live tracking visualization** with camera view and telemetry
+- **Interactive controls** for all system parameters
+- **Real-time metrics** and performance monitoring
+- **Benchmark execution** with automated scenario testing
+- **Configuration management** (load/save JSON configs)
+
+See `docs/GUI.md` for complete GUI documentation.
+
+### Running Benchmarks
+
+Execute automated benchmark scenarios from the command line:
+
+```bash
+# Run specific scenario with seed
+skylock bench --scenario S01_line_clean --seed 42
+
+# Run multiple scenarios
+skylock bench --scenario S01_line_clean S02_circle_clean --seeds 1,2,3
+
+# Export results to JSON
+skylock bench --scenario S01_line_clean --seed 42 --export results.json
+```
+
+See `docs/BENCHMARK.md` for benchmark documentation.
 
 ### Running Automated Tests
 ```bash
