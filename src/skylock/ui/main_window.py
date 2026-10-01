@@ -275,6 +275,12 @@ class MainWindow(QMainWindow):
             self._steering_filter.set_manual_rate
         )
 
+        # Seed link: sync controls panel seed to benchmark panel
+        self.controls_panel.spn_seed.valueChanged.connect(
+            self.bench_panel.sync_controls_seed
+        )
+        self.bench_panel.sync_controls_seed(self.controls_panel.spn_seed.value())
+
         # Back-pressure: camera view acknowledges frames
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
 
@@ -321,9 +327,8 @@ class MainWindow(QMainWindow):
         if app is not None:
             app.removeEventFilter(self._steering_filter)
 
-        # Shutdown benchmark panel if it has the method (Phase G5)
-        if hasattr(self.bench_panel, "shutdown"):
-            self.bench_panel.shutdown()
+        # Shutdown benchmark panel
+        self.bench_panel.shutdown()
 
         # Stop worker using blocking call from worker thread
         QMetaObject.invokeMethod(

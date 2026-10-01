@@ -1,0 +1,332 @@
+{
+  "schema_version": "1.0",
+  "runs": [
+    {
+      "run_id": "e442774c-d5f8-4f11-8afe-9c607243b462",
+      "scenario_id": "S01_line_clean",
+      "seed": 42,
+      "software_version": "0.1.0",
+      "python_version": "3.12.13 (main, May  4 2026, 21:19:41) [MSC v.1944 64 bit (AMD64)]",
+      "numpy_version": "2.5.3",
+      "opencv_version": "5.0.0",
+      "platform_info": "Windows-11-10.0.26200-SP0",
+      "config_snapshot": {
+        "screen": {
+          "width_px": 2000,
+          "height_px": 2000
+        },
+        "camera": {
+          "width": 640,
+          "height": 480,
+          "fov_h_deg": 4.0,
+          "fov_v_deg": 3.0,
+          "fps": 30.0,
+          "monochrome": true,
+          "bit_depth": 8,
+          "background_level": 20.0,
+          "allow_below_spec_fps": false
+        },
+        "target": {
+          "count": 1,
+          "targets": [
+            {
+              "id": "target_0",
+              "size_px": 10,
+              "shape": "disc",
+              "brightness": 220.0,
+              "initial": "fixed",
+              "initial_pos_deg": [
+                2.0,
+                1.0
+              ],
+              "motion": {
+                "kind": "line",
+                "speed_deg_s": 0.5,
+                "heading_deg": 0.0
+              },
+              "visibility_windows": [],
+              "strict_spec": true
+            }
+          ]
+        },
+        "detection": {
+          "method": "classical",
+          "blur_sigma": 1.0,
+          "threshold_k_sigma": 5.0,
+          "abs_min_threshold": 25.0,
+          "min_area_px": 6,
+          "max_area_px": 900,
+          "max_blobs": 8,
+          "roi_margin_px": 80,
+          "median_filter": true
+        },
+        "tracking": {
+          "confirm_hits": 3,
+          "confirm_window": 5,
+          "acquire_timeout_s": 1.0,
+          "lost_after_misses": 5,
+          "coast_max_s": 0.5,
+          "reacquire_timeout_s": 1.0,
+          "reacquire_radius_deg": 1.0,
+          "association_gate_px": 50.0,
+          "kalman": {
+            "q_accel_deg_s2": 25.0,
+            "r_meas_px": 12.0,
+            "gate_sigma": 4.0
+          },
+          "search": {
+            "field_of_regard_deg": [
+              12.5,
+              12.5
+            ],
+            "raster_overlap": 0.2,
+            "scan_rate_deg_s": 5.0
+          }
+        },
+        "control": {
+          "kp": 4.0,
+          "ki": 0.5,
+          "kd": 0.2,
+          "kff": 1.0,
+          "d_filter_alpha": 0.2,
+          "integral_clamp": 8.0,
+          "deadband_px": 1.0,
+          "latency_frames": 1,
+          "mode": "AUTO"
+        },
+        "gimbal": {
+          "slew_rate_deg_s": 5.0,
+          "max_slew_rate_deg_s": 10.0,
+          "accel_deg_s2": 120.0,
+          "pan_limit_deg": [
+            -6.0,
+            6.0
+          ],
+          "tilt_limit_deg": [
+            -6.0,
+            6.0
+          ],
+          "initial": [
+            0.0,
+            0.0
+          ],
+          "substeps": 4
+        },
+        "disturbances": {
+          "salt_pepper": {
+            "enabled": false,
+            "density": 0.0
+          },
+          "gaussian": {
+            "enabled": false,
+            "sigma_levels": 0.0
+          },
+          "poisson": {
+            "enabled": false,
+            "photon_scale": 1.0
+          },
+          "camera_jitter": {
+            "enabled": false,
+            "max_px_frame": 0.0,
+            "correlation": 0.5
+          },
+          "platform": {
+            "enabled": false,
+            "kind": "linear",
+            "velocity_px_frame": 0.0,
+            "max_px_frame": 0.0
+          },
+          "atmosphere": {
+            "enabled": false,
+            "mode": "clear",
+            "strength": 0.0
+          },
+          "blur": {
+            "enabled": false,
+            "sigma_px": 0.0
+          }
+        },
+        "input": {
+          "kind": "simulation",
+          "mp4_path": "",
+          "mp4_assumed_fov_h_deg": 4.0,
+          "loop": false,
+          "fps_override": null
+        },
+        "requirements": {
+          "acquisition_max_s": 2.0,
+          "tracking_error_px_max": 10.0,
+          "tracking_error_statistic": "rms",
+          "target_loss_rate_max": 0.05,
+          "reacquisition_max_s": 1.0,
+          "processing_fps_min": 20.0,
+          "lock_radius_px": 10.0
+        },
+        "seed": 42
+      },
+      "config_hash": "5f4dae5c471fd11ca71fe3957e340c77395c36007434b32b78ce4d32545632b3",
+      "input_source": "simulation",
+      "duration_s": 6.0,
+      "frames": 180,
+      "metrics": {
+        "metrics_version": "1",
+        "total_frames": 180,
+        "observable_duration_s": 5.966666666666667,
+        "acquisition_time_from_start_s": {
+          "value": 0.06666666666666667,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "acquisition_time_from_observable_s": {
+          "value": 0.06666666666666667,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "successful_acquisition": {
+          "value": true,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "tracking_error_px": {
+          "value": {
+            "mean": 0.019983733452723116,
+            "rms": 0.02316863655518926,
+            "p95": 0.03841020714478559,
+            "max": 0.050004380379427824,
+            "n": 178
+          },
+          "status": "MEASURED",
+          "reason": null
+        },
+        "pointing_error_px": {
+          "value": {
+            "mean": 22.35807521592155,
+            "rms": 57.907865569091285,
+            "p95": 119.39322392499541,
+            "max": 344.4999244212439,
+            "n": 178
+          },
+          "status": "MEASURED",
+          "reason": null
+        },
+        "centering_error_px": {
+          "value": {
+            "mean": 22.35434994594284,
+            "rms": 57.90552509146051,
+            "p95": 119.36712669163019,
+            "max": 344.51546138089685,
+            "n": 178
+          },
+          "status": "MEASURED",
+          "reason": null
+        },
+        "reacquisition_time_s": {
+          "value": null,
+          "status": "NOT_RUN",
+          "reason": "No loss event occurred"
+        },
+        "successful_reacquisition": {
+          "value": null,
+          "status": "NOT_RUN",
+          "reason": "No loss event occurred"
+        },
+        "target_loss_rate": {
+          "value": 0.0,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "lock_retention": {
+          "value": 0.848314606741573,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "detection_rate": {
+          "value": 1.0,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "detection_present_rate": {
+          "value": 1.0,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "fps_pipeline": {
+          "value": 1268.796695176797,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "fps_wall": {
+          "value": 412.6437719424044,
+          "status": "MEASURED",
+          "reason": null
+        },
+        "latency_ms": {
+          "value": {
+            "mean": 0.7881483328270001,
+            "p50": 0.586000009207055,
+            "p95": 1.179155014688149,
+            "max": 15.2337999898009,
+            "n": 180
+          },
+          "status": "MEASURED",
+          "reason": null
+        },
+        "missed_frames": {
+          "value": {
+            "processing_missed": 0,
+            "source_dropped": 0,
+            "total_frames": 180
+          },
+          "status": "MEASURED",
+          "reason": null
+        }
+      },
+      "verdicts": {
+        "acquisition_time": "PASS",
+        "tracking_error": "PASS",
+        "target_loss_rate": "PASS",
+        "reacquisition_time": "PASS",
+        "processing_fps": "PASS",
+        "overall": "PASS"
+      },
+      "overall_verdict": "PASS",
+      "started_at_utc": "2026-10-01T08:31:20Z",
+      "wall_time_s": 0.4529092999873683,
+      "git_commit": "92ec3ff87345a6dcdc212dbe1bc549b1d4745d12",
+      "status": "COMPLETED",
+      "error": null,
+      "state_timeline_hash": "234e89186d4a2df2311689601b25c936647be837083be8840bb49061208d20e0",
+      "estimates_hash": "eb3457f96a40979996b2625c2616f57d0f7a5b521813cad7ce7685673924c423"
+    }
+  ],
+  "summary": {
+    "total_runs": 1,
+    "verdict_counts": {
+      "PASS": 1
+    },
+    "scenario_count": 1,
+    "aggregated": {
+      "acquisition_time_s": {
+        "mean": 0.06666666666666667,
+        "std": 0.0,
+        "min": 0.06666666666666667,
+        "max": 0.06666666666666667,
+        "n": 1
+      },
+      "tracking_error_rms_px": {
+        "mean": 0.02316863655518926,
+        "std": 0.0,
+        "min": 0.02316863655518926,
+        "max": 0.02316863655518926,
+        "n": 1
+      },
+      "target_loss_rate": {
+        "mean": 0.0,
+        "std": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "n": 1
+      }
+    }
+  }
+}
