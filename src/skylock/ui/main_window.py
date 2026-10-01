@@ -5,13 +5,15 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from PySide6.QtCore import Qt, QThread
-from PySide6.QtGui import QKeyEvent
+from PySide6.QtCore import QEvent, QMetaMethod, QMetaObject, QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
+    QAbstractSpinBox,
     QApplication,
     QCheckBox,
+    QComboBox,
     QDockWidget,
     QHBoxLayout,
+    QLineEdit,
     QMainWindow,
     QStatusBar,
     QVBoxLayout,
@@ -25,6 +27,133 @@ from skylock.ui.panels.controls import ControlsPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
 from skylock.ui.widgets.camera_view import CameraView
 from skylock.ui.worker import SessionWorker
+
+
+class ManualSteeringFilter(QObject):
+    """Application-level event filter for manual steering with arrow keys and WASD.
+
+    Handles key press/release events globally while respecting focus context:
+    - Only active when control mode is MANUAL
+    - Ignores auto-repeat events
+    - Works even when child widgets (spinboxes, combos) have focus
+    - Exception: ignores events when QLineEdit/QSpinBox/QComboBox has focus
+      and is actively being edited
+    - Tracks multiple simultaneous key presses (e.g., Up + Right)
+    - Sends (0, 0) rates when window loses focus
+    """
+
+    rate_changed = Signal(float, float)  # (pan_rate, tilt_rate)
+
+    def __init__(
+        self,
+        parent: QObject | None = None,
+        manual_rate_deg_s: float = 2.0,
+    ) -> None:
+        super().__init__(parent)
+        self.manual_rate_deg_s = manual_rate_deg_s
+        self.is_manual_mode = False
+        self._pressed_keys: set[int] = set()
+
+        # Key mappings
+        self._pan_keys = {
+            Qt.Key.Key_Left: -1.0,
+            Qt.Key.Key_Right: 1.0,
+            Qt.Key.Key_A: -1.0,
+            Qt.Key.Key_D: 1.0,
+        }
+        self._tilt_keys = {
+            Qt.Key.Key_Up: 1.0,
+            Qt.Key.Key_Down: -1.0,
+            Qt.Key.Key_W: 1.0,
+            Qt.Key.Key_S: -1.0,
+        }
+
+    def set_manual_mode(self, is_manual: bool) -> None:
+        """Update whether manual mode is active."""
+        self.is_manual_mode = is_manual
+        if not is_manual:
+            self._pressed_keys.clear()
+            self.rate_changed.emit(0.0, 0.0)
+
+    def set_manual_rate(self, rate_deg_s: float) -> None:
+        """Update the manual rate magnitude."""
+        self.manual_rate_deg_s = max(0.0, rate_deg_s)
+        self._emit_current_rates()
+
+    def eventFilter(self, watched: QObject | None, event: QEvent | None) -> bool:
+        """Filter key events for manual steering."""
+        if event is None or not self.is_manual_mode:
+            return False
+
+        event_type = event.type()
+
+        # Handle window deactivation
+        if event_type == QEvent.Type.WindowDeactivate:
+            self._pressed_keys.clear()
+            self.rate_changed.emit(0.0, 0.0)
+            return False
+
+        # Only process key events
+        if event_type not in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
+            return False
+
+        # Check if focus widget should block steering
+        focused = QApplication.focusWidget()
+        if self._should_ignore_focus(focused):
+            return False
+
+        # Ignore auto-repeat
+        if event.isAutoRepeat():  # type: ignore[attr-defined]
+            return False
+
+        key = event.key()  # type: ignore[attr-defined]
+        all_keys = set(self._pan_keys.keys()) | set(self._tilt_keys.keys())
+
+        if key not in all_keys:
+            return False
+
+        # Update pressed keys set
+        if event_type == QEvent.Type.KeyPress:
+            self._pressed_keys.add(key)
+        elif event_type == QEvent.Type.KeyRelease:
+            self._pressed_keys.discard(key)
+
+        self._emit_current_rates()
+        return True  # Consume the event
+
+    def _should_ignore_focus(self, widget: QWidget | None) -> bool:
+        """Check if the focused widget should block steering keys."""
+        if widget is None:
+            return False
+
+        # Block for text input widgets
+        if isinstance(widget, QLineEdit):
+            return True
+
+        # Block for spinboxes
+        if isinstance(widget, QAbstractSpinBox):
+            return True
+
+        # Block for combo boxes with open popups
+        if isinstance(widget, QComboBox):
+            # Check if the popup is visible
+            if hasattr(widget, "view") and widget.view().isVisible():
+                return True
+
+        return False
+
+    def _emit_current_rates(self) -> None:
+        """Calculate and emit rates based on currently pressed keys."""
+        pan_rate = 0.0
+        tilt_rate = 0.0
+
+        for key in self._pressed_keys:
+            if key in self._pan_keys:
+                pan_rate += self._pan_keys[key] * self.manual_rate_deg_s
+            if key in self._tilt_keys:
+                tilt_rate += self._tilt_keys[key] * self.manual_rate_deg_s
+
+        self.rate_changed.emit(pan_rate, tilt_rate)
 
 
 class MainWindow(QMainWindow):
@@ -42,14 +171,20 @@ class MainWindow(QMainWindow):
         # Single source of truth for configuration
         initial = initial_config if initial_config is not None else SkyLockConfig()
         self.editor = ConfigEditor(initial)
-        self._manual_pan = 0.0
-        self._manual_tilt = 0.0
+        self.manual_rate_deg_s = 2.0  # Default manual steering rate
 
         # Initialize worker and thread
         self._worker_thread = QThread(self)
         self._worker = SessionWorker(self.editor.config)
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.initialize)
+
+        # Manual steering event filter
+        max_slew = self.editor.config.gimbal.slew_rate_deg_s
+        self._steering_filter = ManualSteeringFilter(
+            self, manual_rate_deg_s=min(self.manual_rate_deg_s, max_slew)
+        )
+        QApplication.instance().installEventFilter(self._steering_filter)  # type: ignore[union-attr]
 
         self._build_ui()
         self._connect_signals()
@@ -109,12 +244,26 @@ class MainWindow(QMainWindow):
         self.controls_panel.reset_clicked.connect(self._worker.reset_session)
         self.controls_panel.reset_clicked.connect(self._on_reset_ui)
         self.controls_panel.config_changed.connect(self._worker.apply_config)
+        self.controls_panel.mode_changed.connect(self._on_mode_changed)
 
         # Worker -> Views
         self._worker.frame_ready.connect(self.camera_view.update_frame)
         self._worker.frame_ready.connect(self.telemetry_panel.update_telemetry)
         self._worker.session_error.connect(self._on_session_error)
         self._worker.running_changed.connect(self._on_running_changed)
+        self._worker.session_rebuilt.connect(self._on_session_rebuilt)
+        self._worker.session_finished.connect(self._on_session_finished)
+
+        # Manual steering
+        self._steering_filter.rate_changed.connect(self._worker.set_manual_rates)
+
+        # Back-pressure: camera view acknowledges frames
+        self.camera_view.frame_painted.connect(self._worker.ack_frame)
+
+    def _on_mode_changed(self, mode: str) -> None:
+        """Handle mode change: update worker and steering filter."""
+        self._worker.set_control_mode(mode)
+        self._steering_filter.set_manual_mode(mode == "MANUAL")
 
     def _on_toggle_gt(self, checked: bool) -> None:
         self.camera_view.show_ground_truth = checked
@@ -131,53 +280,35 @@ class MainWindow(QMainWindow):
         state_str = "Running" if running else "Stopped"
         self.status_bar.showMessage(f"Session {state_str}")
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:
-        """Handle arrow keys for manual gimbal steering in MANUAL mode."""
-        step = 2.0  # deg/s
-        handled = False
-        key = event.key()
+    def _on_session_rebuilt(self, msg: str) -> None:
+        """Show session rebuilt notification."""
+        self.status_bar.showMessage(msg, 3000)
 
-        if key == Qt.Key.Key_Left:
-            self._manual_pan = -step
-            handled = True
-        elif key == Qt.Key.Key_Right:
-            self._manual_pan = step
-            handled = True
-        elif key == Qt.Key.Key_Up:
-            self._manual_tilt = step
-            handled = True
-        elif key == Qt.Key.Key_Down:
-            self._manual_tilt = -step
-            handled = True
-
-        if handled:
-            self._worker.set_manual_rates(self._manual_pan, self._manual_tilt)
-            event.accept()
-        else:
-            super().keyPressEvent(event)
-
-    def keyReleaseEvent(self, event: QKeyEvent) -> None:
-        """Reset rate on key release."""
-        key = event.key()
-        handled = False
-        if key in (Qt.Key.Key_Left, Qt.Key.Key_Right):
-            self._manual_pan = 0.0
-            handled = True
-        elif key in (Qt.Key.Key_Up, Qt.Key.Key_Down):
-            self._manual_tilt = 0.0
-            handled = True
-
-        if handled:
-            self._worker.set_manual_rates(self._manual_pan, self._manual_tilt)
-            event.accept()
-        else:
-            super().keyReleaseEvent(event)
+    def _on_session_finished(self, msg: str) -> None:
+        """Show persistent end-of-stream message."""
+        self.status_bar.showMessage(msg)  # No timeout - persistent
 
     def closeEvent(self, event: Any) -> None:  # noqa: ANN401
         """Cleanly shut down worker thread on application close."""
-        self._worker.stop_running()
+        # Shutdown benchmark panel if it has the method (Phase G5)
+        if hasattr(self.bench_panel, "shutdown"):
+            self.bench_panel.shutdown()
+
+        # Stop worker using blocking call from worker thread
+        QMetaObject.invokeMethod(
+            self._worker,
+            "shutdown",
+            Qt.ConnectionType.BlockingQueuedConnection,
+        )
+
+        # Stop and wait for thread
         self._worker_thread.quit()
-        self._worker_thread.wait(2000)
+        if not self._worker_thread.wait(3000):
+            # Thread didn't stop in time - log and terminate as last resort
+            self.status_bar.showMessage("Warning: Worker thread forced termination")
+            self._worker_thread.terminate()
+            self._worker_thread.wait(1000)
+
         event.accept()
 
 

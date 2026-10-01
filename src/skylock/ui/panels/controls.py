@@ -41,7 +41,7 @@ class ControlsPanel(QWidget):
     start_clicked = Signal()
     stop_clicked = Signal()
     reset_clicked = Signal()
-    manual_rate_changed = Signal(float, float)
+    mode_changed = Signal(str)  # Emits "AUTO" or "MANUAL" for live mode changes
 
     def __init__(self, editor: ConfigEditor, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -290,11 +290,12 @@ class ControlsPanel(QWidget):
             self._apply_dict({"input.mp4_path": path})
 
     def _on_mode_changed(self) -> None:
+        """Handle mode combo change - emit for live mode change, don't rebuild."""
         if self._block_signals:
             return
-        is_manual = self.cmb_mode.currentText() == "MANUAL"
-        mode = ControlMode.MANUAL.value if is_manual else ControlMode.AUTO.value
-        self._apply_dict({"control.mode": mode})
+        mode_text = self.cmb_mode.currentText()
+        # Emit for live mode change (no config rebuild)
+        self.mode_changed.emit(mode_text)
 
     def _on_fps_changed(self) -> None:
         if self._block_signals:

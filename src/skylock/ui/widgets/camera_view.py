@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -13,6 +13,8 @@ from skylock.ui.worker import FrameView
 
 class CameraView(QWidget):
     """Custom canvas displaying sensor video with precision tracking symbology."""
+
+    frame_painted = Signal()  # Emitted after paintEvent completes (for back-pressure)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -144,6 +146,9 @@ class CameraView(QWidget):
             painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
             painter.setPen(QColor(244, 63, 94, 220))
             painter.drawText(QPointF(gx + d_size + 2, gy - 2), "GT")
+
+        # Emit signal after painting completes (back-pressure acknowledgment)
+        self.frame_painted.emit()
 
 
 __all__ = ("CameraView",)
