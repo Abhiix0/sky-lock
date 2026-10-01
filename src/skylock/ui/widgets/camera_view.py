@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QFont, QImage, QPainter, QPen
+from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
+from skylock.core.enums import TrackState
 from skylock.ui.worker import FrameView
 
 
@@ -20,9 +22,13 @@ class CameraView(QWidget):
         super().__init__(parent)
         self.setMinimumSize(320, 240)
         self.setStyleSheet("background-color: #111827;")
+        self.setMouseTracking(True)
 
         self._frame_view: FrameView | None = None
+        self._image_ref: np.ndarray | None = None
         self._show_ground_truth: bool = False
+        self._show_legend: bool = False
+        self._mouse_image_pos: tuple[int, int] | None = None
 
     @property
     def show_ground_truth(self) -> bool:
@@ -35,15 +41,70 @@ class CameraView(QWidget):
             self._show_ground_truth = value
             self.update()
 
+    @property
+    def show_legend(self) -> bool:
+        """Whether symbology overlay legend is displayed."""
+        return self._show_legend
+
+    @show_legend.setter
+    def show_legend(self, value: bool) -> None:
+        if self._show_legend != value:
+            self._show_legend = value
+            self.update()
+
     def update_frame(self, frame_view: FrameView) -> None:
         """Receive a new FrameView and trigger a widget repaint."""
         self._frame_view = frame_view
+        if frame_view.image is not None:
+            self._image_ref = frame_view.image
         self.update()
 
     def clear(self) -> None:
         """Clear the camera view back to idle state."""
         self._frame_view = None
+        self._image_ref = None
+        self._mouse_image_pos = None
         self.update()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Map mouse cursor coordinates to image pixel coordinates."""
+        if self._frame_view is None or self._frame_view.image is None:
+            self._mouse_image_pos = None
+            self.update()
+            super().mouseMoveEvent(event)
+            return
+
+        w_w = float(self.width())
+        w_h = float(self.height())
+        img_h, img_w = self._frame_view.image.shape[:2]
+
+        scale = min(w_w / img_w, w_h / img_h)
+        scaled_w = img_w * scale
+        scaled_h = img_h * scale
+        ox = (w_w - scaled_w) / 2.0
+        oy = (w_h - scaled_h) / 2.0
+
+        pos = event.position()
+        mx, my = pos.x(), pos.y()
+
+        # Check if inside image rect
+        if ox <= mx < ox + scaled_w and oy <= my < oy + scaled_h and scale > 0:
+            px = int((mx - ox) / scale)
+            py = int((my - oy) / scale)
+            px = max(0, min(img_w - 1, px))
+            py = max(0, min(img_h - 1, py))
+            self._mouse_image_pos = (px, py)
+        else:
+            self._mouse_image_pos = None
+
+        self.update()
+        super().mouseMoveEvent(event)
+
+    def leaveEvent(self, event: Any) -> None:  # noqa: ANN401
+        """Clear hover position when mouse leaves widget."""
+        self._mouse_image_pos = None
+        self.update()
+        super().leaveEvent(event)
 
     def paintEvent(self, _event: Any) -> None:  # noqa: ANN401
         """Draw sensor frame and HUD overlays."""
@@ -67,6 +128,9 @@ class CameraView(QWidget):
         fv = self._frame_view
         img_h, img_w = fv.image.shape[:2]
 
+        if img_w <= 0 or img_h <= 0 or w_w <= 0 or w_h <= 0:
+            return
+
         # Calculate aspect ratio scaling and centering offsets
         scale = min(w_w / img_w, w_h / img_h)
         scaled_w = img_w * scale
@@ -77,9 +141,11 @@ class CameraView(QWidget):
         # Background letterbox fill
         painter.fillRect(0, 0, w_w, w_h, QColor("#090D16"))
 
-        # Convert numpy uint8 grayscale to QImage
+        # Convert numpy uint8 grayscale to QImage defensively holding reference
+        # and explicitly using bytesPerLine = img_w
+        self._image_ref = fv.image
         qimg = QImage(
-            fv.image.data,
+            self._image_ref.data,
             img_w,
             img_h,
             img_w,
@@ -123,7 +189,11 @@ class CameraView(QWidget):
                 painter.drawRect(gate_rect)
 
             # Target estimate crosshair (+)
-            cross_pen = QPen(QColor(14, 165, 233, 240), 2.0, Qt.PenStyle.SolidLine)
+            # When state is LOST or REACQUIRE, draw dashed to signal prediction
+            is_predicting = fv.track_state in (TrackState.LOST, TrackState.REACQUIRE)
+            pen_style = Qt.PenStyle.DashLine if is_predicting else Qt.PenStyle.SolidLine
+            cross_color = QColor(249, 115, 22, 240) if is_predicting else QColor(14, 165, 233, 240)
+            cross_pen = QPen(cross_color, 2.0, pen_style)
             painter.setPen(cross_pen)
             c_arm = 8.0
             painter.drawLine(QPointF(ex - c_arm, ey), QPointF(ex + c_arm, ey))
@@ -146,6 +216,34 @@ class CameraView(QWidget):
             painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
             painter.setPen(QColor(244, 63, 94, 220))
             painter.drawText(QPointF(gx + d_size + 2, gy - 2), "GT")
+
+        # 5. Top-left HUD: Frame index and timestamp
+        painter.setFont(QFont("Consolas", 10))
+        painter.setPen(QColor("#E5E7EB"))
+        hud_text = f"Frame: {fv.frame_index}  |  Time: {fv.timestamp_s:.3f}s"
+        painter.drawText(QPointF(10, 20), hud_text)
+
+        # 6. Bottom-right: Mouse hover coordinates (if inside image)
+        if self._mouse_image_pos is not None:
+            painter.setFont(QFont("Consolas", 10))
+            painter.setPen(QColor("#93C5FD"))
+            coord_str = f"X: {self._mouse_image_pos[0]}, Y: {self._mouse_image_pos[1]} px"
+            painter.drawText(
+                QRectF(w_w - 180, w_h - 25, 170, 20),
+                Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                coord_str,
+            )
+
+        # 7. Legend overlay (toggled by show_legend)
+        if self._show_legend:
+            painter.setFont(QFont("Segoe UI", 9))
+            painter.setPen(QColor("#9CA3AF"))
+            legend_text = "+ boresight   o detection   [ ] gate   + estimate   ◇ GT"
+            painter.drawText(
+                QRectF(10, w_h - 25, w_w - 200, 20),
+                Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
+                legend_text,
+            )
 
         # Emit signal after painting completes (back-pressure acknowledgment)
         self.frame_painted.emit()

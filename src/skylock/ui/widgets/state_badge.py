@@ -3,9 +3,42 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QLabel, QWidget
 
 from skylock.core.enums import TrackState
+
+# Distinct high-contrast palette matching UI spec as an immutable tuple
+STATE_COLOR_ITEMS: tuple[tuple[TrackState, str], ...] = (
+    (TrackState.SEARCH, "#3B82F6"),     # Blue
+    (TrackState.ACQUIRE, "#F59E0B"),    # Amber
+    (TrackState.TRACK, "#10B981"),      # Emerald
+    (TrackState.LOST, "#F43F5E"),       # Rose / Red
+    (TrackState.REACQUIRE, "#F97316"),  # Orange
+)
+
+
+def get_state_color(state: TrackState) -> QColor:
+    """Return QColor for a given TrackState."""
+    for s, hex_code in STATE_COLOR_ITEMS:
+        if s == state:
+            return QColor(hex_code)
+    return QColor("#374151")
+
+
+# For backward compatibility with dict-style lookups without module-level dict assignment
+class _StateColorsMapping:
+    def get(self, state: TrackState, default: QColor | None = None) -> QColor:
+        for s, hex_code in STATE_COLOR_ITEMS:
+            if s == state:
+                return QColor(hex_code)
+        return default if default is not None else QColor("#374151")
+
+    def __getitem__(self, state: TrackState) -> QColor:
+        return self.get(state)
+
+
+STATE_COLORS = _StateColorsMapping()
 
 
 def _get_state_style(state: TrackState) -> str:
@@ -63,4 +96,5 @@ class StateBadge(QLabel):
         self.setStyleSheet(f"{base} {palette_style}")
 
 
-__all__ = ("StateBadge",)
+__all__ = ("STATE_COLORS", "StateBadge")
+

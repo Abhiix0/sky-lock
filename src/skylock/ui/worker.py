@@ -5,16 +5,17 @@ from __future__ import annotations
 import math
 import time
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
-from PySide6.QtCore import QMetaObject, QObject, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
 
 from skylock.app.factory import build_session
 from skylock.app.session import Session
 from skylock.config.models import SkyLockConfig
 from skylock.core.enums import ControlMode, InputKind, TrackState
 from skylock.core.types import StepResult
+from skylock.ui.live_metrics import LiveMetrics
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,14 @@ class FrameView:
     command_pan_rate: float
     command_tilt_rate: float
     dropped_ui_frames: int
+
+    # G4 additions
+    n_detections: int = 0
+    best_detection_px: tuple[float, float] | None = None
+    state_history_tail: tuple[tuple[float, str], ...] = ()
+    live: dict = field(default_factory=dict)
+    total_frames: int | None = None
+
 
 
 class SessionWorker(QObject):
@@ -73,6 +82,8 @@ class SessionWorker(QObject):
         self._period_s: float = 1.0 / 30.0  # Will be set from config
 
         # Live metric accumulators
+        self._live_metrics = LiveMetrics()
+        self._state_history: deque[tuple[float, str]] = deque(maxlen=120)
         self._first_track_time_s: float | None = None
         self._first_obs_time_s: float | None = None
         self._frame_counter = 0
@@ -117,6 +128,8 @@ class SessionWorker(QObject):
 
             # Reset timing and metrics
             self._next_deadline = 0.0
+            self._live_metrics.reset()
+            self._state_history.clear()
             self._first_track_time_s = None
             self._first_obs_time_s = None
             self._frame_counter = 0
@@ -185,6 +198,8 @@ class SessionWorker(QObject):
         self.stop_running()
         if self._session is not None:
             self._session.reset()
+        self._live_metrics.reset()
+        self._state_history.clear()
         self._first_track_time_s = None
         self._first_obs_time_s = None
         self._frame_counter = 0
@@ -348,15 +363,37 @@ class SessionWorker(QObject):
             (float(d.cx), float(d.cy), float(d.bbox[2]), float(d.bbox[3]))
             for d in out.detections
         )
+        n_detections = len(out.detections)
+        best_detection_px: tuple[float, float] | None = None
+        if out.detections:
+            # Rank detections by SNR / peak (see Detection fields: peak, snr, area_px)
+            best_det = max(out.detections, key=lambda d: (d.snr, d.peak))
+            best_detection_px = (float(best_det.cx), float(best_det.cy))
 
         # Estimate coords
         est_px = (
             (float(out.estimate.px), float(out.estimate.py)) if out.estimate else None
         )
 
+        # Update LiveMetrics and state history
+        self._live_metrics.update(
+            state=out.state,
+            timestamp_s=frame.timestamp_s,
+            n_detections=n_detections,
+            tracking_error_px=tracking_err,
+        )
+        self._state_history.append((frame.timestamp_s, out.state.name))
+
         # Pointing telemetry
         p_pan = frame.pointing.pan_deg if frame.pointing else 0.0
         p_tilt = frame.pointing.tilt_deg if frame.pointing else 0.0
+
+        # Total frames from source if available
+        total_frames: int | None = None
+        if self._session is not None and hasattr(self._session, "source"):
+            source = self._session.source
+            if hasattr(source, "frames_expected"):
+                total_frames = source.frames_expected
 
         return FrameView(
             image=np.ascontiguousarray(frame.image.copy()),
@@ -381,6 +418,11 @@ class SessionWorker(QObject):
             command_pan_rate=float(res.command.pan_rate_deg_s),
             command_tilt_rate=float(res.command.tilt_rate_deg_s),
             dropped_ui_frames=self._dropped_ui_frames,
+            n_detections=n_detections,
+            best_detection_px=best_detection_px,
+            state_history_tail=tuple(self._state_history),
+            live=self._live_metrics.snapshot(),
+            total_frames=total_frames,
         )
 
 

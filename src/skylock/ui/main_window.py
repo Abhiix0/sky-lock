@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from PySide6.QtCore import QEvent, QMetaMethod, QMetaObject, QObject, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QMetaObject, QObject, Qt, QThread, Signal
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -26,6 +26,7 @@ from skylock.ui.panels.benchmark import BenchmarkPanel
 from skylock.ui.panels.controls import ControlsPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
 from skylock.ui.widgets.camera_view import CameraView
+from skylock.ui.widgets.state_timeline import StateTimeline
 from skylock.ui.worker import SessionWorker
 
 
@@ -136,12 +137,11 @@ class ManualSteeringFilter(QObject):
             return True
 
         # Block for combo boxes with open popups
-        if isinstance(widget, QComboBox):
-            # Check if the popup is visible
-            if hasattr(widget, "view") and widget.view().isVisible():
-                return True
-
-        return False
+        return bool(
+            isinstance(widget, QComboBox)
+            and hasattr(widget, "view")
+            and widget.view().isVisible()
+        )
 
     def _emit_current_rates(self) -> None:
         """Calculate and emit rates based on currently pressed keys."""
@@ -193,13 +193,18 @@ class MainWindow(QMainWindow):
         self._worker_thread.start()
 
     def _build_ui(self) -> None:
-        # Central widget: CameraView with toolbar
+        # Central widget: CameraView with timeline and toolbar
         central_container = QWidget()
         c_layout = QVBoxLayout(central_container)
         c_layout.setContentsMargins(4, 4, 4, 4)
+        c_layout.setSpacing(4)
 
         self.camera_view = CameraView()
         c_layout.addWidget(self.camera_view, stretch=1)
+
+        # State timeline mounted directly under camera view
+        self.state_timeline = StateTimeline()
+        c_layout.addWidget(self.state_timeline)
 
         # Bottom toolbar under camera
         bar_layout = QHBoxLayout()
@@ -207,6 +212,12 @@ class MainWindow(QMainWindow):
         self.chk_debug_gt.setChecked(False)
         self.chk_debug_gt.toggled.connect(self._on_toggle_gt)
         bar_layout.addWidget(self.chk_debug_gt)
+
+        self.chk_legend = QCheckBox("Legend")
+        self.chk_legend.setChecked(False)
+        self.chk_legend.toggled.connect(self._on_toggle_legend)
+        bar_layout.addWidget(self.chk_legend)
+
         bar_layout.addStretch()
         c_layout.addLayout(bar_layout)
 
@@ -250,6 +261,7 @@ class MainWindow(QMainWindow):
         # Worker -> Views
         self._worker.frame_ready.connect(self.camera_view.update_frame)
         self._worker.frame_ready.connect(self.telemetry_panel.update_telemetry)
+        self._worker.frame_ready.connect(self._on_frame_ready)
         self._worker.session_error.connect(self._on_session_error)
         self._worker.running_changed.connect(self._on_running_changed)
         self._worker.session_rebuilt.connect(self._on_session_rebuilt)
@@ -266,6 +278,11 @@ class MainWindow(QMainWindow):
         # Back-pressure: camera view acknowledges frames
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
 
+    def _on_frame_ready(self, fv: Any) -> None:  # noqa: ANN401
+        """Update timeline with latest state history."""
+        if hasattr(fv, "state_history_tail"):
+            self.state_timeline.set_history(fv.state_history_tail)
+
     def _on_mode_changed(self, mode: str) -> None:
         """Handle mode change: update worker and steering filter."""
         self._worker.set_control_mode(mode)
@@ -274,9 +291,13 @@ class MainWindow(QMainWindow):
     def _on_toggle_gt(self, checked: bool) -> None:
         self.camera_view.show_ground_truth = checked
 
+    def _on_toggle_legend(self, checked: bool) -> None:
+        self.camera_view.show_legend = checked
+
     def _on_reset_ui(self) -> None:
-        """Clear camera and telemetry displays on reset."""
+        """Clear camera, timeline, and telemetry displays on reset."""
         self.camera_view.clear()
+        self.state_timeline.clear()
         self.telemetry_panel.clear()
 
     def _on_session_error(self, err: str) -> None:
