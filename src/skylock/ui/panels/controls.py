@@ -6,7 +6,7 @@ import random
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
@@ -90,14 +91,17 @@ class ControlsPanel(QWidget):
         run_box = QGroupBox("Run Control")
         r_layout = QHBoxLayout(run_box)
         self.btn_start = QPushButton("Start")
+        self.btn_start.setFixedHeight(28)
         self.btn_start.setStyleSheet(_BTN_START_STYLE)
         self.btn_start.clicked.connect(self._on_start)
         self.btn_stop = QPushButton("Stop")
+        self.btn_stop.setFixedHeight(28)
         self.btn_stop.setStyleSheet(
             f"background-color: {theme.BUTTON_STOP_BG.name()}; color: white; font-weight: bold;"
         )
         self.btn_stop.clicked.connect(lambda: self.stop_clicked.emit())
         self.btn_reset = QPushButton("Reset")
+        self.btn_reset.setFixedHeight(28)
         self.btn_reset.clicked.connect(lambda: self.reset_clicked.emit())
         r_layout.addWidget(self.btn_start)
         r_layout.addWidget(self.btn_stop)
@@ -113,30 +117,34 @@ class ControlsPanel(QWidget):
         self.lbl_error.hide()
         layout.addWidget(self.lbl_error)
 
-        # 2. Input Source
-        self._build_input_section(layout)
+        # Tabs: Operations (primary operational controls) vs Advanced (simulation tuning)
+        self.tabs = QTabWidget()
 
-        # 3. Control Mode & Manual Steering
-        self._build_mode_section(layout)
+        # Tab 1: Operations
+        tab_ops = QWidget()
+        layout_ops = QVBoxLayout(tab_ops)
+        layout_ops.setContentsMargins(2, 6, 2, 2)
+        layout_ops.setSpacing(8)
+        self._build_input_section(layout_ops)
+        self._build_mode_section(layout_ops)
+        self._build_camera_gimbal_section(layout_ops)
+        self._build_target_section(layout_ops)
+        self._build_motion_section(layout_ops)
+        layout_ops.addStretch()
+        self.tabs.addTab(tab_ops, "Operations")
 
-        # 4. Camera & Gimbal
-        self._build_camera_gimbal_section(layout)
+        # Tab 2: Advanced (Disturbances, Presets, RNG Seed)
+        tab_adv = QWidget()
+        layout_adv = QVBoxLayout(tab_adv)
+        layout_adv.setContentsMargins(2, 6, 2, 2)
+        layout_adv.setSpacing(8)
+        self._build_disturbance_section(layout_adv)
+        self._build_presets_section(layout_adv)
+        self._build_seed_section(layout_adv)
+        layout_adv.addStretch()
+        self.tabs.addTab(tab_adv, "Advanced")
 
-        # 5. Target Controls
-        self._build_target_section(layout)
-
-        # 6. Motion Parameters
-        self._build_motion_section(layout)
-
-        # 7. Disturbances (magnitudes)
-        self._build_disturbance_section(layout)
-
-        # 8. Presets & Config IO
-        self._build_presets_section(layout)
-
-        # 9. Seed Control
-        self._build_seed_section(layout)
-
+        layout.addWidget(self.tabs)
         layout.addStretch()
         self.scroll_area.setWidget(container)
         main_layout.addWidget(self.scroll_area)
@@ -167,6 +175,8 @@ class ControlsPanel(QWidget):
         """Gimbal control mode selector (AUTO/MANUAL). Manual rate not exposed in UI."""
         mode_box = QGroupBox("Gimbal Control Mode")
         m_layout = QFormLayout(mode_box)
+        m_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        m_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.cmb_mode = NoWheelComboBox()
         self.cmb_mode.addItems(["AUTO", "MANUAL"])
         self.cmb_mode.currentIndexChanged.connect(self._on_mode_changed)
@@ -176,13 +186,17 @@ class ControlsPanel(QWidget):
     def _build_camera_gimbal_section(self, layout: QVBoxLayout) -> None:
         cam_box = QGroupBox("Camera & Gimbal")
         c_layout = QFormLayout(cam_box)
+        c_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        c_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
         self.spn_fps = NoWheelDoubleSpinBox()
+        self.spn_fps.setFixedWidth(110)
         self.spn_fps.setRange(30.0, 120.0)
         self.spn_fps.setValue(30.0)
         self.spn_fps.setToolTip("Camera FPS [30..120] Hz (PS §2: min 30)")
         self.spn_fps.valueChanged.connect(self._on_fps_changed)
 
         self.spn_slew = NoWheelDoubleSpinBox()
+        self.spn_slew.setFixedWidth(110)
         self.spn_slew.setRange(0.1, 10.0)
         self.spn_slew.setValue(5.0)
         self.spn_slew.setToolTip("Max slew rate [0.1..10.0] °/s (PS §3)")
@@ -197,8 +211,11 @@ class ControlsPanel(QWidget):
     def _build_target_section(self, layout: QVBoxLayout) -> None:
         tgt_box = QGroupBox("Target Settings")
         t_layout = QFormLayout(tgt_box)
+        t_layout.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+        t_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
 
         self.spn_target_count = NoWheelSpinBox()
+        self.spn_target_count.setFixedWidth(110)
         self.spn_target_count.setRange(1, 4)
         self.spn_target_count.setValue(1)
         self.spn_target_count.setToolTip("Number of targets [1..4]")
@@ -208,6 +225,7 @@ class ControlsPanel(QWidget):
         self.cmb_tgt_motion.addItems([k for k in MOTION_KINDS])
         self.cmb_tgt_motion.currentIndexChanged.connect(self._on_target_changed)
         self.spn_tgt_size = NoWheelSpinBox()
+        self.spn_tgt_size.setFixedWidth(110)
         self.spn_tgt_size.setRange(5, 20)
         self.spn_tgt_size.setValue(10)
         self.spn_tgt_size.setToolTip("Target size [5..20] px (PS §4)")
@@ -296,8 +314,10 @@ class ControlsPanel(QWidget):
         # Save / Load buttons
         btn_row = QHBoxLayout()
         self.btn_save_config = QPushButton("Save Config...")
+        self.btn_save_config.setFixedHeight(26)
         self.btn_save_config.clicked.connect(self._save_config)
         self.btn_load_config = QPushButton("Load Config...")
+        self.btn_load_config.setFixedHeight(26)
         self.btn_load_config.clicked.connect(self._load_config)
         btn_row.addWidget(self.btn_save_config)
         btn_row.addWidget(self.btn_load_config)
@@ -309,11 +329,13 @@ class ControlsPanel(QWidget):
         seed_box = QGroupBox("RNG Seed")
         s_layout = QHBoxLayout(seed_box)
         self.spn_seed = NoWheelSpinBox()
+        self.spn_seed.setFixedWidth(100)
         self.spn_seed.setRange(0, 999999)
         self.spn_seed.setValue(42)
         self.spn_seed.setToolTip("Random seed [0..999999]")
         self.spn_seed.valueChanged.connect(self._on_seed_changed)
         self.btn_random_seed = QPushButton("Randomise")
+        self.btn_random_seed.setFixedHeight(26)
         self.btn_random_seed.clicked.connect(self._randomise_seed)
         s_layout.addWidget(self.spn_seed)
         s_layout.addWidget(self.btn_random_seed)

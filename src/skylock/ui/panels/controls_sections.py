@@ -12,8 +12,6 @@ from typing import Any
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
-    QDoubleSpinBox,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -24,6 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from skylock.ui import theme
+from skylock.ui.widgets.no_wheel import NoWheelComboBox, NoWheelDoubleSpinBox
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -40,7 +39,7 @@ def _linked_slider_spin(
     suffix: str = "",
     tooltip: str = "",
     slider_scale: int = 100,
-) -> tuple[QSlider, QDoubleSpinBox]:
+) -> tuple[QSlider, NoWheelDoubleSpinBox]:
     """Create a linked slider + spin box pair.
 
     The slider operates on ints (value * slider_scale); signals are blocked
@@ -51,7 +50,7 @@ def _linked_slider_spin(
     slider.setMaximum(int(maximum * slider_scale))
     slider.setValue(int(default * slider_scale))
 
-    spin = QDoubleSpinBox(parent)
+    spin = NoWheelDoubleSpinBox(parent)
     spin.setRange(minimum, maximum)
     spin.setDecimals(decimals)
     spin.setSingleStep(step)
@@ -194,7 +193,7 @@ class AtmosphereSection(QWidget):
         layout = QFormLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        self.cmb_mode = QComboBox(self)
+        self.cmb_mode = NoWheelComboBox(self)
         self.cmb_mode.addItems(list(self.DISPLAY_TO_MODE.keys()))
         self.cmb_mode.setToolTip("Atmosphere mode [PS modes: clear/haze/fog/rain/low_light]")
 
@@ -283,14 +282,17 @@ class MotionParamsStack(QWidget):
 
         self.stack = QStackedWidget(self)
         self._pages: dict[str, QWidget] = {}
-        self._spins: dict[str, dict[str, QDoubleSpinBox]] = {}
+        self._spins: dict[str, dict[str, NoWheelDoubleSpinBox]] = {}
 
         for kind in ("line", "circle", "figure8", "random"):
             page = QWidget()
             form = QFormLayout(page)
-            spins: dict[str, QDoubleSpinBox] = {}
+            form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+            form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+            spins: dict[str, NoWheelDoubleSpinBox] = {}
             for fname, label, fmin, fmax, fdefault, fdec, fstep, funit in self.FIELD_SPECS[kind]:
-                spin = QDoubleSpinBox(page)
+                spin = NoWheelDoubleSpinBox(page)
+                spin.setFixedWidth(110)
                 spin.setRange(fmin, fmax)
                 spin.setDecimals(fdec)
                 spin.setSingleStep(fstep)
@@ -367,7 +369,7 @@ class Mp4InputSection(QWidget):
         layout.addRow("Status:", self.lbl_status)
 
         # FPS override (shown when fps unreadable)
-        self.spn_fps_override = QDoubleSpinBox(self)
+        self.spn_fps_override = NoWheelDoubleSpinBox(self)
         self.spn_fps_override.setRange(1.0, 120.0)
         self.spn_fps_override.setDecimals(1)
         self.spn_fps_override.setValue(30.0)
@@ -464,7 +466,7 @@ class PresetsDropdown(QWidget):
         super().__init__(parent)
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        self.cmb = QComboBox(self)
+        self.cmb = NoWheelComboBox(self)
         self.cmb.setToolTip("Apply a disturbance preset — replaces all disturbance settings")
         self.cmb.addItems(list(self.PRESETS.keys()))
         layout.addWidget(QLabel("Preset:", self))

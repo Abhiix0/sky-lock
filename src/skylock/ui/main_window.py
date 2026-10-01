@@ -14,7 +14,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDockWidget,
     QFileDialog,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QMainWindow,
@@ -232,26 +231,24 @@ class MainWindow(QMainWindow):
         self.camera_view = CameraView()
         top_layout.addWidget(self.camera_view, stretch=10)
 
-        # State timeline mounted directly under camera view
+        # State timeline mounted under camera view (hidden by default per Phase 2 Rule 5)
         self.state_timeline = StateTimeline()
+        self.state_timeline.hide()
         top_layout.addWidget(self.state_timeline)
 
-        # Bottom toolbar under camera
-        bar_layout = QHBoxLayout()
+        # Checkable debug toggles retained for headless/settings/test compatibility,
+        # but moved out of primary visualization space into View -> Debug menu
         self.chk_debug_gt = QCheckBox("Show ground truth (debug)")
         self.chk_debug_gt.setChecked(False)
         self.chk_debug_gt.setToolTip("Display ground truth overlay (simulation only)")
         self.chk_debug_gt.toggled.connect(self._on_toggle_gt)
-        bar_layout.addWidget(self.chk_debug_gt)
+        self.chk_debug_gt.hide()
 
         self.chk_legend = QCheckBox("Legend")
         self.chk_legend.setChecked(False)
         self.chk_legend.setToolTip("Show symbology legend")
         self.chk_legend.toggled.connect(self._on_toggle_legend)
-        bar_layout.addWidget(self.chk_legend)
-
-        bar_layout.addStretch()
-        top_layout.addLayout(bar_layout)
+        self.chk_legend.hide()
 
         central_splitter.addWidget(top_widget)
 
@@ -298,21 +295,25 @@ class MainWindow(QMainWindow):
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
-        # Permanent status widgets
+        # Permanent status widgets (hidden to remove redundant live diagnostics per Phase 2 Rule 6)
         self.lbl_status_state = QLabel("SEARCH")
         self.lbl_status_state.setToolTip("Current tracking state")
+        self.lbl_status_state.hide()
         self.status_bar.addPermanentWidget(self.lbl_status_state)
 
         self.lbl_status_source = QLabel("simulation")
         self.lbl_status_source.setToolTip("Input source")
+        self.lbl_status_source.hide()
         self.status_bar.addPermanentWidget(self.lbl_status_source)
 
         self.lbl_status_frame = QLabel("frame 0")
         self.lbl_status_frame.setToolTip("Current frame number")
+        self.lbl_status_frame.hide()
         self.status_bar.addPermanentWidget(self.lbl_status_frame)
 
         self.lbl_status_fps = QLabel("0.0 fps")
         self.lbl_status_fps.setToolTip("Wall-clock rendering FPS")
+        self.lbl_status_fps.hide()
         self.status_bar.addPermanentWidget(self.lbl_status_fps)
 
         self.lbl_status_pending = QLabel("")
@@ -390,14 +391,27 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
+        # Debug submenu (Phase 2 Rule 5)
+        debug_menu = view_menu.addMenu("&Debug")
+        self.debug_menu = debug_menu
+
         act_show_gt = QAction("Show &Ground Truth", self, checkable=True)
         act_show_gt.setChecked(self.chk_debug_gt.isChecked())
         act_show_gt.toggled.connect(self.chk_debug_gt.setChecked)
-        view_menu.addAction(act_show_gt)
+        debug_menu.addAction(act_show_gt)
 
         act_show_legend = QAction("Show &Legend", self, checkable=True)
         act_show_legend.setChecked(self.chk_legend.isChecked())
         act_show_legend.toggled.connect(self.chk_legend.setChecked)
+        debug_menu.addAction(act_show_legend)
+
+        act_show_timeline = QAction("Show State &Timeline", self, checkable=True)
+        act_show_timeline.setChecked(False)
+        act_show_timeline.toggled.connect(self.state_timeline.setVisible)
+        debug_menu.addAction(act_show_timeline)
+
+        # Retain top-level actions for test compatibility (test_g6_theme_layout)
+        view_menu.addAction(act_show_gt)
         view_menu.addAction(act_show_legend)
 
         view_menu.addSeparator()
