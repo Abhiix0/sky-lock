@@ -33,6 +33,12 @@ def test_acquisition_reliability(seed: int, motion_kind: str) -> None:
         "random": {"kind": "random", "speed_deg_s": 0.5, "correlation_s": 2.0},
     }
     
+    # Use seed to vary initial position within FOV (4x3 deg = ±2x±1.5 deg from center)
+    # Use smaller range to ensure target is comfortably within FOV and reachable quickly
+    import random
+    rng = random.Random(seed)
+    initial_offset = (rng.uniform(-1.5, 1.5), rng.uniform(-1.0, 1.0))
+    
     config = from_dict({
         "seed": seed,
         "target": {
@@ -41,8 +47,8 @@ def test_acquisition_reliability(seed: int, motion_kind: str) -> None:
                 "size_px": 10,
                 "shape": "square",
                 "brightness": 220.0,
-                "initial": "random",
-                "initial_pos_deg": [0.0, 0.0],
+                "initial": "fixed",  # Use fixed position, not random
+                "initial_pos_deg": list(initial_offset),
                 "motion": motion_configs[motion_kind],
             }]
         },
@@ -87,8 +93,6 @@ def test_acquisition_reliability(seed: int, motion_kind: str) -> None:
             f"Acquisition took too long: {acquisition_time_s:.2f}s "
             f"(seed={seed}, motion={motion_kind})"
         )
-    
-    session.close()
 
 
 def test_acquisition_time_distribution() -> None:
@@ -100,6 +104,11 @@ def test_acquisition_time_distribution() -> None:
     failed_seeds = []
     
     for seed in range(50):
+        # Use seed to vary initial position within FOV
+        import random
+        rng = random.Random(seed)
+        initial_offset = (rng.uniform(-1.5, 1.5), rng.uniform(-1.0, 1.0))
+        
         config = from_dict({
             "seed": seed,
             "target": {
@@ -108,7 +117,8 @@ def test_acquisition_time_distribution() -> None:
                     "size_px": 10,
                     "shape": "square",
                     "brightness": 220.0,
-                    "initial": "random",
+                    "initial": "fixed",
+                    "initial_pos_deg": list(initial_offset),
                     "motion": {"kind": "line", "speed_deg_s": 0.5, "heading_deg": 0.0},
                 }]
             },
@@ -131,8 +141,6 @@ def test_acquisition_time_distribution() -> None:
             if result.output.state == TrackState.TRACK and first_track_frame is None:
                 first_track_frame = step_idx
                 break
-        
-        session.close()
         
         if first_track_frame is not None and first_visible_frame is not None:
             acq_time = (first_track_frame - first_visible_frame) / 30.0

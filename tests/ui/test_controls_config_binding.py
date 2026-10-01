@@ -1,0 +1,225 @@
+"""Tests that document known bugs (a)–(f) in ControlsPanel config binding.
+
+Every test is decorated with @pytest.mark.xfail(strict=True) so it:
+  - XFAIL (expected failure)  while the bug is present  → green in CI
+  - XPASS (unexpected pass)   when the bug is fixed      → CI blocks until
+                                                           the xfail is removed
+
+Bug IDs follow the Phase G0 spec:
+  G-0A  invalid disturbance key "disturbances.jitter.enabled" /
+              "disturbances.atmosphere.kind" → ConfigError
+  G-0B  figure8 motion sends unknown field "extent_deg"
+  G-0C  shape combo contains "rect" (invalid)
+  G-0D  slew_rate 3.0 fails cross-field validation against scan_rate
+  G-0E  enabling a disturbance checkbox leaves magnitude at 0.0 → no effect
+  G-0F  "Low light" atmosphere option is absent from the combo
+"""
+
+from __future__ import annotations
+
+import pytest
+
+pytestmark = pytest.mark.gui
+
+
+# ---------------------------------------------------------------------------
+# G-0E: enabling disturbance checkboxes — magnitude stays 0.0
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason="G-0E: chk_gauss sets enabled but sigma_levels stays 0.0")
+def test_gaussian_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
+    """Ticking Gaussian noise must produce enabled=True AND sigma_levels > 0."""
+    controls.chk_gauss.setChecked(True)
+
+    # Error label must not be visible (config update succeeded)
+    assert not controls.lbl_error.isVisible(), (
+        f"Unexpected config error: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.disturbances.gaussian.enabled is True
+    assert controls.editor.config.disturbances.gaussian.sigma_levels > 0, (
+        "sigma_levels must be > 0 when Gaussian noise is enabled"
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="G-0E: chk_sp sets enabled but density stays 0.0")
+def test_salt_pepper_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
+    """Ticking Salt & Pepper must produce enabled=True AND density > 0."""
+    controls.chk_sp.setChecked(True)
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Unexpected config error: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.disturbances.salt_pepper.enabled is True
+    assert controls.editor.config.disturbances.salt_pepper.density > 0, (
+        "density must be > 0 when S&P noise is enabled"
+    )
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0A: _on_dist_changed sends 'disturbances.jitter.enabled' (real key: camera_jitter); "
+    "G-0E: max_px_frame stays 0.0"
+))
+def test_jitter_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
+    """Ticking camera jitter must succeed and set max_px_frame > 0."""
+    controls.chk_jitter.setChecked(True)
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Config error raised: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.disturbances.camera_jitter.enabled is True
+    assert controls.editor.config.disturbances.camera_jitter.max_px_frame > 0, (
+        "max_px_frame must be > 0 when jitter is enabled"
+    )
+
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0A: _on_dist_changed sends 'disturbances.jitter.enabled' (real key: camera_jitter); "
+    "G-0E: platform.max_px_frame stays 0.0 / velocity_px_frame not set"
+))
+def test_drift_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
+    """Ticking platform drift must succeed and set max_px_frame > 0."""
+    controls.chk_drift.setChecked(True)
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Config error raised: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.disturbances.platform.enabled is True
+    assert controls.editor.config.disturbances.platform.max_px_frame > 0, (
+        "max_px_frame must be > 0 when platform drift is enabled"
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="G-0E: chk_blur sets enabled but sigma_px stays 0.0")
+def test_blur_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
+    """Ticking optical blur must produce enabled=True AND sigma_px > 0."""
+    controls.chk_blur.setChecked(True)
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Config error raised: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.disturbances.blur.enabled is True
+    assert controls.editor.config.disturbances.blur.sigma_px > 0, (
+        "sigma_px must be > 0 when blur is enabled"
+    )
+
+
+# ---------------------------------------------------------------------------
+# G-0A: atmosphere uses invalid key "disturbances.atmosphere.kind"
+# (real key is "disturbances.atmosphere.mode")
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0A: _on_dist_changed sends 'disturbances.atmosphere.kind' "
+    "(real key: disturbances.atmosphere.mode) → ConfigError on every combo change"
+))
+def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
+    """Changing the atmosphere combo to Haze must not show a config error."""
+    controls.cmb_atmos.setCurrentText("Haze")
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Config error raised when changing atmosphere: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.disturbances.atmosphere.mode == "haze"
+
+
+# ---------------------------------------------------------------------------
+# G-0F: "Low light" option absent from atmosphere combo
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0F: atmosphere combo only has Clear/Haze/Fog/Rain; "
+    "Low light (low_light) is missing"
+))
+def test_atmosphere_options_complete(controls) -> None:  # noqa: ANN001
+    """Atmosphere combo must include all five PS_SPEC modes including low_light."""
+    items_normalised = {
+        controls.cmb_atmos.itemText(i).lower().replace(" ", "_")
+        for i in range(controls.cmb_atmos.count())
+    }
+    expected = {"clear", "haze", "fog", "rain", "low_light"}
+    assert items_normalised == expected, (
+        f"Missing atmosphere options: {expected - items_normalised}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# G-0B: figure8 sends unknown field "extent_deg"
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0B: _on_target_changed sends motion={'kind':'figure8','extent_deg':1.0,'period_s':8.0}; "
+    "real fields are width_deg, height_deg, period_s"
+))
+def test_figure8_valid(controls) -> None:  # noqa: ANN001
+    """Selecting figure8 motion must not produce a config error."""
+    controls.cmb_tgt_motion.setCurrentText("figure8")
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Config error when selecting figure8: {controls.lbl_error.text()}"
+    )
+    t0 = controls.editor.config.target.targets[0]
+    assert t0.motion.kind == "figure8"
+
+
+# ---------------------------------------------------------------------------
+# G-0C: "rect" is not a valid shape
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0C: shape combo contains 'rect' which is not in "
+    "('square','disc','gaussian','cross','custom_mask') → ConfigError on selection"
+))
+def test_all_shape_options_valid(controls) -> None:  # noqa: ANN001
+    """Every item in the shape combo must be a valid TargetConfig shape."""
+    errors = []
+    for i in range(controls.cmb_tgt_shape.count()):
+        controls.cmb_tgt_shape.setCurrentIndex(i)
+        if controls.lbl_error.isVisible():
+            errors.append(
+                f"shape '{controls.cmb_tgt_shape.currentText()}': {controls.lbl_error.text()}"
+            )
+    assert not errors, "Invalid shape(s) in combo:\n" + "\n".join(errors)
+
+
+# ---------------------------------------------------------------------------
+# G-0D: slew_rate 3.0 fails cross-field validation (scan_rate default 5.0 > 3.0)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0D: setting slew to 3.0 triggers ConfigError because "
+    "tracking.search.scan_rate_deg_s (5.0) > gimbal.slew_rate_deg_s (3.0); "
+    "the panel does not update scan_rate automatically"
+))
+def test_slew_3_is_valid(controls) -> None:  # noqa: ANN001
+    """Setting slew rate to 3.0 deg/s must not show a config error."""
+    controls.spn_slew.setValue(3.0)
+
+    assert not controls.lbl_error.isVisible(), (
+        f"Config error when setting slew=3: {controls.lbl_error.text()}"
+    )
+    assert controls.editor.config.gimbal.slew_rate_deg_s == pytest.approx(3.0)
+
+
+# ---------------------------------------------------------------------------
+# G-0E (visual): disabled Start button must have a :disabled style rule
+# ---------------------------------------------------------------------------
+
+@pytest.mark.xfail(strict=True, reason=(
+    "G-0E (visual): btn_start styleSheet has no :disabled rule, "
+    "so it looks enabled even when disabled by a config error"
+))
+def test_start_button_disabled_looks_disabled(controls) -> None:  # noqa: ANN001
+    """After a config error the Start button stylesheet must contain a :disabled rule."""
+    # Force a config error by using the jitter checkbox (bug G-0A triggers the error)
+    controls.chk_jitter.setChecked(True)
+
+    # Confirm an error is visible (precondition)
+    assert controls.lbl_error.isVisible(), (
+        "Precondition failed: no error was shown after ticking jitter"
+    )
+
+    ss = controls.btn_start.styleSheet()
+    assert ":disabled" in ss, (
+        f"btn_start styleSheet has no ':disabled' rule while button is disabled.\n"
+        f"Current styleSheet: {ss!r}"
+    )

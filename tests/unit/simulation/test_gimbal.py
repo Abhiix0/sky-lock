@@ -37,6 +37,9 @@ def test_velocity_and_accel_limits_property_test() -> None:
         accel_deg_s2=accel,
         initial=(0.0, 0.0),
         substeps=4,
+        # Use wide limits to avoid hitting them during the test
+        pan_limit_deg=(-180.0, 180.0),
+        tilt_limit_deg=(-90.0, 90.0),
     )
     g = VirtualGimbal(cfg)
     rng = np.random.default_rng(12345)
@@ -137,6 +140,9 @@ def test_goto_position_mode() -> None:
         slew_rate_deg_s=5.0,
         accel_deg_s2=50.0,
         initial=(0.0, 0.0),
+        # Use wide limits to allow reaching the commanded position
+        pan_limit_deg=(-180.0, 180.0),
+        tilt_limit_deg=(-90.0, 90.0),
     )
     g = VirtualGimbal(cfg)
     dt = 1.0 / 60.0

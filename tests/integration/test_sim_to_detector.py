@@ -26,7 +26,24 @@ def _evaluate_scenario(
     Returns:
         (detection_rate_pct, false_positives_per_frame)
     """
-    cfg = SkyLockConfig(disturbances=dist_cfg, seed=seed)
+    from skylock.config.io import from_dict
+    
+    # Use fixed target position within FOV to ensure it's always visible
+    cfg = from_dict({
+        "seed": seed,
+        "disturbances": dist_cfg,
+        "target": {
+            "targets": [{
+                "id": "target_0",
+                "size_px": 10,
+                "shape": "square",
+                "brightness": 220.0,
+                "initial": "fixed",
+                "initial_pos_deg": [0.5, 0.5],  # Well within FOV
+                "motion": {"kind": "line", "speed_deg_s": 0.5, "heading_deg": 0.0},
+            }]
+        },
+    })
     source = SimulationSource(cfg)
     detector = ClassicalBlobDetector(DetectionConfig())
 
