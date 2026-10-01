@@ -7,7 +7,7 @@ import time
 from dataclasses import dataclass
 
 import numpy as np
-from PySide6.QtCore import QObject, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, QTimer, Qt, Signal, Slot
 
 from skylock.app.factory import build_session
 from skylock.app.session import Session
