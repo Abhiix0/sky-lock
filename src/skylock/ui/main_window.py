@@ -6,25 +6,34 @@ import sys
 from typing import Any
 
 from PySide6.QtCore import QEvent, QMetaObject, QObject, Qt, QThread, Signal
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
     QCheckBox,
     QComboBox,
     QDockWidget,
+    QFileDialog,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
+    QSplitter,
     QStatusBar,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
+import skylock
 from skylock.config.models import SkyLockConfig
+from skylock.ui import theme
 from skylock.ui.config_editor import ConfigEditor
 from skylock.ui.panels.benchmark import BenchmarkPanel
 from skylock.ui.panels.controls import ControlsPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
+from skylock.ui.settings import AppSettings
 from skylock.ui.widgets.camera_view import CameraView
 from skylock.ui.widgets.state_timeline import StateTimeline
 from skylock.ui.worker import SessionWorker
@@ -167,7 +176,10 @@ class MainWindow(QMainWindow):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("SkyLock — Electro-Optical Tracking System")
-        self.resize(1280, 800)
+        self.setMinimumSize(1100, 700)
+
+        # Settings manager
+        self.settings = AppSettings()
 
         # Single source of truth for configuration
         initial = initial_config if initial_config is not None else SkyLockConfig()
@@ -188,66 +200,231 @@ class MainWindow(QMainWindow):
         QApplication.instance().installEventFilter(self._steering_filter)  # type: ignore[union-attr]
 
         self._build_ui()
+        self._build_menus()
         self._connect_signals()
+
+        # Restore settings or apply defaults
+        restored = self.settings.restore_window_state(self)
+        if not restored:
+            self.resize(1280, 800)
+            self._apply_default_layout()
+
+        # Restore UI flags
+        show_gt = self.settings.get_show_ground_truth()
+        show_legend = self.settings.get_show_legend()
+        self.chk_debug_gt.setChecked(show_gt)
+        self.chk_legend.setChecked(show_legend)
+        self.camera_view.show_ground_truth = show_gt
+        self.camera_view.show_legend = show_legend
 
         self._worker_thread.start()
 
     def _build_ui(self) -> None:
-        # Central widget: CameraView with timeline and toolbar
-        central_container = QWidget()
-        c_layout = QVBoxLayout(central_container)
-        c_layout.setContentsMargins(4, 4, 4, 4)
-        c_layout.setSpacing(4)
+        # Central widget: Vertical splitter with camera/timeline top, tabs bottom
+        central_splitter = QSplitter(Qt.Orientation.Vertical)
+
+        # Top section: Camera view + state timeline
+        top_widget = QWidget()
+        top_layout = QVBoxLayout(top_widget)
+        top_layout.setContentsMargins(4, 4, 4, 4)
+        top_layout.setSpacing(4)
 
         self.camera_view = CameraView()
-        c_layout.addWidget(self.camera_view, stretch=1)
+        top_layout.addWidget(self.camera_view, stretch=10)
 
         # State timeline mounted directly under camera view
         self.state_timeline = StateTimeline()
-        c_layout.addWidget(self.state_timeline)
+        top_layout.addWidget(self.state_timeline)
 
         # Bottom toolbar under camera
         bar_layout = QHBoxLayout()
         self.chk_debug_gt = QCheckBox("Show ground truth (debug)")
         self.chk_debug_gt.setChecked(False)
+        self.chk_debug_gt.setToolTip("Display ground truth overlay (simulation only)")
         self.chk_debug_gt.toggled.connect(self._on_toggle_gt)
         bar_layout.addWidget(self.chk_debug_gt)
 
         self.chk_legend = QCheckBox("Legend")
         self.chk_legend.setChecked(False)
+        self.chk_legend.setToolTip("Show symbology legend")
         self.chk_legend.toggled.connect(self._on_toggle_legend)
         bar_layout.addWidget(self.chk_legend)
 
         bar_layout.addStretch()
-        c_layout.addLayout(bar_layout)
+        top_layout.addLayout(bar_layout)
 
-        self.setCentralWidget(central_container)
+        central_splitter.addWidget(top_widget)
+
+        # Bottom section: Tabs for Benchmark and other future panels
+        self.tab_widget = QTabWidget()
+        self.bench_panel = BenchmarkPanel()
+        self.tab_widget.addTab(self.bench_panel, "Benchmark")
+
+        central_splitter.addWidget(self.tab_widget)
+
+        # Set splitter stretch factors: camera area gets most space
+        central_splitter.setStretchFactor(0, 10)
+        central_splitter.setStretchFactor(1, 1)
+
+        # Set default sizes (will be overridden by settings if restored)
+        central_splitter.setSizes([600, 220])
+
+        self.central_splitter = central_splitter
+        self.setCentralWidget(central_splitter)
 
         # Left Dock: Controls
         self.dock_controls = QDockWidget("Controls", self)
         self.controls_panel = ControlsPanel(self.editor)
         self.dock_controls.setWidget(self.controls_panel)
-        self.dock_controls.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.dock_controls.setMinimumWidth(340)
+        self.dock_controls.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.dock_controls)
 
         # Right Dock: Telemetry
         self.dock_telemetry = QDockWidget("Telemetry", self)
         self.telemetry_panel = TelemetryPanel()
         self.dock_telemetry.setWidget(self.telemetry_panel)
-        self.dock_telemetry.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
+        self.dock_telemetry.setMinimumWidth(280)
+        self.dock_telemetry.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetMovable |
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+        )
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dock_telemetry)
 
-        # Bottom Dock: Benchmark
-        self.dock_bench = QDockWidget("Benchmark", self)
-        self.bench_panel = BenchmarkPanel()
-        self.dock_bench.setWidget(self.bench_panel)
-        self.dock_bench.setFeatures(QDockWidget.DockWidgetFeature.DockWidgetMovable)
-        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dock_bench)
-
-        # Status Bar
+        # Status Bar with permanent widgets
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
+
+        # Permanent status widgets
+        self.lbl_status_state = QLabel("SEARCH")
+        self.lbl_status_state.setToolTip("Current tracking state")
+        self.status_bar.addPermanentWidget(self.lbl_status_state)
+
+        self.lbl_status_source = QLabel("simulation")
+        self.lbl_status_source.setToolTip("Input source")
+        self.status_bar.addPermanentWidget(self.lbl_status_source)
+
+        self.lbl_status_frame = QLabel("frame 0")
+        self.lbl_status_frame.setToolTip("Current frame number")
+        self.status_bar.addPermanentWidget(self.lbl_status_frame)
+
+        self.lbl_status_fps = QLabel("0.0 fps")
+        self.lbl_status_fps.setToolTip("Wall-clock rendering FPS")
+        self.status_bar.addPermanentWidget(self.lbl_status_fps)
+
+        self.lbl_status_pending = QLabel("")
+        self.status_bar.addPermanentWidget(self.lbl_status_pending)
+
         self.status_bar.showMessage("Ready")
+
+    def _build_menus(self) -> None:
+        """Build menu bar with File, Run, View, and Help menus."""
+        menubar = self.menuBar()
+
+        # File menu
+        file_menu = menubar.addMenu("&File")
+
+        act_load_config = QAction("&Load Config...", self)
+        act_load_config.setToolTip("Load configuration from JSON file")
+        act_load_config.triggered.connect(self._on_load_config)
+        file_menu.addAction(act_load_config)
+
+        act_save_config = QAction("&Save Config...", self)
+        act_save_config.setToolTip("Save current configuration to JSON file")
+        act_save_config.triggered.connect(self._on_save_config)
+        file_menu.addAction(act_save_config)
+
+        file_menu.addSeparator()
+
+        act_export_json = QAction("Export Benchmark &JSON...", self)
+        act_export_json.setToolTip("Export benchmark results as JSON")
+        act_export_json.triggered.connect(self.bench_panel._export_json)
+        file_menu.addAction(act_export_json)
+
+        act_export_md = QAction("Export Benchmark &Markdown...", self)
+        act_export_md.setToolTip("Export benchmark results as Markdown")
+        act_export_md.triggered.connect(self.bench_panel._export_md)
+        file_menu.addAction(act_export_md)
+
+        file_menu.addSeparator()
+
+        act_quit = QAction("&Quit", self)
+        act_quit.setShortcut(QKeySequence.StandardKey.Quit)
+        act_quit.triggered.connect(self.close)
+        file_menu.addAction(act_quit)
+
+        # Run menu
+        run_menu = menubar.addMenu("&Run")
+
+        self.act_start = QAction("&Start", self)
+        self.act_start.setShortcut(QKeySequence("Ctrl+R"))
+        self.act_start.setToolTip("Start tracking session (Ctrl+R)")
+        self.act_start.triggered.connect(self.controls_panel._on_start)
+        run_menu.addAction(self.act_start)
+
+        self.act_stop = QAction("S&top", self)
+        self.act_stop.setShortcut(QKeySequence("Ctrl+."))
+        self.act_stop.setToolTip("Stop tracking session (Ctrl+.)")
+        self.act_stop.triggered.connect(lambda: self.controls_panel.stop_clicked.emit())
+        run_menu.addAction(self.act_stop)
+
+        self.act_reset = QAction("&Reset", self)
+        self.act_reset.setShortcut(QKeySequence("Ctrl+Shift+R"))
+        self.act_reset.setToolTip("Reset session (Ctrl+Shift+R)")
+        self.act_reset.triggered.connect(lambda: self.controls_panel.reset_clicked.emit())
+        run_menu.addAction(self.act_reset)
+
+        # View menu
+        view_menu = menubar.addMenu("&View")
+
+        act_toggle_controls = self.dock_controls.toggleViewAction()
+        act_toggle_controls.setText("&Controls")
+        view_menu.addAction(act_toggle_controls)
+
+        act_toggle_telemetry = self.dock_telemetry.toggleViewAction()
+        act_toggle_telemetry.setText("&Telemetry")
+        view_menu.addAction(act_toggle_telemetry)
+
+        view_menu.addSeparator()
+
+        act_show_gt = QAction("Show &Ground Truth", self, checkable=True)
+        act_show_gt.setChecked(self.chk_debug_gt.isChecked())
+        act_show_gt.toggled.connect(self.chk_debug_gt.setChecked)
+        view_menu.addAction(act_show_gt)
+
+        act_show_legend = QAction("Show &Legend", self, checkable=True)
+        act_show_legend.setChecked(self.chk_legend.isChecked())
+        act_show_legend.toggled.connect(self.chk_legend.setChecked)
+        view_menu.addAction(act_show_legend)
+
+        view_menu.addSeparator()
+
+        act_reset_layout = QAction("Reset &Layout", self)
+        act_reset_layout.setToolTip("Reset window layout to defaults")
+        act_reset_layout.triggered.connect(self._on_reset_layout)
+        view_menu.addAction(act_reset_layout)
+
+        # Help menu
+        help_menu = menubar.addMenu("&Help")
+
+        act_about = QAction("&About SkyLock", self)
+        act_about.triggered.connect(self._on_about)
+        help_menu.addAction(act_about)
+
+        act_shortcuts = QAction("&Keyboard Shortcuts", self)
+        act_shortcuts.triggered.connect(self._on_shortcuts)
+        help_menu.addAction(act_shortcuts)
+
+    def _apply_default_layout(self) -> None:
+        """Apply default window layout (called when settings not restored)."""
+        # Default splitter sizes: camera gets ~60% of height
+        height = self.height()
+        camera_height = int(height * 0.6)
+        tabs_height = height - camera_height
+        self.central_splitter.setSizes([camera_height, tabs_height])
 
     def _connect_signals(self) -> None:
         # Controls -> Worker
@@ -285,9 +462,24 @@ class MainWindow(QMainWindow):
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
 
     def _on_frame_ready(self, fv: Any) -> None:  # noqa: ANN401
-        """Update timeline with latest state history."""
+        """Update timeline and status bar with latest state history."""
         if hasattr(fv, "state_history_tail"):
             self.state_timeline.set_history(fv.state_history_tail)
+
+        # Update status bar permanent widgets
+        if hasattr(fv, "track_state"):
+            state_name = (
+                fv.track_state.name
+                if hasattr(fv.track_state, "name")
+                else str(fv.track_state)
+            )
+            self.lbl_status_state.setText(state_name)
+        if hasattr(fv, "frame_index"):
+            self.lbl_status_frame.setText(f"frame {fv.frame_index}")
+        if hasattr(fv, "wall_fps") and fv.wall_fps is not None:
+            self.lbl_status_fps.setText(f"{fv.wall_fps:.1f} fps")
+        if hasattr(fv, "input_kind"):
+            self.lbl_status_source.setText(fv.input_kind)
 
     def _on_mode_changed(self, mode: str) -> None:
         """Handle mode change: update worker and steering filter."""
@@ -296,9 +488,11 @@ class MainWindow(QMainWindow):
 
     def _on_toggle_gt(self, checked: bool) -> None:
         self.camera_view.show_ground_truth = checked
+        self.settings.set_show_ground_truth(checked)
 
     def _on_toggle_legend(self, checked: bool) -> None:
         self.camera_view.show_legend = checked
+        self.settings.set_show_legend(checked)
 
     def _on_reset_ui(self) -> None:
         """Clear camera, timeline, and telemetry displays on reset."""
@@ -321,8 +515,91 @@ class MainWindow(QMainWindow):
         """Show persistent end-of-stream message."""
         self.status_bar.showMessage(msg)  # No timeout - persistent
 
+    def _on_load_config(self) -> None:
+        """Load configuration from JSON file."""
+        last_dir = self.settings.get_last_config_directory()
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Load Configuration", last_dir or "", "JSON Files (*.json);;All Files (*.*)"
+        )
+        if path:
+            try:
+                import json
+                from pathlib import Path
+                with Path(path).open() as f:
+                    data = json.load(f)
+                from skylock.config.io import from_dict
+                new_config = from_dict(data)
+                self.editor.replace_config(new_config)
+                self.settings.set_last_config_directory(path)
+                self.status_bar.showMessage(f"Loaded config from {Path(path).name}", 3000)
+            except Exception as e:
+                QMessageBox.critical(self, "Load Config Error", f"Failed to load config:\n{e}")
+
+    def _on_save_config(self) -> None:
+        """Save current configuration to JSON file."""
+        last_dir = self.settings.get_last_config_directory()
+        path, _ = QFileDialog.getSaveFileName(
+            self, "Save Configuration", last_dir or "", "JSON Files (*.json);;All Files (*.*)"
+        )
+        if path:
+            try:
+                import json
+                from pathlib import Path
+
+                from skylock.config.io import to_dict
+                with Path(path).open("w") as f:
+                    json.dump(to_dict(self.editor.config), f, indent=2)
+                self.settings.set_last_config_directory(path)
+                self.status_bar.showMessage(f"Saved config to {Path(path).name}", 3000)
+            except Exception as e:
+                QMessageBox.critical(self, "Save Config Error", f"Failed to save config:\n{e}")
+
+    def _on_reset_layout(self) -> None:
+        """Reset window layout to defaults."""
+        self.settings.reset_layout()
+        QMessageBox.information(
+            self,
+            "Layout Reset",
+            "Window layout will be reset to defaults on next launch."
+        )
+
+    def _on_about(self) -> None:
+        """Show About dialog."""
+        QMessageBox.about(
+            self,
+            "About SkyLock",
+            f"<h3>SkyLock</h3>"
+            f"<p>Version {skylock.__version__}</p>"
+            f"<p>Electro-Optical Tracking System</p>"
+            f"<p>A precision target tracking simulation and control interface.</p>"
+        )
+
+    def _on_shortcuts(self) -> None:
+        """Show keyboard shortcuts dialog."""
+        shortcuts_text = """
+        <h3>Keyboard Shortcuts</h3>
+        <table cellpadding="4">
+        <tr><td><b>Ctrl+R</b></td><td>Start tracking</td></tr>
+        <tr><td><b>Ctrl+.</b></td><td>Stop tracking</td></tr>
+        <tr><td><b>Ctrl+Shift+R</b></td><td>Reset session</td></tr>
+        <tr><td colspan="2">&nbsp;</td></tr>
+        <tr><td colspan="2"><b>Manual Control Mode:</b></td></tr>
+        <tr><td><b>Arrow Keys</b></td><td>Pan/tilt gimbal</td></tr>
+        <tr><td><b>W/A/S/D</b></td><td>Pan/tilt gimbal (alternative)</td></tr>
+        <tr><td><b>Up/W</b></td><td>Tilt up</td></tr>
+        <tr><td><b>Down/S</b></td><td>Tilt down</td></tr>
+        <tr><td><b>Left/A</b></td><td>Pan left</td></tr>
+        <tr><td><b>Right/D</b></td><td>Pan right</td></tr>
+        </table>
+        """
+        QMessageBox.information(self, "Keyboard Shortcuts", shortcuts_text)
+
     def closeEvent(self, event: Any) -> None:  # noqa: ANN401
-        """Cleanly shut down worker thread on application close."""
+        """Cleanly shut down worker thread and save settings on application close."""
+        # Save settings
+        self.settings.save_window_state(self)
+        self.settings.save_splitter_sizes(self.central_splitter, "main")
+
         app = QApplication.instance()
         if app is not None:
             app.removeEventFilter(self._steering_filter)
@@ -354,6 +631,7 @@ def run_app(
 ) -> int:
     """Launch the SkyLock graphical user interface."""
     app = QApplication(argv if argv is not None else sys.argv)
+    theme.apply_theme(app)
     window = MainWindow(initial_config=initial_config)
     window.show()
     return app.exec()

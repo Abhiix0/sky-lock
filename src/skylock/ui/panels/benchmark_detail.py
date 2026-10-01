@@ -23,20 +23,21 @@ from PySide6.QtWidgets import (
 )
 
 from skylock.benchmark.runner import RunRecord
+from skylock.ui import theme
 
 _EM_DASH = "—"
 
 
 def _verdict_color(v: str) -> QColor:
     if v == "PASS":
-        return QColor("#065F46")
+        return theme.VERDICT_PASS_BG
     if v == "FAIL":
-        return QColor("#991B1B")
+        return theme.VERDICT_FAIL_BG
     if v == "INDETERMINATE":
-        return QColor("#92400E")
+        return theme.VERDICT_INDETERMINATE_BG
     if v == "NOT_RUN":
-        return QColor("#374151")
-    return QColor("#1F2937")
+        return theme.VERDICT_NOT_RUN_BG
+    return theme.VERDICT_UNKNOWN_BG
 
 
 class BenchmarkDetailDialog(QDialog):
@@ -222,7 +223,7 @@ class BenchmarkDetailDialog(QDialog):
                 item = QTableWidgetItem(text)
                 if col_idx == 3:  # Verdict column
                     item.setBackground(v_color)
-                    item.setForeground(QColor("#FFFFFF"))
+                    item.setForeground(theme.VERDICT_TEXT)
                     item.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
                     item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.table.setItem(row, col_idx, item)

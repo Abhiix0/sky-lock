@@ -10,6 +10,7 @@ from PySide6.QtGui import QColor, QFont, QImage, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from skylock.core.enums import TrackState
+from skylock.ui import theme
 from skylock.ui.worker import FrameView
 
 
@@ -21,7 +22,7 @@ class CameraView(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMinimumSize(320, 240)
-        self.setStyleSheet("background-color: #111827;")
+        self.setStyleSheet(f"background-color: {theme.WINDOW_BG.name()};")
         self.setMouseTracking(True)
 
         self._frame_view: FrameView | None = None
@@ -115,8 +116,8 @@ class CameraView(QWidget):
         w_h = self.height()
 
         if self._frame_view is None or self._frame_view.image is None:
-            painter.fillRect(0, 0, w_w, w_h, QColor("#111827"))
-            painter.setPen(QColor("#6B7280"))
+            painter.fillRect(0, 0, w_w, w_h, theme.WINDOW_BG)
+            painter.setPen(theme.TEXT_TERTIARY)
             painter.setFont(QFont("Segoe UI", 12))
             painter.drawText(
                 QRectF(0, 0, w_w, w_h),
@@ -139,7 +140,7 @@ class CameraView(QWidget):
         oy = (w_h - scaled_h) / 2.0
 
         # Background letterbox fill
-        painter.fillRect(0, 0, w_w, w_h, QColor("#090D16"))
+        painter.fillRect(0, 0, w_w, w_h, theme.DARK_BG)
 
         # Convert numpy uint8 grayscale to QImage defensively holding reference
         # and explicitly using bytesPerLine = img_w
@@ -160,7 +161,7 @@ class CameraView(QWidget):
 
         # 1. Boresight crosshair (optical center)
         bx, by = to_screen(fv.boresight_px[0], fv.boresight_px[1])
-        painter.setPen(QPen(QColor(74, 222, 128, 160), 1, Qt.PenStyle.SolidLine))
+        painter.setPen(QPen(theme.OVERLAY_BORESIGHT, 1, Qt.PenStyle.SolidLine))
         arm = 12.0
         gap = 3.0
         painter.drawLine(QPointF(bx - arm, by), QPointF(bx - gap, by))
@@ -169,7 +170,7 @@ class CameraView(QWidget):
         painter.drawLine(QPointF(bx, by + gap), QPointF(bx, by + arm))
 
         # 2. Detections (yellow centroid rings)
-        painter.setPen(QPen(QColor(251, 191, 36, 220), 1.5, Qt.PenStyle.SolidLine))
+        painter.setPen(QPen(theme.OVERLAY_DETECTION, 1.5, Qt.PenStyle.SolidLine))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         for cx, cy, dw, dh in fv.detections:
             scx, scy = to_screen(cx, cy)
@@ -184,7 +185,7 @@ class CameraView(QWidget):
             if fv.gate_px > 0:
                 g_size = fv.gate_px * 2.0 * scale
                 gate_rect = QRectF(ex - g_size / 2.0, ey - g_size / 2.0, g_size, g_size)
-                gate_pen = QPen(QColor(56, 189, 248, 140), 1.0, Qt.PenStyle.DashLine)
+                gate_pen = QPen(theme.OVERLAY_GATE, 1.0, Qt.PenStyle.DashLine)
                 painter.setPen(gate_pen)
                 painter.drawRect(gate_rect)
 
@@ -192,7 +193,7 @@ class CameraView(QWidget):
             # When state is LOST or REACQUIRE, draw dashed to signal prediction
             is_predicting = fv.track_state in (TrackState.LOST, TrackState.REACQUIRE)
             pen_style = Qt.PenStyle.DashLine if is_predicting else Qt.PenStyle.SolidLine
-            cross_color = QColor(249, 115, 22, 240) if is_predicting else QColor(14, 165, 233, 240)
+            cross_color = theme.OVERLAY_ESTIMATE
             cross_pen = QPen(cross_color, 2.0, pen_style)
             painter.setPen(cross_pen)
             c_arm = 8.0
@@ -202,7 +203,7 @@ class CameraView(QWidget):
         # 4. Ground-truth marker (ONLY if enabled, simulation, and present)
         if self._show_ground_truth and fv.is_simulation and fv.ground_truth_px is not None:
             gx, gy = to_screen(fv.ground_truth_px[0], fv.ground_truth_px[1])
-            gt_pen = QPen(QColor(244, 63, 94, 240), 1.5, Qt.PenStyle.SolidLine)
+            gt_pen = QPen(theme.OVERLAY_GT, 1.5, Qt.PenStyle.SolidLine)
             painter.setPen(gt_pen)
             painter.setBrush(Qt.BrushStyle.NoBrush)
             d_size = 6.0
@@ -214,19 +215,19 @@ class CameraView(QWidget):
             ]
             painter.drawPolygon(points)
             painter.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
-            painter.setPen(QColor(244, 63, 94, 220))
+            painter.setPen(theme.OVERLAY_GT_TEXT)
             painter.drawText(QPointF(gx + d_size + 2, gy - 2), "GT")
 
         # 5. Top-left HUD: Frame index and timestamp
         painter.setFont(QFont("Consolas", 10))
-        painter.setPen(QColor("#E5E7EB"))
+        painter.setPen(theme.OVERLAY_HUD_TEXT)
         hud_text = f"Frame: {fv.frame_index}  |  Time: {fv.timestamp_s:.3f}s"
         painter.drawText(QPointF(10, 20), hud_text)
 
         # 6. Bottom-right: Mouse hover coordinates (if inside image)
         if self._mouse_image_pos is not None:
             painter.setFont(QFont("Consolas", 10))
-            painter.setPen(QColor("#93C5FD"))
+            painter.setPen(theme.OVERLAY_COORD_TEXT)
             coord_str = f"X: {self._mouse_image_pos[0]}, Y: {self._mouse_image_pos[1]} px"
             painter.drawText(
                 QRectF(w_w - 180, w_h - 25, 170, 20),
@@ -237,7 +238,7 @@ class CameraView(QWidget):
         # 7. Legend overlay (toggled by show_legend)
         if self._show_legend:
             painter.setFont(QFont("Segoe UI", 9))
-            painter.setPen(QColor("#9CA3AF"))
+            painter.setPen(theme.OVERLAY_LEGEND_TEXT)
             legend_text = "+ boresight   o detection   [ ] gate   + estimate   ◇ GT"
             painter.drawText(
                 QRectF(10, w_h - 25, w_w - 200, 20),

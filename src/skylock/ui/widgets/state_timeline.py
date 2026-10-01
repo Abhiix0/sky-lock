@@ -9,9 +9,10 @@ from PySide6.QtGui import QColor, QFont, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from skylock.core.enums import TrackState
+from skylock.ui import theme
 from skylock.ui.widgets.state_badge import STATE_COLORS
 
-_DEFAULT_SEGMENT_COLOR = QColor("#374151")
+_DEFAULT_SEGMENT_COLOR = theme.BORDER_NORMAL
 
 
 class StateTimeline(QWidget):
@@ -42,12 +43,12 @@ class StateTimeline(QWidget):
         h = float(self.height())
 
         # Dark base background
-        painter.fillRect(QRectF(0, 0, w, h), QColor("#111827"))
+        painter.fillRect(QRectF(0, 0, w, h), theme.WINDOW_BG)
 
         n = len(self._history)
         if n == 0:
             # Idle placeholder text
-            painter.setPen(QPen(QColor("#6B7280")))
+            painter.setPen(QPen(theme.TEXT_TERTIARY))
             painter.setFont(QFont("Segoe UI", 9))
             painter.drawText(
                 QRectF(0, 0, w, h),
@@ -73,7 +74,7 @@ class StateTimeline(QWidget):
             painter.fillRect(QRectF(x, 1.0, max(1.0, seg_w + 0.5), h - 2.0), color)
 
         # Thin border
-        painter.setPen(QPen(QColor("#374151"), 1))
+        painter.setPen(QPen(theme.BORDER_NORMAL, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawRect(QRectF(0.5, 0.5, w - 1.0, h - 1.0))
 

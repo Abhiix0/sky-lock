@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from skylock.core.enums import TrackState
+from skylock.ui import theme
 from skylock.ui.widgets.state_badge import StateBadge
 from skylock.ui.worker import FrameView
 
@@ -58,7 +59,7 @@ class TelemetryPanel(QWidget):
         state_layout.addWidget(self.badge)
         self.lbl_lock = QLabel("LOCK: UNLOCKED")
         self.lbl_lock.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.lbl_lock.setStyleSheet("font-weight: bold; color: #9CA3AF;")
+        self.lbl_lock.setStyleSheet(f"font-weight: bold; color: {theme.TEXT_SECONDARY.name()};")
         state_layout.addWidget(self.lbl_lock)
         layout.addWidget(state_box)
 
@@ -162,7 +163,7 @@ class TelemetryPanel(QWidget):
         """Reset all telemetry to idle state."""
         self.badge.set_state(TrackState.SEARCH)
         self.lbl_lock.setText("LOCK: UNLOCKED")
-        self.lbl_lock.setStyleSheet("font-weight: bold; color: #9CA3AF;")
+        self.lbl_lock.setStyleSheet(f"font-weight: bold; color: {theme.TEXT_SECONDARY.name()};")
         self.lbl_source.setText(_EM_DASH)
         self.lbl_progress.setText(_EM_DASH)
         self.lbl_det_count.setText(_EM_DASH)
@@ -193,10 +194,10 @@ class TelemetryPanel(QWidget):
         self.badge.set_state(fv.track_state)
         if fv.is_locked:
             self.lbl_lock.setText("LOCK: ENGAGED")
-            self.lbl_lock.setStyleSheet("font-weight: bold; color: #10B981;")
+            self.lbl_lock.setStyleSheet(f"font-weight: bold; color: {theme.STATUS_SUCCESS.name()};")
         else:
             self.lbl_lock.setText("LOCK: UNLOCKED")
-            self.lbl_lock.setStyleSheet("font-weight: bold; color: #9CA3AF;")
+            self.lbl_lock.setStyleSheet(f"font-weight: bold; color: {theme.TEXT_SECONDARY.name()};")
 
         # Source & Progress
         src_kind = "Simulation" if fv.is_simulation else "MP4"

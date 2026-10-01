@@ -23,6 +23,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from skylock.ui import theme
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -374,7 +376,7 @@ class Mp4InputSection(QWidget):
         )
         self.spn_fps_override.hide()
         self.lbl_fps_note = QLabel("fps unreadable — set override:")
-        self.lbl_fps_note.setStyleSheet("color: #F59E0B;")
+        self.lbl_fps_note.setStyleSheet(f"color: {theme.STATUS_WARNING.name()};")
         self.lbl_fps_note.hide()
         layout.addRow(self.lbl_fps_note)
         layout.addRow("FPS override:", self.spn_fps_override)
@@ -404,13 +406,13 @@ class Mp4InputSection(QWidget):
     ) -> None:
         if error:
             self.lbl_status.setText(f"❌ {error}")
-            self.lbl_status.setStyleSheet("color: #EF4444;")
+            self.lbl_status.setStyleSheet(f"color: {theme.STATUS_ERROR.name()};")
             self.lbl_fps_note.hide()
             self.spn_fps_override.hide()
         elif ok:
             fps_str = f"{fps:.1f}" if fps is not None else "unreadable"
             self.lbl_status.setText(f"✅ {width}×{height}  {fps_str} fps  {frame_count} frames")
-            self.lbl_status.setStyleSheet("color: #10B981;")
+            self.lbl_status.setStyleSheet(f"color: {theme.STATUS_SUCCESS.name()};")
             if fps is None:
                 self.lbl_fps_note.show()
                 self.spn_fps_override.show()

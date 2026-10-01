@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 
 from skylock.config.validation import ConfigError
 from skylock.core.enums import InputKind
+from skylock.ui import theme
 from skylock.ui.config_editor import ConfigEditor
 from skylock.ui.config_model import (
     MOTION_KINDS,
@@ -46,8 +47,8 @@ from skylock.ui.panels.controls_sections import (
 
 # Disabled-button stylesheet (G-07)
 _BTN_START_STYLE = (
-    "QPushButton { background-color: #065F46; color: white; font-weight: bold; }"
-    "QPushButton:disabled { background-color: #6B7280; color: #9CA3AF; }"
+    f"QPushButton {{ background-color: {theme.BUTTON_START_BG.name()}; color: white; font-weight: bold; }}"
+    f"QPushButton:disabled {{ background-color: {theme.BUTTON_DISABLED_BG.name()}; color: {theme.BUTTON_DISABLED_TEXT.name()}; }}"
 )
 
 
@@ -90,7 +91,7 @@ class ControlsPanel(QWidget):
         self.btn_start.setStyleSheet(_BTN_START_STYLE)
         self.btn_start.clicked.connect(self._on_start)
         self.btn_stop = QPushButton("Stop")
-        self.btn_stop.setStyleSheet("background-color: #991B1B; color: white; font-weight: bold;")
+        self.btn_stop.setStyleSheet(f"background-color: {theme.BUTTON_STOP_BG.name()}; color: white; font-weight: bold;")
         self.btn_stop.clicked.connect(lambda: self.stop_clicked.emit())
         self.btn_reset = QPushButton("Reset")
         self.btn_reset.clicked.connect(lambda: self.reset_clicked.emit())
@@ -102,7 +103,7 @@ class ControlsPanel(QWidget):
         # Summary Error Display (fallback)
         self.lbl_error = QLabel()
         self.lbl_error.setWordWrap(True)
-        self.lbl_error.setStyleSheet("color: #EF4444; font-weight: bold; padding: 4px;")
+        self.lbl_error.setStyleSheet(f"color: {theme.STATUS_ERROR.name()}; font-weight: bold; padding: 4px;")
         self.lbl_error.hide()
         layout.addWidget(self.lbl_error)
 
@@ -332,7 +333,7 @@ class ControlsPanel(QWidget):
     ) -> None:
         lbl = QLabel()
         lbl.setWordWrap(True)
-        lbl.setStyleSheet("color: #EF4444; font-size: 11px; padding: 2px;")
+        lbl.setStyleSheet(f"color: {theme.STATUS_ERROR.name()}; font-size: 11px; padding: 2px;")
         lbl.hide()
         if isinstance(parent_layout, QFormLayout):
             parent_layout.addRow(lbl)

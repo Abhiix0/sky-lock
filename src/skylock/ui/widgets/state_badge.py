@@ -7,32 +7,33 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QLabel, QWidget
 
 from skylock.core.enums import TrackState
+from skylock.ui import theme
 
-# Distinct high-contrast palette matching UI spec as an immutable tuple
-STATE_COLOR_ITEMS: tuple[tuple[TrackState, str], ...] = (
-    (TrackState.SEARCH, "#3B82F6"),     # Blue
-    (TrackState.ACQUIRE, "#F59E0B"),    # Amber
-    (TrackState.TRACK, "#10B981"),      # Emerald
-    (TrackState.LOST, "#F43F5E"),       # Rose / Red
-    (TrackState.REACQUIRE, "#F97316"),  # Orange
+# Distinct high-contrast palette mapping
+STATE_COLOR_ITEMS: tuple[tuple[TrackState, QColor], ...] = (
+    (TrackState.SEARCH, theme.STATE_SEARCH_PRIMARY),
+    (TrackState.ACQUIRE, theme.STATE_ACQUIRE_PRIMARY),
+    (TrackState.TRACK, theme.STATE_TRACK_PRIMARY),
+    (TrackState.LOST, theme.STATE_LOST_PRIMARY),
+    (TrackState.REACQUIRE, theme.STATE_REACQUIRE_PRIMARY),
 )
 
 
 def get_state_color(state: TrackState) -> QColor:
     """Return QColor for a given TrackState."""
-    for s, hex_code in STATE_COLOR_ITEMS:
+    for s, color in STATE_COLOR_ITEMS:
         if s == state:
-            return QColor(hex_code)
-    return QColor("#374151")
+            return color
+    return theme.STATE_DEFAULT_PRIMARY
 
 
 # For backward compatibility with dict-style lookups without module-level dict assignment
 class _StateColorsMapping:
     def get(self, state: TrackState, default: QColor | None = None) -> QColor:
-        for s, hex_code in STATE_COLOR_ITEMS:
+        for s, color in STATE_COLOR_ITEMS:
             if s == state:
-                return QColor(hex_code)
-        return default if default is not None else QColor("#374151")
+                return color
+        return default if default is not None else theme.STATE_DEFAULT_PRIMARY
 
     def __getitem__(self, state: TrackState) -> QColor:
         return self.get(state)
@@ -44,21 +45,19 @@ STATE_COLORS = _StateColorsMapping()
 def _get_state_style(state: TrackState) -> str:
     """Return styling CSS for a given TrackState."""
     if state == TrackState.SEARCH:
-        return "background-color: #1E3A8A; color: #93C5FD; border: 1px solid #3B82F6;"
+        return f"background-color: {theme.STATE_SEARCH_BG.name()}; color: {theme.STATE_SEARCH_TEXT.name()}; border: 1px solid {theme.STATE_SEARCH_PRIMARY.name()};"
     if state == TrackState.ACQUIRE:
-        return "background-color: #78350F; color: #FDE68A; border: 1px solid #F59E0B;"
+        return f"background-color: {theme.STATE_ACQUIRE_BG.name()}; color: {theme.STATE_ACQUIRE_TEXT.name()}; border: 1px solid {theme.STATE_ACQUIRE_PRIMARY.name()};"
     if state == TrackState.TRACK:
-        return "background-color: #064E3B; color: #6EE7B7; border: 1px solid #10B981;"
+        return f"background-color: {theme.STATE_TRACK_BG.name()}; color: {theme.STATE_TRACK_TEXT.name()}; border: 1px solid {theme.STATE_TRACK_PRIMARY.name()};"
     if state == TrackState.LOST:
-        return "background-color: #881337; color: #FECDD3; border: 1px solid #F43F5E;"
+        return f"background-color: {theme.STATE_LOST_BG.name()}; color: {theme.STATE_LOST_TEXT.name()}; border: 1px solid {theme.STATE_LOST_PRIMARY.name()};"
     if state == TrackState.REACQUIRE:
-        return "background-color: #7C2D12; color: #FED7AA; border: 1px solid #F97316;"
+        return f"background-color: {theme.STATE_REACQUIRE_BG.name()}; color: {theme.STATE_REACQUIRE_TEXT.name()}; border: 1px solid {theme.STATE_REACQUIRE_PRIMARY.name()};"
     return _DEFAULT_STYLE
 
 
-_DEFAULT_STYLE = (
-    "background-color: #1F2937; color: #9CA3AF; border: 1px solid #374151;"
-)
+_DEFAULT_STYLE = f"background-color: {theme.ALT_BASE_BG.name()}; color: {theme.TEXT_SECONDARY.name()}; border: 1px solid {theme.BORDER_NORMAL.name()};"
 
 
 class StateBadge(QLabel):

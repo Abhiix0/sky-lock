@@ -41,3 +41,5 @@ build/
 # Packaging
 *.spec
 !packaging/skylock.spec
+# Test artifacts
+tests/ui/_artifacts/

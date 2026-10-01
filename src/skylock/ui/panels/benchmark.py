@@ -31,6 +31,7 @@ from skylock.benchmark.report import to_json_report, to_markdown_report
 from skylock.benchmark.runner import BenchmarkRunner, RunRecord
 from skylock.benchmark.scenario import Scenario
 from skylock.config.models import SkyLockConfig
+from skylock.ui import theme
 from skylock.ui.panels.benchmark_detail import BenchmarkDetailDialog
 
 _EM_DASH = "—"
@@ -39,14 +40,14 @@ _EM_DASH = "—"
 def _get_verdict_color(verdict: str) -> QColor:
     """Return background color corresponding to a verdict string."""
     if verdict == "PASS":
-        return QColor("#065F46")
+        return theme.VERDICT_PASS_BG
     if verdict == "FAIL":
-        return QColor("#991B1B")
+        return theme.VERDICT_FAIL_BG
     if verdict == "INDETERMINATE":
-        return QColor("#92400E")
+        return theme.VERDICT_INDETERMINATE_BG
     if verdict == "NOT_RUN":
-        return QColor("#374151")
-    return QColor("#1F2937")
+        return theme.VERDICT_NOT_RUN_BG
+    return theme.VERDICT_UNKNOWN_BG
 
 
 class _BenchWorker(QObject):
@@ -192,7 +193,7 @@ class BenchmarkPanel(QWidget):
         mp4_bar = QHBoxLayout()
         mp4_bar.addWidget(QLabel("MP4 file for S16:"))
         self.lbl_mp4_status = QLabel("No file selected")
-        self.lbl_mp4_status.setStyleSheet("color: #9CA3AF; font-style: italic;")
+        self.lbl_mp4_status.setStyleSheet(f"color: {theme.TEXT_SECONDARY.name()}; font-style: italic;")
         mp4_bar.addWidget(self.lbl_mp4_status)
 
         self.btn_browse_mp4 = QPushButton("Browse MP4...")
@@ -205,13 +206,13 @@ class BenchmarkPanel(QWidget):
         # 3. Summary & Progress status row
         stat_bar = QHBoxLayout()
         self.lbl_summary = QLabel("Summary: 0 runs | PASS: 0 | FAIL: 0 | INDET: 0 | NOT_RUN: 0")
-        self.lbl_summary.setStyleSheet("font-weight: bold; color: #E5E7EB;")
+        self.lbl_summary.setStyleSheet(f"font-weight: bold; color: {theme.TEXT_PRIMARY.name()};")
         stat_bar.addWidget(self.lbl_summary)
 
         stat_bar.addStretch()
 
         self.lbl_status = QLabel("Idle")
-        self.lbl_status.setStyleSheet("color: #9CA3AF; font-style: italic;")
+        self.lbl_status.setStyleSheet(f"color: {theme.TEXT_SECONDARY.name()}; font-style: italic;")
         stat_bar.addWidget(self.lbl_status)
 
         self.progress_bar = QProgressBar()
@@ -258,7 +259,7 @@ class BenchmarkPanel(QWidget):
         if path:
             self._mp4_path = path
             self.lbl_mp4_status.setText(Path(path).name)
-            self.lbl_mp4_status.setStyleSheet("color: #10B981;")
+            self.lbl_mp4_status.setStyleSheet(f"color: {theme.STATUS_SUCCESS.name()};")
 
     def _parse_seeds(self) -> list[int] | None:
         raw = self.txt_seeds.text().strip()
@@ -467,7 +468,7 @@ class BenchmarkPanel(QWidget):
                 item.setToolTip(tooltip)
             if col_idx == 2:  # Verdict column
                 item.setBackground(color)
-                item.setForeground(QColor("#FFFFFF"))
+                item.setForeground(theme.VERDICT_TEXT)
                 item.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
                 item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.table.setItem(row, col_idx, item)
