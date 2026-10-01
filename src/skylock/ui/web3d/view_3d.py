@@ -128,6 +128,57 @@ class SpaceView3D(QWidget):
         """Reset the user orbit camera to default Earth view."""
         self._web_view.page().runJavaScript("window.skylock3d?.resetView();")
 
+    def reset_camera(self) -> None:
+        """Reset tracking gimbal camera to neutral pose (pan=0°, tilt=0°, fov=20°)."""
+        self._last_pan = 0.0
+        self._last_tilt = 0.0
+        self._last_fov = 20.0
+        self._web_view.page().runJavaScript("window.skylock3d?.resetCamera();")
+
+    def focus_satellite(self, sat_id: str) -> None:
+        """Focus scene viewing camera on satellite ('s1', 's2', or 'earth')."""
+        sat_str = json.dumps(sat_id)
+        self._web_view.page().runJavaScript(f"window.skylock3d?.focusSatellite({sat_str});")
+
+    def focus_s1(self) -> None:
+        """Focus scene viewing camera on Observer Satellite S-1."""
+        self.focus_satellite("s1")
+
+    def focus_s2(self) -> None:
+        """Focus scene viewing camera on Target Satellite S-2."""
+        self.focus_satellite("s2")
+
+    def set_show_orbit_lines(self, show: bool) -> None:
+        """Toggle visibility of orbital path lines in 3D space."""
+        val = "true" if show else "false"
+        self._web_view.page().runJavaScript(f"window.skylock3d?.setShowOrbitLines({val});")
+
+    def set_show_camera_fov(self, show: bool) -> None:
+        """Toggle visibility of 3D camera FOV frustum."""
+        val = "true" if show else "false"
+        self._web_view.page().runJavaScript(f"window.skylock3d?.setShowCameraFov({val});")
+
+    def set_show_optical_axis(self, show: bool) -> None:
+        """Toggle visibility of optical axis / boresight ray."""
+        val = "true" if show else "false"
+        self._web_view.page().runJavaScript(f"window.skylock3d?.setShowOpticalAxis({val});")
+
+    def set_show_tracking_beam(self, show: bool) -> None:
+        """Toggle visibility of optical tracking beam."""
+        val = "true" if show else "false"
+        self._web_view.page().runJavaScript(f"window.skylock3d?.setShowTrackingBeam({val});")
+
+    def set_satellite_orbit(
+        self, sat_id: str, radius: float, inc_deg: float, speed: float, phase_deg: float
+    ) -> None:
+        """Update satellite orbital parameters in 3D simulation."""
+        sat_str = json.dumps(sat_id)
+        js = (
+            f"window.skylock3d?.setSatelliteOrbit({sat_str}, {float(radius)}, "
+            f"{float(inc_deg)}, {float(speed)}, {float(phase_deg)});"
+        )
+        self._web_view.page().runJavaScript(js)
+
     def query_state(self, callback: Callable[[dict[str, Any]], None]) -> None:
         """Query current state from the JavaScript 3D layer asynchronously."""
 

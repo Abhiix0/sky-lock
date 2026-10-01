@@ -152,8 +152,13 @@ class TargetSet:
                     bounds_deg=self.screen_bounds_deg,
                 )
             elif isinstance(motion, RandomMotion):
-                # RandomMotion already has bounds_deg in config, but use screen bounds if not specified
-                bounds = motion.bounds_deg if motion.bounds_deg != (-1.5, 1.5, -1.0, 1.0) else self.screen_bounds_deg
+                # Use screen bounds if motion bounds_deg is default
+                default_bounds = (-1.5, 1.5, -1.0, 1.0)
+                bounds = (
+                    motion.bounds_deg
+                    if motion.bounds_deg != default_bounds
+                    else self.screen_bounds_deg
+                )
                 if bounds is None:
                     bounds = (-1.5, 1.5, -1.0, 1.0)  # fallback
                 traj = RandomTrajectory(

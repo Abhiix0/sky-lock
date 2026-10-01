@@ -52,7 +52,7 @@ const _targetQuat = new THREE.Quaternion();
 // AUTOMATIC ORBIT LINES
 // ============================================================
 
-function createOrbitLine(radius, inclinationDeg, color) {
+export function createOrbitLine(radius, inclinationDeg, color) {
   const points = [];
   const incRad = THREE.MathUtils.degToRad(inclinationDeg);
 

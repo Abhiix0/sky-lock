@@ -31,7 +31,7 @@ from skylock.config.validation import (
 @dataclass(frozen=True, slots=True)
 class ScreenConfig:
     """Virtual screen coordinate system for simulation.
-    
+
     The PS defines a virtual SCREEN over which the camera FOV moves.
     Default 2000x2000 px. World extent = ±(width_px/2)/px_per_deg degrees.
     Gimbal pan/tilt limits and target motion must stay within screen bounds.

@@ -69,8 +69,12 @@ def to_markdown_report(records: list[RunRecord]) -> str:
 
     # Per-scenario table
     lines.append("## Results\n")
-    lines.append("| Scenario | Seed | Verdict | Frames | Acq (s) | Err (px) | Loss Rate | FPS | Status |")
-    lines.append("|----------|------|---------|--------|---------|----------|-----------|-----|--------|")
+    lines.append(
+        "| Scenario | Seed | Verdict | Frames | Acq (s) | Err (px) | Loss Rate | FPS | Status |"
+    )
+    lines.append(
+        "|----------|------|---------|--------|---------|----------|-----------|-----|--------|"
+    )
 
     for r in records:
         acq_val = _extract_metric_value(r.metrics, "acquisition_time_from_observable_s")
@@ -111,11 +115,19 @@ def to_markdown_report(records: list[RunRecord]) -> str:
 
     if fps_pipeline_values:
         fps_pipe_stats = _stats_over(fps_pipeline_values)
-        lines.append(f"- **Pipeline FPS**: mean={fps_pipe_stats['mean']:.1f}, min={fps_pipe_stats['min']:.1f}, max={fps_pipe_stats['max']:.1f} (n={fps_pipe_stats['n']})")
+        lines.append(
+            f"- **Pipeline FPS**: mean={fps_pipe_stats['mean']:.1f}, "
+            f"min={fps_pipe_stats['min']:.1f}, max={fps_pipe_stats['max']:.1f} "
+            f"(n={fps_pipe_stats['n']})"
+        )
 
     if fps_wall_values:
         fps_wall_stats = _stats_over(fps_wall_values)
-        lines.append(f"- **Wall-clock FPS**: mean={fps_wall_stats['mean']:.1f}, min={fps_wall_stats['min']:.1f}, max={fps_wall_stats['max']:.1f} (n={fps_wall_stats['n']})")
+        lines.append(
+            f"- **Wall-clock FPS**: mean={fps_wall_stats['mean']:.1f}, "
+            f"min={fps_wall_stats['min']:.1f}, max={fps_wall_stats['max']:.1f} "
+            f"(n={fps_wall_stats['n']})"
+        )
 
     if latency_mean_values:
         lat_stats = _stats_over(latency_mean_values)

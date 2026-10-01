@@ -141,6 +141,13 @@ class TelemetryPanel(QWidget):
         self.lbl_last_reacq.setText(_EM_DASH)
         self.lbl_fps_pipe.setText(_EM_DASH)
 
+    def update_gimbal(self, pan_deg: float, tilt_deg: float) -> None:
+        """Update gimbal pan and tilt angle readout."""
+        sign_p = "+" if pan_deg >= 0 else ""
+        sign_t = "+" if tilt_deg >= 0 else ""
+        self.lbl_pan.setText(f"{sign_p}{pan_deg:.2f}°")
+        self.lbl_tilt.setText(f"{sign_t}{tilt_deg:.2f}°")
+
     def update_telemetry(self, fv: FrameView) -> None:
         """Update telemetry labels from the incoming FrameView.
 

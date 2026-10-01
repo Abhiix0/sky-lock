@@ -19,7 +19,7 @@ from skylock.core.enums import TrackState
 @pytest.mark.parametrize("motion_kind", ["line", "circle", "figure8", "random"])
 def test_acquisition_reliability(seed: int, motion_kind: str) -> None:
     """Test that tracker acquires target within bounded time for given seed and motion.
-    
+
     Args:
         seed: Random seed for deterministic test
         motion_kind: Target motion model type
@@ -67,7 +67,8 @@ def test_acquisition_reliability(seed: int, motion_kind: str) -> None:
             break
 
         # Track when target first becomes visible
-        if result.truth is not None and result.truth.primary_visible and first_visible_frame is None:
+        is_visible = result.truth is not None and result.truth.primary_visible
+        if is_visible and first_visible_frame is None:
             first_visible_frame = step_idx
 
         # Track when we first achieve TRACK state
@@ -96,7 +97,7 @@ def test_acquisition_reliability(seed: int, motion_kind: str) -> None:
 
 def test_acquisition_time_distribution() -> None:
     """Test acquisition time distribution across 50 seeds for line motion.
-    
+
     Reports statistics on acquisition timing to verify search pattern efficiency.
     """
     acquisition_times = []

@@ -27,10 +27,21 @@ from PySide6.QtWidgets import (
 
 import skylock
 from skylock.config.models import SkyLockConfig
+from skylock.core.geometry import angular_diff_deg
+from skylock.core.los import (
+    OrbitParams,
+    calculate_look_angles,
+    check_line_of_sight,
+    is_target_in_fov,
+    orbit_position_at_time,
+    slew_toward_target,
+)
 from skylock.ui import theme
 from skylock.ui.config_editor import ConfigEditor
 from skylock.ui.panels.benchmark import BenchmarkPanel
+from skylock.ui.panels.configuration_view import ConfigurationView
 from skylock.ui.panels.controls import ControlsPanel
+from skylock.ui.panels.gimbal_control import GimbalControlPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
 from skylock.ui.settings import AppSettings
 from skylock.ui.web3d.view_3d import SpaceView3D
@@ -199,6 +210,15 @@ class MainWindow(QMainWindow):
         )
         QApplication.instance().installEventFilter(self._steering_filter)  # type: ignore[union-attr]
 
+        # Phase 4 Authoritative orbital & gimbal state
+        self._s1_orbit = OrbitParams(radius=20.0, speed=0.3, inclination_deg=25.0, phase_deg=0.0)
+        self._s2_orbit = OrbitParams(radius=26.0, speed=0.2, inclination_deg=65.0, phase_deg=180.0)
+        self._sim_time_s = 0.0
+        self._current_pan = 0.0
+        self._current_tilt = 0.0
+        self._current_fov = 20.0
+        self._is_auto_tracking = False
+
         self._build_ui()
         self._build_menus()
         self._connect_signals()
@@ -232,8 +252,10 @@ class MainWindow(QMainWindow):
         self.view_tabs = QTabWidget(top_widget)
         self.space_view_3d = SpaceView3D(self.view_tabs)
         self.camera_view = CameraView(self.view_tabs)
+        self.configuration_view = ConfigurationView(self.view_tabs)
         self.view_tabs.addTab(self.space_view_3d, "3D Space Simulation")
         self.view_tabs.addTab(self.camera_view, "Camera Sensor Feed")
+        self.view_tabs.addTab(self.configuration_view, "Configuration")
         top_layout.addWidget(self.view_tabs, stretch=10)
 
         # State timeline mounted under camera view (hidden by default per Phase 2 Rule 5)
@@ -285,10 +307,22 @@ class MainWindow(QMainWindow):
         )
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.dock_controls)
 
-        # Right Dock: Telemetry
+        # Right Dock: Telemetry & Gimbal Control
         self.dock_telemetry = QDockWidget("Telemetry", self)
+        right_container = QWidget()
+        right_container.setMinimumWidth(0)
+        right_layout = QVBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(4)
+
         self.telemetry_panel = TelemetryPanel()
-        self.dock_telemetry.setWidget(self.telemetry_panel)
+        self.gimbal_control_panel = GimbalControlPanel()
+
+        right_layout.addWidget(self.telemetry_panel)
+        right_layout.addWidget(self.gimbal_control_panel)
+        right_layout.addStretch(1)
+
+        self.dock_telemetry.setWidget(right_container)
         self.dock_telemetry.setMinimumWidth(280)
         self.dock_telemetry.setFeatures(
             QDockWidget.DockWidgetFeature.DockWidgetMovable |
@@ -406,6 +440,32 @@ class MainWindow(QMainWindow):
         act_view_sensor.triggered.connect(lambda: self.view_tabs.setCurrentWidget(self.camera_view))
         view_menu.addAction(act_view_sensor)
 
+        act_view_config = QAction("3D &Configuration", self)
+        act_view_config.setToolTip("Switch central view to 3D Space & Orbit Configuration")
+        act_view_config.triggered.connect(
+            lambda: self.view_tabs.setCurrentWidget(self.configuration_view)
+        )
+        view_menu.addAction(act_view_config)
+
+        view_menu.addSeparator()
+
+        act_focus_s1 = QAction("Focus S-1 (Observer)", self)
+        act_focus_s1.setToolTip("Focus 3D viewing camera on Observer Satellite S-1")
+        act_focus_s1.triggered.connect(self.space_view_3d.focus_s1)
+        view_menu.addAction(act_focus_s1)
+
+        act_focus_s2 = QAction("Focus S-2 (Target)", self)
+        act_focus_s2.setToolTip("Focus 3D viewing camera on Target Satellite S-2")
+        act_focus_s2.triggered.connect(self.space_view_3d.focus_s2)
+        view_menu.addAction(act_focus_s2)
+
+        act_reset_cam = QAction("Reset Camera Pose", self)
+        act_reset_cam.setToolTip("Reset gimbal camera to neutral pose (pan=0°, tilt=0°, FOV=20°)")
+        act_reset_cam.triggered.connect(self._on_gimbal_reset)
+        view_menu.addAction(act_reset_cam)
+
+        view_menu.addSeparator()
+
         act_demo_3d = QAction("Run 3D &Gimbal Demo", self)
         act_demo_3d.setToolTip("Run deterministic 3D gimbal pan/tilt validation sequence")
         act_demo_3d.triggered.connect(self.start_3d_demonstration)
@@ -483,6 +543,20 @@ class MainWindow(QMainWindow):
         # Manual steering
         self._steering_filter.rate_changed.connect(self._worker.set_manual_rates)
 
+        # Configuration View -> 3D Space View & MainWindow
+        self.configuration_view.orbit_lines_toggled.connect(self.space_view_3d.set_show_orbit_lines)
+        self.configuration_view.camera_fov_toggled.connect(self.space_view_3d.set_show_camera_fov)
+        self.configuration_view.optical_axis_toggled.connect(self.space_view_3d.set_show_optical_axis)
+        self.configuration_view.tracking_beam_toggled.connect(self.space_view_3d.set_show_tracking_beam)
+        self.configuration_view.orbits_changed.connect(self._on_orbits_changed)
+
+        # Gimbal Control Panel -> State & 3D Space View
+        self.gimbal_control_panel.pan_changed.connect(self._on_gimbal_manual_pan)
+        self.gimbal_control_panel.tilt_changed.connect(self._on_gimbal_manual_tilt)
+        self.gimbal_control_panel.fov_changed.connect(self._on_gimbal_manual_fov)
+        self.gimbal_control_panel.reset_clicked.connect(self._on_gimbal_reset)
+        self.gimbal_control_panel.track_target_clicked.connect(self._on_gimbal_track_target)
+
         # Seed link: sync controls panel seed to benchmark panel
         self.controls_panel.spn_seed.valueChanged.connect(
             self.bench_panel.sync_controls_seed
@@ -493,18 +567,11 @@ class MainWindow(QMainWindow):
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
 
     def _on_frame_ready(self, fv: Any) -> None:  # noqa: ANN401
-        """Update timeline and status bar with latest state history."""
+        """Update timeline, status bar, telemetry, and 3D simulation with latest state."""
         if hasattr(fv, "state_history_tail"):
             self.state_timeline.set_history(fv.state_history_tail)
 
         # Update status bar permanent widgets
-        if hasattr(fv, "track_state"):
-            state_name = (
-                fv.track_state.name
-                if hasattr(fv.track_state, "name")
-                else str(fv.track_state)
-            )
-            self.lbl_status_state.setText(state_name)
         if hasattr(fv, "frame_index"):
             self.lbl_status_frame.setText(f"frame {fv.frame_index}")
         if hasattr(fv, "wall_fps") and fv.wall_fps is not None:
@@ -512,18 +579,115 @@ class MainWindow(QMainWindow):
         if hasattr(fv, "input_kind"):
             self.lbl_status_source.setText(fv.input_kind)
 
-        # Forward gimbal angles to 3D Space View
-        if (
-            hasattr(self, "space_view_3d")
-            and hasattr(fv, "pointing_pan_deg")
-            and hasattr(fv, "pointing_tilt_deg")
-        ):
-            self.space_view_3d.set_gimbal_pose(fv.pointing_pan_deg, fv.pointing_tilt_deg)
+        # Authoritative Orbital Physics & Tracking Loop
+        self._sim_time_s += 0.033
+        p1 = orbit_position_at_time(self._s1_orbit, self._sim_time_s)
+        p2 = orbit_position_at_time(self._s2_orbit, self._sim_time_s)
+
+        has_los = check_line_of_sight(p1, p2, body_radius=10.0)
+        target_pan, target_tilt, _ = calculate_look_angles(p1, p2)
+
+        # In AUTO mode, slew toward target respecting max slew rate limit
+        if self._is_auto_tracking:
+            max_slew = self.editor.config.gimbal.slew_rate_deg_s
+            new_pan, new_tilt, _ = slew_toward_target(
+                self._current_pan, self._current_tilt, target_pan, target_tilt, max_slew, 0.033
+            )
+            self._current_pan = new_pan
+            self._current_tilt = new_tilt
+            self.gimbal_control_panel.set_values(new_pan, new_tilt, emit_signals=False)
+            self.space_view_3d.set_gimbal_pose(new_pan, new_tilt)
+        elif hasattr(fv, "pointing_pan_deg") and hasattr(fv, "pointing_tilt_deg"):
+            if fv.pointing_pan_deg is not None and fv.pointing_tilt_deg is not None:
+                self._current_pan = float(fv.pointing_pan_deg)
+                self._current_tilt = float(fv.pointing_tilt_deg)
+                self.gimbal_control_panel.set_values(
+                    self._current_pan, self._current_tilt, emit_signals=False
+                )
+                self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
+
+        in_fov = is_target_in_fov(
+            self._current_pan, self._current_tilt, target_pan, target_tilt, self._current_fov
+        )
+
+        # Deterministic optical tracking state machine
+        if not has_los:
+            state_str = "LOST"
+            lock_str = "UNLOCKED"
+        elif in_fov:
+            d_pan = abs(angular_diff_deg(target_pan, self._current_pan))
+            d_tilt = abs(angular_diff_deg(target_tilt, self._current_tilt))
+            if d_pan < 2.0 and d_tilt < 2.0:
+                state_str = "TRACK"
+                lock_str = "ENGAGED"
+            else:
+                state_str = "ACQUIRE"
+                lock_str = "ACQUIRING"
+        else:
+            state_str = "SEARCH"
+            lock_str = "SEARCHING"
+
+        # Update telemetry
+        self.telemetry_panel.update_gimbal(self._current_pan, self._current_tilt)
+        self.telemetry_panel.lbl_lock.setText(lock_str)
+        self.telemetry_panel.badge.set_state(state_str)
+        self.lbl_status_state.setText(state_str)
+
+    def _on_gimbal_manual_pan(self, pan: float) -> None:
+        self._current_pan = float(pan)
+        self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
+        self.telemetry_panel.update_gimbal(self._current_pan, self._current_tilt)
+
+    def _on_gimbal_manual_tilt(self, tilt: float) -> None:
+        self._current_tilt = float(tilt)
+        self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
+        self.telemetry_panel.update_gimbal(self._current_pan, self._current_tilt)
+
+    def _on_gimbal_manual_fov(self, fov: float) -> None:
+        self._current_fov = float(fov)
+        self.space_view_3d.set_camera_fov(self._current_fov)
+
+    def _on_gimbal_reset(self) -> None:
+        self._current_pan = 0.0
+        self._current_tilt = 0.0
+        self._current_fov = 20.0
+        self.gimbal_control_panel.set_values(0.0, 0.0, 20.0, emit_signals=False)
+        self.space_view_3d.reset_camera()
+        self.telemetry_panel.update_gimbal(0.0, 0.0)
+
+    def _on_gimbal_track_target(self) -> None:
+        self._is_auto_tracking = True
+        self.controls_panel.cmb_mode.setCurrentText("AUTO")
+
+    def _on_orbits_changed(self, data: dict[str, Any]) -> None:
+        if "s1" in data:
+            s1 = data["s1"]
+            self._s1_orbit = OrbitParams(
+                radius=float(s1["radius"]),
+                speed=float(s1["speed"]),
+                inclination_deg=float(s1["inclination"]),
+                phase_deg=float(s1["phase"]),
+            )
+            self.space_view_3d.set_satellite_orbit(
+                "s1", s1["radius"], s1["inclination"], s1["speed"], s1["phase"]
+            )
+        if "s2" in data:
+            s2 = data["s2"]
+            self._s2_orbit = OrbitParams(
+                radius=float(s2["radius"]),
+                speed=float(s2["speed"]),
+                inclination_deg=float(s2["inclination"]),
+                phase_deg=float(s2["phase"]),
+            )
+            self.space_view_3d.set_satellite_orbit(
+                "s2", s2["radius"], s2["inclination"], s2["speed"], s2["phase"]
+            )
 
     def _on_mode_changed(self, mode: str) -> None:
         """Handle mode change: update worker and steering filter."""
         self._worker.set_control_mode(mode)
         self._steering_filter.set_manual_mode(mode == "MANUAL")
+        self._is_auto_tracking = (mode == "AUTO")
 
     def _on_toggle_gt(self, checked: bool) -> None:
         self.camera_view.show_ground_truth = checked

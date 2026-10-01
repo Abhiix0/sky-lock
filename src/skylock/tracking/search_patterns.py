@@ -64,7 +64,7 @@ class RasterScan:
 
     def recenter(self, new_center: tuple[float, float]) -> None:
         """Update the center point of the raster scan.
-        
+
         Args:
             new_center: (pan_deg, tilt_deg) new center position.
         """

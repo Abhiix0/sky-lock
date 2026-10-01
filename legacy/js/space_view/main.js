@@ -2,18 +2,18 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFSpecGlossExtension } from '../GLTFSpecGlossExtension.js';
-import { OrbitState, setupOrbitLines } from '../orbit.js';
+import { OrbitState, setupOrbitLines, createOrbitLine } from '../orbit.js';
 
 // ============================================================
 // CONSTANTS & CONFIGURATION
 // ============================================================
 
-const EARTH_RADIUS = 10;
+const EARTH_RADIUS = 10.0;
 const EARTH_ROTATION_SPEED = 0.08; // rad/s
 const SATELLITE_SCALE = 2.0;
 
 // Camera defaults
-const DEFAULT_GIMBAL_PAN = 90.0; // Pointing towards Earth (+X) initially
+const DEFAULT_GIMBAL_PAN = 0.0;
 const DEFAULT_GIMBAL_TILT = 0.0;
 const DEFAULT_CAMERA_FOV = 20.0;
 
@@ -23,6 +23,8 @@ const _targetQuat = new THREE.Quaternion();
 const _tempVec = new THREE.Vector3();
 const _frustum = new THREE.Frustum();
 const _projScreenMatrix = new THREE.Matrix4();
+const _apertureWorldPos = new THREE.Vector3();
+const _s2WorldPos = new THREE.Vector3();
 
 // State variables
 let currentPan = DEFAULT_GIMBAL_PAN;
@@ -32,14 +34,23 @@ let isPaused = false;
 let simulationSpeed = 1.0;
 let isReady = false;
 let isTargetInFov = false;
+let hasLineOfSight = false;
+let isBeamActive = false;
 let focusTarget = null; // null for Earth, or satellite Object3D
+
+// Visualization toggles
+let showOrbitLines = true;
+let showCameraFov = true;
+let showOpticalAxis = true;
+let showTrackingBeam = true;
 
 // Three.js Core Objects
 let scene, mainCamera, renderer, controls;
 let earthMesh = null;
 let sat1Obj = null;
 let sat2Obj = null;
-let orbit1, orbit2;
+let orbit1 = null;
+let orbit2 = null;
 let orbitLines = [];
 
 // Gimbal & Virtual Camera Objects
@@ -49,6 +60,8 @@ let tiltGroup = null;
 let visualGimbalGroup = null;
 let fovFrustumMesh = null;
 let boresightRay = null;
+let trackingBeam = null;
+let trackingBeamGeo = null;
 let virtualCamera = null;
 let virtualRenderTarget = null;
 
@@ -112,17 +125,16 @@ function initScene() {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
 
-  // Orbits
-  const orbits = [
-    new OrbitState(20, 0.3, 25, 0),
-    new OrbitState(26, 0.2, 65, 180)
-  ];
-  orbit1 = orbits[0];
-  orbit2 = orbits[1];
+  // Initial Orbits: S-1 Observer (radius 20, inc 25°), S-2 Target (radius 26, inc 65°)
+  orbit1 = new OrbitState(20, 0.3, 25, 0);
+  orbit2 = new OrbitState(26, 0.2, 65, 180);
   orbitLines = setupOrbitLines(scene);
 
   // Virtual Camera & RenderTarget for Gimbal
   setupVirtualCamera();
+
+  // Optical Tracking Beam Line
+  setupTrackingBeam();
 
   // Resize handler
   window.addEventListener('resize', onWindowResize);
@@ -164,32 +176,30 @@ function createStarfield() {
 }
 
 function onWindowResize() {
-  const w = window.innerWidth;
-  const h = window.innerHeight;
-  mainCamera.aspect = w / h;
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  mainCamera.aspect = width / height;
   mainCamera.updateProjectionMatrix();
-  renderer.setSize(w, h);
+  renderer.setSize(width, height);
 }
 
 // ============================================================
-// ASSET NORMALIZATION & LOADING
+// ASSET LOADING
 // ============================================================
 
-function normalizeModel(model, targetSize, label) {
-  model.updateMatrixWorld(true);
+function normalizeModel(model, targetSize, name) {
   const box = new THREE.Box3().setFromObject(model);
-  const size = new THREE.Vector3();
-  const center = new THREE.Vector3();
-  box.getSize(size);
-  box.getCenter(center);
+  const size = box.getSize(new THREE.Vector3());
+  const maxDim = Math.max(size.x, size.y, size.z);
+  const scale = targetSize / maxDim;
+  model.scale.set(scale, scale, scale);
 
-  const largestDim = Math.max(size.x, size.y, size.z) || 1.0;
-  model.position.set(-center.x, -center.y, -center.z);
+  const center = box.getCenter(new THREE.Vector3());
+  model.position.sub(center.multiplyScalar(scale));
 
   const wrapper = new THREE.Group();
-  wrapper.name = label;
+  wrapper.name = name;
   wrapper.add(model);
-  wrapper.scale.setScalar(targetSize / largestDim);
   return wrapper;
 }
 
@@ -197,26 +207,28 @@ async function loadGlbAssets() {
   const loader = new GLTFLoader();
   loader.register((parser) => new GLTFSpecGlossExtension(parser));
 
-  const baseUrl = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.BASE_URL) || './';
-  const cleanBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  const cleanBase = window.location.pathname.substring(0, window.location.pathname.lastIndexOf('/') + 1);
 
-  function loadOne(url, label) {
-    return new Promise((resolve, reject) => {
+  const loadOne = (url, name) => {
+    return new Promise((resolve) => {
       loader.load(
         url,
-        (gltf) => resolve(gltf),
+        (gltf) => {
+          console.log(`Loaded ${name}`);
+          resolve(gltf);
+        },
         undefined,
         (err) => {
-          console.warn(`Failed loading ${url}, attempting fallback placeholder`, err);
+          console.warn(`Could not load ${url}, falling back to procedural mesh:`, err);
           resolve(null);
         }
       );
     });
-  }
+  };
 
   const [earthGltf, sat1Gltf, sat2Gltf] = await Promise.all([
     loadOne(`${cleanBase}assets/earth.glb`, 'Earth'),
-    loadOne(`${cleanBase}assets/satellite.glb`, 'Satellite 1'),
+    loadOne(`${cleanBase}assets/satellite1.glb`, 'Satellite 1'),
     loadOne(`${cleanBase}assets/satellite2.glb`, 'Satellite 2')
   ]);
 
@@ -224,7 +236,6 @@ async function loadGlbAssets() {
   if (earthGltf && earthGltf.scene) {
     earthMesh = normalizeModel(earthGltf.scene, EARTH_RADIUS * 2, 'Earth');
   } else {
-    // Fallback procedural Earth sphere
     const geo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
     const mat = new THREE.MeshStandardMaterial({
       color: 0x1d4ed8,
@@ -237,20 +248,19 @@ async function loadGlbAssets() {
   earthMesh.position.set(0, 0, 0);
   scene.add(earthMesh);
 
-  // 2. Satellite 1 (Observer)
+  // 2. Satellite 1 (Observer Platform)
   if (sat1Gltf && sat1Gltf.scene) {
-    sat1Obj = normalizeModel(sat1Gltf.scene, SATELLITE_SCALE * 2, 'Satellite 1');
+    sat1Obj = normalizeModel(sat1Gltf.scene, SATELLITE_SCALE * 2, 'Satellite 1 (Observer)');
   } else {
-    // Procedural fallback satellite
-    sat1Obj = createFallbackSatellite(0x38bdf8, 'Satellite 1');
+    sat1Obj = createFallbackSatellite(0x38bdf8, 'Satellite 1 (Observer)');
   }
   scene.add(sat1Obj);
 
-  // 3. Satellite 2 (Target with Beacon)
+  // 3. Satellite 2 (Target Platform)
   if (sat2Gltf && sat2Gltf.scene) {
-    sat2Obj = normalizeModel(sat2Gltf.scene, SATELLITE_SCALE * 2, 'Satellite 2');
+    sat2Obj = normalizeModel(sat2Gltf.scene, SATELLITE_SCALE * 2, 'Satellite 2 (Target)');
   } else {
-    sat2Obj = createFallbackSatellite(0xf59e0b, 'Satellite 2');
+    sat2Obj = createFallbackSatellite(0xf59e0b, 'Satellite 2 (Target)');
   }
   scene.add(sat2Obj);
 
@@ -278,8 +288,8 @@ function createFallbackSatellite(colorHex, name) {
   // Main bus
   const busGeo = new THREE.BoxGeometry(1.2, 0.8, 0.8);
   const busMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 });
-  const bus = new THREE.Mesh(busGeo, busMat);
-  group.add(bus);
+  const busMesh = new THREE.Mesh(busGeo, busMat);
+  group.add(busMesh);
 
   // Solar panels
   const panelGeo = new THREE.BoxGeometry(2.4, 0.04, 0.7);
@@ -299,11 +309,12 @@ function attachBeaconToSat2() {
   const beaconGroup = new THREE.Group();
   beaconGroup.name = 'OpticalBeacon';
 
-  const beaconLight = new THREE.PointLight(0x38bdf8, 3.0, 40, 2);
+  // Subtle physically grounded beacon light (no blown-out blinding flash)
+  const beaconLight = new THREE.PointLight(0x38bdf8, 1.2, 25, 2);
   beaconLight.position.set(0, 0.5, 0);
   beaconGroup.add(beaconLight);
 
-  const beaconGeo = new THREE.SphereGeometry(0.18, 16, 16);
+  const beaconGeo = new THREE.SphereGeometry(0.12, 16, 16);
   const beaconMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
   const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
   beaconMesh.position.set(0, 0.5, 0);
@@ -317,7 +328,6 @@ function attachBeaconToSat2() {
 // ============================================================
 
 function setupGimbalOnSat1() {
-  // Gimbal hierarchy lives in world space and syncs with Sat 1 to prevent parent scale distortion
   gimbalRigRoot = new THREE.Group();
   gimbalRigRoot.name = 'GimbalRigRoot';
 
@@ -337,22 +347,23 @@ function setupGimbalOnSat1() {
   createFovFrustumMesh();
   tiltGroup.add(fovFrustumMesh);
 
-  // Optical boresight ray
+  // Optical boresight ray (points along -Z)
   const rayGeo = new THREE.BufferGeometry().setFromPoints([
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(0, 0, -18)
+    new THREE.Vector3(0, 0.15, -0.42),
+    new THREE.Vector3(0, 0.15, -18)
   ]);
   const rayMat = new THREE.LineBasicMaterial({
     color: 0x38bdf8,
     transparent: true,
-    opacity: 0.75,
+    opacity: 0.8,
     linewidth: 1.5
   });
   boresightRay = new THREE.Line(rayGeo, rayMat);
+  boresightRay.name = 'OpticalAxis';
   tiltGroup.add(boresightRay);
 
-  // Mount virtual camera at optic aperture
-  virtualCamera.position.set(0, 0, 0);
+  // Mount virtual camera at optic aperture (positioned forward to avoid clipping into sensor head)
+  virtualCamera.position.set(0, 0.15, -0.42);
   tiltGroup.add(virtualCamera);
 
   scene.add(gimbalRigRoot);
@@ -393,7 +404,7 @@ function createVisualGimbalModel() {
 
   // Cyan accent ring
   const ringGeo = new THREE.TorusGeometry(0.25, 0.02, 16, 32);
-  const ringMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  const ringMat = new THREE.MeshBasicMaterial({ color: 0x0ea5e9 });
   const ringMesh = new THREE.Mesh(ringGeo, ringMat);
   ringMesh.position.set(0, 0.15, -0.36);
   root.add(ringMesh);
@@ -401,7 +412,7 @@ function createVisualGimbalModel() {
   // Optic lens face
   const lensGeo = new THREE.CircleGeometry(0.22, 24);
   const lensMat = new THREE.MeshStandardMaterial({
-    color: 0x0ea5e9,
+    color: 0x0284c7,
     metalness: 0.95,
     roughness: 0.1,
     side: THREE.DoubleSide
@@ -415,32 +426,29 @@ function createVisualGimbalModel() {
 
 function createFovFrustumMesh() {
   const farDist = 16.0;
-  const aspect = 320 / 240;
+  const aspect = 260 / 195;
   const halfFovRad = THREE.MathUtils.degToRad(currentFov / 2);
   const halfH = Math.tan(halfFovRad) * farDist;
   const halfW = halfH * aspect;
 
-  const origin = new THREE.Vector3(0, 0, 0);
-  const tl = new THREE.Vector3(-halfW, halfH, -farDist);
-  const tr = new THREE.Vector3(halfW, halfH, -farDist);
-  const br = new THREE.Vector3(halfW, -halfH, -farDist);
-  const bl = new THREE.Vector3(-halfW, -halfH, -farDist);
+  const origin = new THREE.Vector3(0, 0.15, -0.42);
+  const tl = new THREE.Vector3(-halfW, 0.15 + halfH, -farDist);
+  const tr = new THREE.Vector3(halfW, 0.15 + halfH, -farDist);
+  const br = new THREE.Vector3(halfW, 0.15 - halfH, -farDist);
+  const bl = new THREE.Vector3(-halfW, 0.15 - halfH, -farDist);
 
   // Pyramid edges + Far rectangle loop + Crosshair
   const points = [
-    // 4 edges from apex
     origin, tl,
     origin, tr,
     origin, br,
     origin, bl,
-    // Far rectangle loop
     tl, tr,
     tr, br,
     br, bl,
     bl, tl,
-    // Far center cross
-    new THREE.Vector3(0, halfH * 0.4, -farDist), new THREE.Vector3(0, -halfH * 0.4, -farDist),
-    new THREE.Vector3(-halfW * 0.4, 0, -farDist), new THREE.Vector3(halfW * 0.4, 0, -farDist)
+    new THREE.Vector3(0, 0.15 + halfH * 0.4, -farDist), new THREE.Vector3(0, 0.15 - halfH * 0.4, -farDist),
+    new THREE.Vector3(-halfW * 0.4, 0.15, -farDist), new THREE.Vector3(halfW * 0.4, 0.15, -farDist)
   ];
 
   frustumGeo = new THREE.BufferGeometry().setFromPoints(points);
@@ -463,11 +471,11 @@ function updateFovFrustumGeometry(fovDeg) {
   const halfH = Math.tan(halfFovRad) * farDist;
   const halfW = halfH * aspect;
 
-  const origin = new THREE.Vector3(0, 0, 0);
-  const tl = new THREE.Vector3(-halfW, halfH, -farDist);
-  const tr = new THREE.Vector3(halfW, halfH, -farDist);
-  const br = new THREE.Vector3(halfW, -halfH, -farDist);
-  const bl = new THREE.Vector3(-halfW, -halfH, -farDist);
+  const origin = new THREE.Vector3(0, 0.15, -0.42);
+  const tl = new THREE.Vector3(-halfW, 0.15 + halfH, -farDist);
+  const tr = new THREE.Vector3(halfW, 0.15 + halfH, -farDist);
+  const br = new THREE.Vector3(halfW, 0.15 - halfH, -farDist);
+  const bl = new THREE.Vector3(-halfW, 0.15 - halfH, -farDist);
 
   const points = [
     origin, tl,
@@ -478,8 +486,8 @@ function updateFovFrustumGeometry(fovDeg) {
     tr, br,
     br, bl,
     bl, tl,
-    new THREE.Vector3(0, halfH * 0.4, -farDist), new THREE.Vector3(0, -halfH * 0.4, -farDist),
-    new THREE.Vector3(-halfW * 0.4, 0, -farDist), new THREE.Vector3(halfW * 0.4, 0, -farDist)
+    new THREE.Vector3(0, 0.15 + halfH * 0.4, -farDist), new THREE.Vector3(0, 0.15 - halfH * 0.4, -farDist),
+    new THREE.Vector3(-halfW * 0.4, 0.15, -farDist), new THREE.Vector3(halfW * 0.4, 0.15, -farDist)
   ];
 
   fovFrustumMesh.geometry.dispose();
@@ -489,6 +497,21 @@ function updateFovFrustumGeometry(fovDeg) {
     virtualCamera.fov = fovDeg;
     virtualCamera.updateProjectionMatrix();
   }
+}
+
+function setupTrackingBeam() {
+  const beamMat = new THREE.LineBasicMaterial({
+    color: 0x00ffff,
+    transparent: true,
+    opacity: 0.9,
+    linewidth: 2.0
+  });
+  const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)];
+  trackingBeamGeo = new THREE.BufferGeometry().setFromPoints(pts);
+  trackingBeam = new THREE.Line(trackingBeamGeo, beamMat);
+  trackingBeam.name = 'OpticalTrackingBeam';
+  trackingBeam.visible = false;
+  scene.add(trackingBeam);
 }
 
 function setupVirtualCamera() {
@@ -519,6 +542,77 @@ function applyGimbalPose(panDeg, tiltDeg) {
   }
   if (tiltGroup) {
     tiltGroup.rotation.x = THREE.MathUtils.degToRad(tiltDeg);
+  }
+
+  updatePipTelemetry();
+}
+
+// ============================================================
+// GEOMETRIC OCCLUSION & TRACKING LOGIC
+// ============================================================
+
+function checkLineOfSight(p1, p2, radius = EARTH_RADIUS) {
+  const dx = p2.x - p1.x;
+  const dy = p2.y - p1.y;
+  const dz = p2.z - p1.z;
+  const segLenSq = dx * dx + dy * dy + dz * dz;
+  if (segLenSq < 1e-10) return p1.length() >= radius;
+
+  // Closest point on segment to origin (0, 0, 0)
+  const t = -(p1.x * dx + p1.y * dy + p1.z * dz) / segLenSq;
+  const tClamped = Math.max(0, Math.min(1, t));
+
+  const cx = p1.x + tClamped * dx;
+  const cy = p1.y + tClamped * dy;
+  const cz = p1.z + tClamped * dz;
+
+  return (cx * cx + cy * cy + cz * cz) >= (radius * radius);
+}
+
+function updateTrackingState() {
+  if (!virtualCamera || !sat2Obj) return;
+
+  virtualCamera.getWorldPosition(_apertureWorldPos);
+  sat2Obj.getWorldPosition(_s2WorldPos);
+
+  // Geometric line-of-sight test (Earth occlusion)
+  hasLineOfSight = checkLineOfSight(_apertureWorldPos, _s2WorldPos, EARTH_RADIUS);
+
+  // FOV containment test
+  virtualCamera.updateMatrixWorld();
+  _projScreenMatrix.multiplyMatrices(virtualCamera.projectionMatrix, virtualCamera.matrixWorldInverse);
+  _frustum.setFromProjectionMatrix(_projScreenMatrix);
+  isTargetInFov = _frustum.containsPoint(_s2WorldPos);
+
+  // Tracking beam is ON only when:
+  // 1. S-1 and S-2 exist
+  // 2. S-2 is in camera FOV
+  // 3. Direct line-of-sight is NOT blocked by Earth
+  isBeamActive = hasLineOfSight && isTargetInFov;
+
+  if (trackingBeam) {
+    if (isBeamActive && showTrackingBeam) {
+      const pts = [_apertureWorldPos.clone(), _s2WorldPos.clone()];
+      trackingBeam.geometry.dispose();
+      trackingBeam.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+      trackingBeam.visible = true;
+    } else {
+      trackingBeam.visible = false;
+    }
+  }
+
+  // Frustum visualization color
+  if (frustumMat) {
+    if (isBeamActive) {
+      frustumMat.color.setHex(0x22c55e); // Emerald green: locked & tracked
+      frustumMat.opacity = 0.95;
+    } else if (!hasLineOfSight && isTargetInFov) {
+      frustumMat.color.setHex(0xf59e0b); // Amber: in angle but Earth occluded
+      frustumMat.opacity = 0.7;
+    } else {
+      frustumMat.color.setHex(0x38bdf8); // Sky blue: searching
+      frustumMat.opacity = 0.65;
+    }
   }
 
   updatePipTelemetry();
@@ -579,8 +673,8 @@ function animate(now) {
     gimbalRigRoot.quaternion.copy(sat1Obj.quaternion);
   }
 
-  // 4. Update Camera FOV & Target Containment Test
-  checkTargetInCameraFov();
+  // 4. Update Optical Line-of-sight & Beam
+  updateTrackingState();
 
   // 5. Update OrbitControls & Focus
   if (focusTarget) {
@@ -588,7 +682,7 @@ function animate(now) {
   }
   controls.update();
 
-  // 6. Render Virtual Camera Feed to RenderTarget & blit to PiP
+  // 6. Render Virtual Camera Feed (with complete clipping-artifact prevention)
   renderVirtualFeed();
 
   // 7. Render Main 3D View
@@ -596,40 +690,30 @@ function animate(now) {
   renderer.render(scene, mainCamera);
 }
 
-function checkTargetInCameraFov() {
-  if (!virtualCamera || !sat2Obj) return;
-
-  virtualCamera.updateMatrixWorld();
-  _projScreenMatrix.multiplyMatrices(virtualCamera.projectionMatrix, virtualCamera.matrixWorldInverse);
-  _frustum.setFromProjectionMatrix(_projScreenMatrix);
-
-  sat2Obj.getWorldPosition(_tempVec);
-  const inFov = _frustum.containsPoint(_tempVec);
-
-  if (inFov !== isTargetInFov) {
-    isTargetInFov = inFov;
-    if (frustumMat) {
-      // Emerald green when target is in FOV, sky blue when searching
-      frustumMat.color.setHex(inFov ? 0x22c55e : 0x38bdf8);
-      frustumMat.opacity = inFov ? 0.95 : 0.65;
-    }
-    updatePipTelemetry();
-  }
-}
-
 function renderVirtualFeed() {
   if (!virtualCamera || !virtualRenderTarget || !pipCtx) return;
 
-  // Temporarily hide frustum and boresight from virtual camera's own feed
+  // PREVENT CLIPPING ARTIFACT:
+  // Hide S-1 satellite, visual gimbal, frustum, optical ray, tracking beam, and orbit lines
+  // from the sensor's own feed so it only sees true external space and targets!
+  if (visualGimbalGroup) visualGimbalGroup.visible = false;
+  if (sat1Obj) sat1Obj.visible = false;
   if (fovFrustumMesh) fovFrustumMesh.visible = false;
   if (boresightRay) boresightRay.visible = false;
+  if (trackingBeam) trackingBeam.visible = false;
+  orbitLines.forEach((l) => { if (l) l.visible = false; });
 
   renderer.setRenderTarget(virtualRenderTarget);
   renderer.render(scene, virtualCamera);
   renderer.setRenderTarget(null);
 
-  if (fovFrustumMesh) fovFrustumMesh.visible = true;
-  if (boresightRay) boresightRay.visible = true;
+  // Restore visibility for main 3D viewer according to user preferences
+  if (visualGimbalGroup) visualGimbalGroup.visible = true;
+  if (sat1Obj) sat1Obj.visible = true;
+  if (fovFrustumMesh) fovFrustumMesh.visible = showCameraFov;
+  if (boresightRay) boresightRay.visible = showOpticalAxis;
+  if (trackingBeam) trackingBeam.visible = isBeamActive && showTrackingBeam;
+  orbitLines.forEach((l) => { if (l) l.visible = showOrbitLines; });
 
   // Read pixels and blit to PiP 2D canvas (with vertical flip)
   renderer.readRenderTargetPixels(virtualRenderTarget, 0, 0, 260, 195, pipReadbackBuf);
@@ -663,8 +747,11 @@ function updatePipTelemetry() {
 
   const statusEl = document.getElementById('pip-target-status');
   if (statusEl) {
-    if (isTargetInFov) {
-      statusEl.textContent = 'TARGET: IN FOV';
+    if (!hasLineOfSight) {
+      statusEl.textContent = 'TARGET: OCCLUDED (EARTH)';
+      statusEl.className = 'status-out-fov';
+    } else if (isTargetInFov) {
+      statusEl.textContent = 'TARGET: IN FOV (TRACKING)';
       statusEl.className = 'status-in-fov';
     } else {
       statusEl.textContent = 'TARGET: OUT OF FOV';
@@ -682,8 +769,8 @@ function setupUIHandlers() {
   if (btnReset) {
     btnReset.addEventListener('click', () => {
       focusTarget = null;
-      controls.target.set(0, 0, 0);
-      mainCamera.position.set(34, 22, 40);
+      if (controls) controls.target.set(0, 0, 0);
+      if (mainCamera) mainCamera.position.set(34, 22, 40);
     });
   }
 
@@ -728,6 +815,79 @@ window.skylock3d = {
     updatePipTelemetry();
   },
 
+  setShowOrbitLines: (show) => {
+    showOrbitLines = Boolean(show);
+    orbitLines.forEach((l) => { if (l) l.visible = showOrbitLines; });
+  },
+
+  setShowCameraFov: (show) => {
+    showCameraFov = Boolean(show);
+    if (fovFrustumMesh) fovFrustumMesh.visible = showCameraFov;
+  },
+
+  setShowOpticalAxis: (show) => {
+    showOpticalAxis = Boolean(show);
+    if (boresightRay) boresightRay.visible = showOpticalAxis;
+  },
+
+  setShowTrackingBeam: (show) => {
+    showTrackingBeam = Boolean(show);
+    if (trackingBeam) trackingBeam.visible = showTrackingBeam && isBeamActive;
+  },
+
+  setSatelliteOrbit: (satId, radius, incDeg, speed, phaseDeg) => {
+    const r = Math.max(12, Math.min(60, Number(radius)));
+    const inc = Number(incDeg);
+    const spd = Number(speed);
+    const phase = Number(phaseDeg);
+
+    if (satId === 's1' || satId === 1) {
+      orbit1 = new OrbitState(r, spd, inc, phase);
+      if (orbitLines[0]) {
+        scene.remove(orbitLines[0]);
+        orbitLines[0].geometry.dispose();
+        orbitLines[0].material.dispose();
+      }
+      orbitLines[0] = createOrbitLine(r, inc, 0x6699cc);
+      orbitLines[0].visible = showOrbitLines;
+      scene.add(orbitLines[0]);
+    } else if (satId === 's2' || satId === 2) {
+      orbit2 = new OrbitState(r, spd, inc, phase);
+      if (orbitLines[1]) {
+        scene.remove(orbitLines[1]);
+        orbitLines[1].geometry.dispose();
+        orbitLines[1].material.dispose();
+      }
+      orbitLines[1] = createOrbitLine(r, inc, 0xcc7766);
+      orbitLines[1].visible = showOrbitLines;
+      scene.add(orbitLines[1]);
+    }
+  },
+
+  resetCamera: () => {
+    applyGimbalPose(0.0, 0.0);
+    currentFov = 20.0;
+    updateFovFrustumGeometry(20.0);
+    updatePipTelemetry();
+  },
+
+  resetView: () => {
+    focusTarget = null;
+    if (controls) controls.target.set(0, 0, 0);
+    if (mainCamera) mainCamera.position.set(34, 22, 40);
+  },
+
+  focusSatellite: (satId) => {
+    if (satId === 's1' || satId === 1) {
+      if (sat1Obj) focusTarget = sat1Obj;
+    } else if (satId === 's2' || satId === 2) {
+      if (sat2Obj) focusTarget = sat2Obj;
+    } else {
+      focusTarget = null;
+      if (controls) controls.target.set(0, 0, 0);
+    }
+  },
+
   updateState: (state) => {
     if (!state) return;
     if (state.pan !== undefined && state.tilt !== undefined) {
@@ -736,6 +896,22 @@ window.skylock3d = {
     if (state.fov !== undefined) {
       currentFov = Number(state.fov);
       updateFovFrustumGeometry(currentFov);
+    }
+    if (state.showOrbitLines !== undefined) {
+      showOrbitLines = Boolean(state.showOrbitLines);
+      orbitLines.forEach((l) => { if (l) l.visible = showOrbitLines; });
+    }
+    if (state.showCameraFov !== undefined) {
+      showCameraFov = Boolean(state.showCameraFov);
+      if (fovFrustumMesh) fovFrustumMesh.visible = showCameraFov;
+    }
+    if (state.showOpticalAxis !== undefined) {
+      showOpticalAxis = Boolean(state.showOpticalAxis);
+      if (boresightRay) boresightRay.visible = showOpticalAxis;
+    }
+    if (state.showTrackingBeam !== undefined) {
+      showTrackingBeam = Boolean(state.showTrackingBeam);
+      if (trackingBeam) trackingBeam.visible = showTrackingBeam && isBeamActive;
     }
     if (state.paused !== undefined) {
       isPaused = Boolean(state.paused);
@@ -754,12 +930,6 @@ window.skylock3d = {
     simulationSpeed = Number(speed);
   },
 
-  resetView: () => {
-    focusTarget = null;
-    if (controls) controls.target.set(0, 0, 0);
-    if (mainCamera) mainCamera.position.set(34, 22, 40);
-  },
-
   getState: () => {
     const s1Pos = sat1Obj ? { x: sat1Obj.position.x, y: sat1Obj.position.y, z: sat1Obj.position.z } : null;
     const s2Pos = sat2Obj ? { x: sat2Obj.position.x, y: sat2Obj.position.y, z: sat2Obj.position.z } : null;
@@ -769,6 +939,8 @@ window.skylock3d = {
       tilt: currentTilt,
       fov: currentFov,
       targetInFov: isTargetInFov,
+      lineOfSight: hasLineOfSight,
+      beamActive: isBeamActive,
       fps: currentFps,
       paused: isPaused,
       speed: simulationSpeed,
