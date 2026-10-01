@@ -1,104 +1,158 @@
-# Sky Lock Performance Metrics Specification
+# SkyLock Performance Metrics Specification & Normative Definitions
 
-This document provides formal mathematical definitions for all tracking, optical, servo, and algorithm latency metrics computed by `src/tracking/metrics.js`.
-
----
-
-## 1. Observability (`observable(t)`)
-
-A target is defined as **observable** at simulation time $t$ if and only if:
-1. **Line-of-Sight Clear**: The optical ray between observer and target is unoccluded by Earth's planetary sphere ($R_{\text{Earth}} = 10.0$ scene units).
-2. **Kinematically Reachable**: The line-of-sight vector lies within the mechanical angular limits of the two-axis gimbal:
-   $$\text{pan} \in [-180^\circ, +180^\circ], \quad \text{tilt} \in [-90^\circ, +90^\circ]$$
-
-$$\text{observable}(t) = \text{losClear}(t) \land \text{isReachable}(t)$$
-
-Total observable duration over a test span:
-$$T_{\text{obs}} = \int_{0}^{T} \mathbf{1}_{\{\text{observable}(t)\}} \, dt$$
+**Document ID:** `DOC-METRICS-001`  
+**Classification:** Authoritative Technical Metric Specification  
+**Version:** `1` (Normative)  
+**Target System:** SkyLock Optical Tracking Rebuild  
 
 ---
 
-## 2. Acquisition Time
+## 1. Overview & Measurement Semantics
 
-- **First Observable Instant ($t_0$)**: The earliest timestamp $t \ge 0$ where $\text{observable}(t) = \text{true}$.
-- **First Track Instant ($t_{\text{track}}$)**: The earliest timestamp where the autonomous acquisition state machine transitions to `TRACK`.
+SkyLock adopts explicit, honest performance metrics wrapped in the `Metric[T]` contract. No unmeasured metric may ever silently default to `0`, `60`, or `1.0`.
 
-$$\Delta t_{\text{acq}} = t_{\text{track}} - t_0$$
+### 1.1 Invariant Contract
 
-We also record time elapsed from scenario start:
-$$\Delta t_{\text{acq,start}} = t_{\text{track}}$$
+Every metric reports one of four unambiguous statuses defined in `skylock.core.enums.MetricStatus`:
 
----
+| Status | Meaning | Invariant on `value` |
+|---|---|---|
+| `MEASURED` | Metric was computed from valid, verified observations. | `value is not None` (and non-NaN) |
+| `NOT_RUN` | Prerequisite observations or ground truth were absent. | `value is None` |
+| `NOT_ACQUIRED` | Target was never acquired or locked during the run. | `value is None` |
+| `FAILED` | Process aborted, deadline failed, or recovery failed. | `value is None` |
 
-## 3. Reacquisition Time (Per Occlusion)
-
-When the line-of-sight is blocked by Earth, the target becomes unobservable ($\text{observable}(t) = \text{false}$) and the state machine enters `LOST` $\to$ `REACQUIRE`.
-Upon target emergence:
-- $t_{\text{emerge}, i}$: Timestamp where $\text{observable}(t)$ transitions from `false` to `true` for occlusion event $i$.
-- $t_{\text{retrack}, i}$: Timestamp where the state machine re-enters `TRACK`.
-
-$$\Delta t_{\text{reacq}, i} = t_{\text{retrack}, i} - t_{\text{emerge}, i}$$
-
-The metrics module reports:
-- List of individual reacquisition times $\{\Delta t_{\text{reacq}, i}\}$
-- Mean reacquisition time: $\overline{\Delta t}_{\text{reacq}}$
-- Maximum reacquisition time: $\max(\Delta t_{\text{reacq}, i})$
+When serialized to JSON, any non-`MEASURED` metric emits `null`, never `NaN` or a synthetic placeholder.
 
 ---
 
-## 4. Pointing & Tracking Errors
+## 2. Metric Definitions & Formulas
 
-Let $(x_c, y_c) = (W/2, H/2) = (320, 240)$ be the camera frame principal optical center.
-Let $(x_{\text{gt}}, y_{\text{gt}})$ be the ground-truth projection of the beacon on the image sensor.
-Let $(x_{\text{est}}, y_{\text{est}})$ be the Kalman state estimate projected into camera pixel coordinates.
+### 2.1 Acquisition Time (`acquisition_time_s`)
 
-### Pointing Error ($e_{\text{point}}$)
-The Euclidean offset from the sensor center to the true target, evaluated while `observable(t)` and state is `TRACK`:
-$$e_{\text{point}}(t) = \sqrt{(x_{\text{gt}}(t) - x_c)^2 + (y_{\text{gt}}(t) - y_c)^2} \quad \text{[pixels]}$$
+The time elapsed between a reference epoch and the earliest frame index $k_{\text{track}}$ where the tracking state machine transitions to `TrackState.TRACK`.
 
-### Tracking Error ($e_{\text{track}}$)
-The Euclidean offset between the Kalman filter estimate and ground-truth beacon position:
-$$e_{\text{track}}(t) = \sqrt{(x_{\text{gt}}(t) - x_{\text{est}}(t))^2 + (y_{\text{gt}}(t) - y_{\text{est}}(t))^2} \quad \text{[pixels]}$$
+**Two metrics are computed:**
 
-### Milliradian Conversion
-Given camera vertical field of view $\theta_{\text{fov}} = 12^\circ$ and frame height $H = 480\text{ px}$:
-$$k_{\text{mrad/px}} = \frac{\theta_{\text{fov}} \cdot \frac{\pi}{180^\circ}}{H} \times 1000 \approx 0.436332 \text{ mrad/px}$$
-$$e_{\text{mrad}} = e_{\text{px}} \times k_{\text{mrad/px}}$$
+1. **`from_start`** (Secondary, informational):
+   $$\Delta t_{\text{acq,start}} = t[k_{\text{track}}] - t[0]$$
+   - Computable without ground truth (e.g., MP4 external video).
+   - If `TRACK` is never reached: `NOT_ACQUIRED`.
+   - **Not used for requirement evaluation.**
 
-### Summary Statistics
-For both pointing and tracking error over all $N$ valid in-track samples:
-- **Mean**: $\mu = \frac{1}{N} \sum e_k$
-- **RMS**: $\text{RMS} = \sqrt{\frac{1}{N} \sum e_k^2}$
-- **Max**: $\max(e_k)$
-- **95th Percentile ($p_{95}$)**: The value below which 95% of observations fall.
+2. **`from_first_observable`** (Primary, requirement metric):
+   $$\Delta t_{\text{acq,obs}} = t[k_{\text{track}}] - t[k_{\text{first\_obs}}]$$
+   where $k_{\text{first\_obs}}$ is the earliest frame where ground-truth beacon visibility is `True`.
+   - Requires ground-truth visibility. If ground truth is absent: `NOT_RUN` with reason `"Requires ground truth target visibility"`.
+   - If `TRACK` is never reached: `NOT_ACQUIRED`.
+   - **This is the acquisition time metric used for PS requirement evaluation (≤ 2.0s).**
+
+3. **`successful_acquisition`**:
+   `Metric[bool]`: `MEASURED(True)` if acquired, `NOT_ACQUIRED` if never reached `TRACK`.
+
+**Rationale:** The `from_first_observable` metric accurately measures acquisition performance independent of scenario design. A target starting outside the FOV takes time to enter, which should not count against the tracker's acquisition capability. The PS requirement "acquisition time ≤ 2s" is interpreted as time from first opportunity to acquire.
+
+### 2.2 Spatial Errors
+
+Let $(x_c, y_c) = (W/2, H/2)$ be the camera principal optical center (boresight).  
+Let $(x_{\text{gt}}, y_{\text{gt}})$ be the ground-truth beacon coordinates.  
+Let $(x_{\text{est}}, y_{\text{est}})$ be the filtered target kinematic estimate.
+
+Each error metric aggregates over valid frames $k$ producing an `ErrorStats` record:
+- **Mean:** $\mu = \frac{1}{N} \sum e_k$
+- **RMS:** $\text{RMS} = \sqrt{\frac{1}{N} \sum e_k^2}$
+- **95th Percentile ($p_{95}$):** Empirical 95th percentile.
+- **Max:** $\max(e_k)$
+- **Sample Count ($n$):** $N$
+
+#### 1. Tracking Error (`tracking_error_px`)
+Evaluated strictly over frames where $\text{state}[k] == \text{TRACK}$ and $\text{target.visible}[k] == \text{True}$:
+$$e_{\text{track}}[k] = \sqrt{(x_{\text{est}}[k] - x_{\text{gt}}[k])^2 + (y_{\text{est}}[k] - y_{\text{gt}}[k])^2}$$
+- Requires ground truth. If absent: `NOT_RUN`.
+
+#### 2. Pointing Error (`pointing_error_px`)
+Evaluated strictly over frames where $\text{state}[k] == \text{TRACK}$ and $\text{target.visible}[k] == \text{True}$:
+$$e_{\text{point}}[k] = \sqrt{(x_{\text{gt}}[k] - x_c)^2 + (y_{\text{gt}}[k] - y_c)^2}$$
+- Requires ground truth. If absent: `NOT_RUN`.
+
+#### 3. Centering Error (`centering_error_px`)
+Evaluated over frames where $\text{state}[k] == \text{TRACK}$ and an estimate exists:
+$$e_{\text{center}}[k] = \sqrt{(x_{\text{est}}[k] - x_c)^2 + (y_{\text{est}}[k] - y_c)^2}$$
+- Purely estimate-driven. Fully measurable for external MP4 video feeds without ground truth.
+
+### 2.3 Reacquisition Time (`reacquisition_time_s`)
+
+Measures the responsiveness of the system recovering track following an interruption or occlusion event.
+
+- **Ground Truth Basis (when GT is available):**
+  Triggered when target visibility transitions from `True` $\to$ `False` (occlusion) and subsequently emerges `False` $\to$ `True` at $t_{\text{reappear}}$.
+  $$\Delta t_{\text{reacq}} = t_{\text{retrack}} - t_{\text{reappear}}$$
+- **Tracker-Only Basis (when GT is unavailable):**
+  Triggered when tracker state machine transitions into `LOST` at $t_{\text{loss}}$ and subsequently re-enters `TRACK` at $t_{\text{retrack}}$:
+  $$\Delta t_{\text{reacq}} = t_{\text{retrack}} - t_{\text{loss}}$$
+  Flagged explicitly with `basis = "tracker_only"`.
+
+- **Event Outcomes:**
+  - If no loss events occurred: `NOT_RUN` ("No loss event occurred"). **This is treated as PASS in requirement evaluation** - perfect track retention means re-acquisition was never needed.
+  - If target emerged/lost and never recovered to `TRACK`: `FAILED` ("Target loss event never recovered to TRACK").
+  - `successful_reacquisition`: `MEASURED(True)` if all reacquisition events satisfied $\Delta t \le \text{reacquire\_max\_s}$; `MEASURED(False)` if any event failed or unrecovered; `NOT_RUN` with PASS verdict if no loss events occurred.
+
+### 2.4 Target Loss Rate (`target_loss_rate`)
+
+The fraction of frames following the initial `TRACK` acquisition during which the tracker is not in `TRACK`:
+$$R_{\text{loss}} = \frac{\sum_{k=k_{\text{first\_track}}}^{N-1} \mathbf{1}_{\{\text{state}[k] \ne \text{TRACK}\}}}{N - k_{\text{first\_track}}}$$
+- If never acquired: `NOT_ACQUIRED`.
+
+### 2.5 Lock Retention (`lock_retention`)
+
+The fraction of post-acquisition frames where the tracker is in `TRACK` and error is contained within $r_{\text{lock}}$ (`cfg.requirements.lock_radius_px`):
+$$R_{\text{lock}} = \frac{\sum_{k=k_{\text{first\_track}}}^{N-1} \mathbf{1}_{\{\text{state}[k] = \text{TRACK} \;\land\; e[k] \le r_{\text{lock}}\}}}{N - k_{\text{first\_track}}}$$
+- Uses $e_{\text{point}}$ when ground truth is available; uses $e_{\text{center}}$ when evaluating without ground truth.
+- If never acquired: `NOT_ACQUIRED`.
+
+### 2.6 Detection Rates
+
+1. **`detection_rate`**:
+   Fraction of ground-truth visible frames that contain at least one blob detection within the spatial association gate ($\le \text{gate}$):
+   $$\text{Rate}_{\text{det}} = \frac{\sum_{k \in \text{Visible}} \mathbf{1}_{\{\exists d \in \text{detections}[k] \mid \|d - \text{gt}\| \le \text{gate}\}}}{|\text{Visible}|}$$
+   - Requires ground truth; else `NOT_RUN`.
+
+2. **`detection_present_rate`**:
+   Fraction of total processed frames containing at least one detection (estimate/input-only, no GT required).
+
+### 2.7 Cadence & Latency
+
+1. **`fps_pipeline`**:
+   $$f_{\text{pipe}} = \frac{N}{\sum_{k=0}^{N-1} t_{\text{latency}}[k]}$$
+2. **`fps_wall`**:
+   $$f_{\text{wall}} = \frac{N}{t_{\text{wall\_elapsed}}}$$
+3. **`latency_ms`**:
+   Summary statistics (`mean`, `p50`, `p95`, `max`, `n`) across all per-frame processing latencies.
+4. **`missed_frames`**:
+   Count of frames where processing latency exceeded the nominal frame period ($1 / f_{\text{nominal}}$). Source dropped frames are counted separately.
 
 ---
 
-## 5. Lock Retention Rate
+## 3. Requirement Evaluation & Tri-State Verdicts
 
-The fraction of observable time during which the tracker maintains `TRACK` state with pointing error within the calibrated optical link lock radius ($r_{\text{lock}} = 30\text{ px}$):
+Evaluated by `skylock.metrics.requirements.evaluate(run_metrics, cfg.requirements)`.
 
-$$R_{\text{lock}} = \frac{1}{T_{\text{obs}}} \int_{0}^{T} \mathbf{1}_{\{\text{state}(t) = \text{'TRACK'} \;\land\; e_{\text{point}}(t) < r_{\text{lock}}\}} \, dt \times 100\%$$
+### 3.1 Verdict Criteria (PS_SPEC §7)
 
----
+| Requirement | Threshold | Evaluated Metric |
+|---|---|---|
+| **Acquisition Time** | $\le 2.0\text{ s}$ | `acquisition_time_from_observable_s` |
+| **Tracking Error** | $\le 10.0\text{ px}$ (RMS) | `tracking_error_px.rms` |
+| **Target Loss Rate** | $< 0.05$ (5%) | `target_loss_rate` |
+| **Reacquisition Time** | $\le 1.0\text{ s}$ | `reacquisition_time_s.max_s` |
+| **Processing Cadence** | $\ge 20.0\text{ FPS}$ | `fps_pipeline` |
 
-## 6. False Locks
+### 3.2 Verdict Rules
 
-A **false lock** is defined as an interval where the state machine remains in `TRACK` for greater than $1.0\text{ s}$ while the estimated pointing is separated from ground truth by more than $r_{\text{false}} = 50\text{ px}$:
-
-$$\text{FalseLockSpan} \iff \text{duration}\Big(\{t \mid \text{state}(t) = \text{'TRACK'} \;\land\; e_{\text{point}}(t) > r_{\text{false}}\}\Big) > 1.0\text{ s}$$
-
-Each contiguous span satisfying this criterion increments the false lock counter by 1.
-
----
-
-## 7. Computational Latency & Frame Rate
-
-- **Processing Time per Frame**: Latency $t_{\text{proc}}$ measured from frame receipt through sensor disturbance processing, blob detection, candidate tracking, beacon ID, and state update.
-  - Mean latency ($\text{ms}$)
-  - 95th percentile latency $p_{95}$ ($\text{ms}$)
-  - Maximum latency ($\text{ms}$)
-- **Render FPS**: Frame rate computed over rolling 500 ms windows:
-  - Mean FPS
-  - Minimum instantaneous FPS
-- **Dropped Feed Frames**: Cumulative count of camera feed frames dropped by the disturbance layer ($p_{\text{drop}}$).
+1. Any non-`MEASURED` required metric produces `Verdict.INDETERMINATE`. A non-measured metric **never** yields `Verdict.PASS`.
+2. **Special Acquisition Rule:** Acquisition evaluates to `Verdict.FAIL` (not `INDETERMINATE`) if the run provided a full observable window ($\ge \text{acquisition\_max\_s}$) and the tracker never reached `TRACK`.
+3. **Special Re-acquisition Rule:** Re-acquisition with status `NOT_RUN` and reason "No loss event occurred" evaluates to `Verdict.PASS` (perfect retention means re-acquisition was never needed).
+4. **Overall Verdict:**
+   - `FAIL` if **any** requirement is `FAIL`.
+   - `INDETERMINATE` if **any** requirement is `INDETERMINATE` and none is `FAIL`.
+   - `PASS` only if **all** requirements are `PASS`.

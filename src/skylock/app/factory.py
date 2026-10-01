@@ -1,0 +1,111 @@
+"""Component factory for constructing pipelines and sessions from configuration."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from skylock.config.models import SkyLockConfig
+from skylock.control.controller import PointingController
+from skylock.core.enums import InputKind
+from skylock.core.interfaces import FrameSource
+from skylock.core.pipeline import TrackingPipeline
+from skylock.simulation.gimbal import VirtualGimbal
+from skylock.simulation.source import SimulationSource
+
+if TYPE_CHECKING:
+    from skylock.app.session import Session
+
+
+def build_pipeline(config: SkyLockConfig) -> TrackingPipeline:
+    """Build and initialize a TrackingPipeline instance.
+
+    Args:
+        config: Root SkyLock configuration.
+
+    Returns:
+        Configured TrackingPipeline.
+    """
+    return TrackingPipeline(config)
+
+
+def create_session_components(
+    config: SkyLockConfig,
+) -> tuple[FrameSource, TrackingPipeline, PointingController]:
+    """Create concrete instances of source, pipeline, and controller for a Session.
+
+    Args:
+        config: Root SkyLock configuration.
+
+    Returns:
+        Tuple of (source, pipeline, controller).
+    """
+    if config.input.kind in (InputKind.SIMULATION, "simulation"):
+        pipeline = build_pipeline(config)
+        controller = PointingController(
+            config.control,
+            config.camera,
+            max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
+        )
+        gimbal = VirtualGimbal(config.gimbal)
+        source: FrameSource = SimulationSource(config, gimbal=gimbal)
+    elif config.input.kind in (InputKind.MP4, "mp4"):
+        from dataclasses import replace
+
+        from skylock.input.video import Mp4Source
+
+        mp4_source = Mp4Source(config.input)
+        mp4_source.open()
+
+        w = mp4_source.width
+        h = mp4_source.height
+        fov_h = config.input.mp4_assumed_fov_h_deg
+        fov_v = fov_h * (float(h) / float(w))
+
+        effective_camera = replace(
+            config.camera,
+            width=w,
+            height=h,
+            fov_h_deg=fov_h,
+            fov_v_deg=fov_v,
+            fps=mp4_source.fps,
+            allow_below_spec_fps=True,
+        )
+        effective_config = replace(config, camera=effective_camera)
+        pipeline = TrackingPipeline(effective_config)
+        controller = PointingController(
+            config.control,
+            effective_camera,
+            max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
+        )
+        source = mp4_source
+    else:
+        raise ValueError(f"Unknown input kind: {config.input.kind}")
+
+    return source, pipeline, controller
+
+
+def build_session(config: SkyLockConfig) -> Session:
+    """Build a complete tracking and control Session from configuration.
+
+    Args:
+        config: Root SkyLock configuration.
+
+    Returns:
+        Fully initialized Session instance.
+    """
+    from skylock.app.session import Session
+
+    source, pipeline, controller = create_session_components(config)
+    return Session(
+        config=config,
+        source=source,
+        pipeline=pipeline,
+        controller=controller,
+    )
+
+
+__all__ = (
+    "build_pipeline",
+    "build_session",
+    "create_session_components",
+)
