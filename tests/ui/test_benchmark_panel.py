@@ -128,25 +128,29 @@ def test_table_rows_colors_and_em_dash(qapp) -> None:
     assert _wait_for_condition(lambda: len(panel._records) == 2)
 
     # Check row 0 (measured)
-    assert panel.table.item(0, 0).text() == "S01_test"
-    assert panel.table.item(0, 1).text() == "42"
-    assert panel.table.item(0, 2).text() == "PASS"
-    assert panel.table.item(0, 5).text() == "1.250"
-    assert panel.table.item(0, 6).text() == "3.45"
-    assert panel.table.item(0, 7).text() == "0.0200"
-    assert panel.table.item(0, 8).text() == "0.350"
-    assert panel.table.item(0, 9).text() == "55.4"
+    for col in (0, 1, 2, 5, 6, 7, 8, 9):
+        assert panel.table.item(0, col) is not None
+    assert panel.table.item(0, 0).text() == "S01_test"  # type: ignore[union-attr]
+    assert panel.table.item(0, 1).text() == "42"  # type: ignore[union-attr]
+    assert panel.table.item(0, 2).text() == "PASS"  # type: ignore[union-attr]
+    assert panel.table.item(0, 5).text() == "1.250"  # type: ignore[union-attr]
+    assert panel.table.item(0, 6).text() == "3.45"  # type: ignore[union-attr]
+    assert panel.table.item(0, 7).text() == "0.0200"  # type: ignore[union-attr]
+    assert panel.table.item(0, 8).text() == "0.350"  # type: ignore[union-attr]
+    assert panel.table.item(0, 9).text() == "55.4"  # type: ignore[union-attr]
 
     # Check row 1 (None metrics show em dash and tooltip)
     em_dash = "—"
-    assert panel.table.item(1, 0).text() == "S02_none"
-    assert panel.table.item(1, 2).text() == "INDETERMINATE"
-    assert panel.table.item(1, 5).text() == em_dash
-    assert "Target never entered TRACK" in panel.table.item(1, 5).toolTip()
-    assert panel.table.item(1, 6).text() == em_dash
-    assert "Requires ground truth" in panel.table.item(1, 6).toolTip()
-    assert panel.table.item(1, 8).text() == em_dash
-    assert "No loss event occurred" in panel.table.item(1, 8).toolTip()
+    for col in (0, 2, 5, 6, 8):
+        assert panel.table.item(1, col) is not None
+    assert panel.table.item(1, 0).text() == "S02_none"  # type: ignore[union-attr]
+    assert panel.table.item(1, 2).text() == "INDETERMINATE"  # type: ignore[union-attr]
+    assert panel.table.item(1, 5).text() == em_dash  # type: ignore[union-attr]
+    assert "Target never entered TRACK" in panel.table.item(1, 5).toolTip()  # type: ignore[union-attr]
+    assert panel.table.item(1, 6).text() == em_dash  # type: ignore[union-attr]
+    assert "Requires ground truth" in panel.table.item(1, 6).toolTip()  # type: ignore[union-attr]
+    assert panel.table.item(1, 8).text() == em_dash  # type: ignore[union-attr]
+    assert "No loss event occurred" in panel.table.item(1, 8).toolTip()  # type: ignore[union-attr]
 
     # Summary row updated
     assert "2 runs" in panel.lbl_summary.text()
@@ -178,6 +182,7 @@ def test_seed_linking_and_parsing(qapp) -> None:
     # Multi-seeds parsing: valid comma separated
     panel.txt_seeds.setText("10, 20, 30")
     seeds = panel._parse_seeds()
+    assert seeds is not None
     assert seeds == [10, 20, 30]
 
     sc = Scenario(id="S01_seed_test", description="desc")
