@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from PySide6.QtCore import QEvent, QMetaObject, QObject, Qt, QThread, Signal
+from PySide6.QtCore import QEvent, QMetaObject, QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
@@ -33,6 +33,7 @@ from skylock.ui.panels.benchmark import BenchmarkPanel
 from skylock.ui.panels.controls import ControlsPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
 from skylock.ui.settings import AppSettings
+from skylock.ui.web3d.view_3d import SpaceView3D
 from skylock.ui.widgets.camera_view import CameraView
 from skylock.ui.widgets.state_timeline import StateTimeline
 from skylock.ui.worker import SessionWorker
@@ -222,14 +223,18 @@ class MainWindow(QMainWindow):
         # Central widget: Vertical splitter with camera/timeline top, tabs bottom
         central_splitter = QSplitter(Qt.Orientation.Vertical)
 
-        # Top section: Camera view + state timeline
+        # Top section: 3D space visualization + camera view + state timeline
         top_widget = QWidget()
         top_layout = QVBoxLayout(top_widget)
         top_layout.setContentsMargins(4, 4, 4, 4)
         top_layout.setSpacing(4)
 
-        self.camera_view = CameraView()
-        top_layout.addWidget(self.camera_view, stretch=10)
+        self.view_tabs = QTabWidget(top_widget)
+        self.space_view_3d = SpaceView3D(self.view_tabs)
+        self.camera_view = CameraView(self.view_tabs)
+        self.view_tabs.addTab(self.space_view_3d, "3D Space Simulation")
+        self.view_tabs.addTab(self.camera_view, "Camera Sensor Feed")
+        top_layout.addWidget(self.view_tabs, stretch=10)
 
         # State timeline mounted under camera view (hidden by default per Phase 2 Rule 5)
         self.state_timeline = StateTimeline()
@@ -391,6 +396,23 @@ class MainWindow(QMainWindow):
 
         view_menu.addSeparator()
 
+        act_view_3d = QAction("3D &Space Simulation", self)
+        act_view_3d.setToolTip("Switch central view to 3D Space Simulation")
+        act_view_3d.triggered.connect(lambda: self.view_tabs.setCurrentWidget(self.space_view_3d))
+        view_menu.addAction(act_view_3d)
+
+        act_view_sensor = QAction("&Camera Sensor Feed", self)
+        act_view_sensor.setToolTip("Switch central view to 2D Camera Sensor Feed")
+        act_view_sensor.triggered.connect(lambda: self.view_tabs.setCurrentWidget(self.camera_view))
+        view_menu.addAction(act_view_sensor)
+
+        act_demo_3d = QAction("Run 3D &Gimbal Demo", self)
+        act_demo_3d.setToolTip("Run deterministic 3D gimbal pan/tilt validation sequence")
+        act_demo_3d.triggered.connect(self.start_3d_demonstration)
+        view_menu.addAction(act_demo_3d)
+
+        view_menu.addSeparator()
+
         # Debug submenu (Phase 2 Rule 5)
         debug_menu = view_menu.addMenu("&Debug")
         self.debug_menu = debug_menu
@@ -489,6 +511,14 @@ class MainWindow(QMainWindow):
             self.lbl_status_fps.setText(f"{fv.wall_fps:.1f} fps")
         if hasattr(fv, "input_kind"):
             self.lbl_status_source.setText(fv.input_kind)
+
+        # Forward gimbal angles to 3D Space View
+        if (
+            hasattr(self, "space_view_3d")
+            and hasattr(fv, "pointing_pan_deg")
+            and hasattr(fv, "pointing_tilt_deg")
+        ):
+            self.space_view_3d.set_gimbal_pose(fv.pointing_pan_deg, fv.pointing_tilt_deg)
 
     def _on_mode_changed(self, mode: str) -> None:
         """Handle mode change: update worker and steering filter."""
@@ -603,11 +633,35 @@ class MainWindow(QMainWindow):
         """
         QMessageBox.information(self, "Keyboard Shortcuts", shortcuts_text)
 
+    def start_3d_demonstration(self) -> None:
+        """Run deterministic 3D visualization demonstration sequence (Phase 3 Section 16)."""
+        self.view_tabs.setCurrentWidget(self.space_view_3d)
+
+        demo_steps: list[tuple[float, float, int]] = [
+            (0.0, 0.0, 0),
+            (10.0, -5.0, 1200),
+            (25.0, 10.0, 2400),
+            (-15.0, -10.0, 3600),
+            (90.0, 0.0, 4800),
+        ]
+
+        for pan, tilt, delay in demo_steps:
+            if delay == 0:
+                self.space_view_3d.set_gimbal_pose(pan, tilt)
+            else:
+                QTimer.singleShot(
+                    delay, lambda p=pan, t=tilt: self.space_view_3d.set_gimbal_pose(p, t)
+                )
+
     def closeEvent(self, event: Any) -> None:  # noqa: ANN401
         """Cleanly shut down worker thread and save settings on application close."""
         # Save settings
         self.settings.save_window_state(self)
         self.settings.save_splitter_sizes(self.central_splitter, "main")
+
+        # Cleanup 3D Space View
+        if hasattr(self, "space_view_3d"):
+            self.space_view_3d.cleanup()
 
         app = QApplication.instance()
         if app is not None:

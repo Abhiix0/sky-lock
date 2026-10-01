@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyLock 3D Space View</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #030712;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #f1f5f9;
+    }
+
+    #webgl-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* Top-left HUD Controls */
+    #hud-overlay {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: rgba(15, 23, 42, 0.75);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #94a3b8;
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      pointer-events: auto;
+    }
+
+    .hud-badge .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.15); }
+    }
+
+    .hud-btn-row {
+      display: flex;
+      gap: 6px;
+      pointer-events: auto;
+    }
+
+    .hud-btn {
+      padding: 4px 10px;
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      border-radius: 5px;
+      color: #e2e8f0;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      backdrop-filter: blur(6px);
+    }
+
+    .hud-btn:hover {
+      background: rgba(56, 189, 248, 0.2);
+      border-color: #38bdf8;
+      color: #ffffff;
+    }
+
+    /* Picture-in-Picture Virtual Camera Feed */
+    #pip-container {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      width: 260px;
+      z-index: 10;
+      background: rgba(15, 23, 42, 0.88);
+      border: 1px solid rgba(56, 189, 248, 0.35);
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(10px);
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+
+    #pip-container.collapsed {
+      width: auto;
+    }
+
+    #pip-container.collapsed #pip-body {
+      display: none;
+    }
+
+    #pip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: rgba(30, 41, 59, 0.9);
+      border-bottom: 1px solid rgba(56, 189, 248, 0.2);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      color: #e2e8f0;
+    }
+
+    .pip-title-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .pip-live-badge {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid #22c55e;
+      color: #22c55e;
+    }
+
+    .pip-collapse-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    .pip-collapse-btn:hover {
+      color: #f1f5f9;
+    }
+
+    #pip-body {
+      position: relative;
+      width: 260px;
+      height: 195px;
+      background: #000000;
+    }
+
+    #pip-canvas {
+      display: block;
+      width: 260px;
+      height: 195px;
+    }
+
+    /* Reticle overlay on PiP */
+    #pip-reticle {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    #pip-telemetry {
+      padding: 5px 8px;
+      background: rgba(15, 23, 42, 0.95);
+      border-top: 1px solid rgba(56, 189, 248, 0.15);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      color: #38bdf8;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    #pip-target-status {
+      font-weight: 700;
+    }
+
+    .status-in-fov {
+      color: #22c55e;
+    }
+
+    .status-out-fov {
+      color: #f59e0b;
+    }
+
+    /* Loading overlay */
+    #loading-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 100;
+      background: #030712;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      transition: opacity 0.4s ease;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid rgba(56, 189, 248, 0.2);
+      border-top-color: #38bdf8;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    #loading-text {
+      font-size: 13px;
+      font-weight: 500;
+      color: #94a3b8;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-overlay">
+    <div class="spinner"></div>
+    <div id="loading-text">INITIALIZING 3D SPACE ENVIRONMENT...</div>
+  </div>
+
+  <div id="webgl-container"></div>
+
+  <div id="hud-overlay">
+    <div class="hud-badge">
+      <span class="dot"></span>
+      <span id="hud-status">EARTH ORBIT SIMULATION</span>
+      <span style="color:#64748b;">|</span>
+      <span id="hud-fps" style="color:#38bdf8;">60 FPS</span>
+    </div>
+    <div class="hud-btn-row">
+      <button class="hud-btn" id="btn-reset-cam" title="Reset main camera view to Earth">⟲ Reset Camera</button>
+      <button class="hud-btn" id="btn-focus-s1" title="Focus view on Observer Satellite S-1">Focus S-1</button>
+      <button class="hud-btn" id="btn-focus-s2" title="Focus view on Target Satellite S-2">Focus S-2</button>
+    </div>
+  </div>
+
+  <div id="pip-container">
+    <div id="pip-header">
+      <div class="pip-title-group">
+        <span class="pip-live-badge">LIVE</span>
+        <span>VIRTUAL GIMBAL CAM (S-1 → S-2)</span>
+      </div>
+      <button class="pip-collapse-btn" id="btn-pip-collapse" title="Collapse / Expand Feed">−</button>
+    </div>
+    <div id="pip-body">
+      <canvas id="pip-canvas" width="260" height="195"></canvas>
+      <svg id="pip-reticle" width="260" height="195" viewBox="0 0 260 195">
+        <!-- Center crosshairs -->
+        <line x1="130" y1="80" x2="130" y2="93" stroke="#38bdf8" stroke-width="1.2" opacity="0.8"/>
+        <line x1="130" y1="102" x2="130" y2="115" stroke="#38bdf8" stroke-width="1.2" opacity="0.8"/>
+        <line x1="112" y1="97.5" x2="125" y2="97.5" stroke="#38bdf8" stroke-width="1.2" opacity="0.8"/>
+        <line x1="135" y1="97.5" x2="148" y2="97.5" stroke="#38bdf8" stroke-width="1.2" opacity="0.8"/>
+        <circle cx="130" cy="97.5" r="2" fill="#38bdf8" opacity="0.9"/>
+        <!-- Inner precision circle -->
+        <circle cx="130" cy="97.5" r="24" fill="none" stroke="#38bdf8" stroke-dasharray="3,3" stroke-width="0.8" opacity="0.5"/>
+        <!-- Outer lock gate -->
+        <circle cx="130" cy="97.5" r="48" fill="none" stroke="#38bdf8" stroke-width="0.8" opacity="0.3"/>
+      </svg>
+    </div>
+    <div id="pip-telemetry">
+      <span id="pip-angles">PAN: +0.0° | TILT: +0.0° | FOV: 20.0°</span>
+      <span id="pip-target-status" class="status-out-fov">TARGET: SEARCHING</span>
+    </div>
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
