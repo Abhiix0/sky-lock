@@ -9,8 +9,6 @@ from typing import Any
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
-    QDoubleSpinBox,
     QFileDialog,
     QFormLayout,
     QGroupBox,
@@ -19,7 +17,6 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -31,24 +28,29 @@ from skylock.ui.config_editor import ConfigEditor
 from skylock.ui.config_model import (
     MOTION_KINDS,
     SHAPES,
-    atmosphere_override,
     disturbance_toggle_override,
     slew_override,
     target_count_override,
     target_override,
 )
 from skylock.ui.panels.controls_sections import (
-    AtmosphereSection,
     DisturbanceMagnitudeRow,
     MotionParamsStack,
     Mp4InputSection,
     PresetsDropdown,
 )
+from skylock.ui.widgets.no_wheel import (
+    NoWheelComboBox,
+    NoWheelDoubleSpinBox,
+    NoWheelSpinBox,
+)
 
 # Disabled-button stylesheet (G-07)
 _BTN_START_STYLE = (
-    f"QPushButton {{ background-color: {theme.BUTTON_START_BG.name()}; color: white; font-weight: bold; }}"
-    f"QPushButton:disabled {{ background-color: {theme.BUTTON_DISABLED_BG.name()}; color: {theme.BUTTON_DISABLED_TEXT.name()}; }}"
+    f"QPushButton {{ background-color: {theme.BUTTON_START_BG.name()}; "
+    f"color: white; font-weight: bold; }}\n"
+    f"QPushButton:disabled {{ background-color: {theme.BUTTON_DISABLED_BG.name()}; "
+    f"color: {theme.BUTTON_DISABLED_TEXT.name()}; }}"
 )
 
 
@@ -78,8 +80,8 @@ class ControlsPanel(QWidget):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(4, 4, 4, 4)
 
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.setSpacing(10)
@@ -91,7 +93,9 @@ class ControlsPanel(QWidget):
         self.btn_start.setStyleSheet(_BTN_START_STYLE)
         self.btn_start.clicked.connect(self._on_start)
         self.btn_stop = QPushButton("Stop")
-        self.btn_stop.setStyleSheet(f"background-color: {theme.BUTTON_STOP_BG.name()}; color: white; font-weight: bold;")
+        self.btn_stop.setStyleSheet(
+            f"background-color: {theme.BUTTON_STOP_BG.name()}; color: white; font-weight: bold;"
+        )
         self.btn_stop.clicked.connect(lambda: self.stop_clicked.emit())
         self.btn_reset = QPushButton("Reset")
         self.btn_reset.clicked.connect(lambda: self.reset_clicked.emit())
@@ -103,7 +107,9 @@ class ControlsPanel(QWidget):
         # Summary Error Display (fallback)
         self.lbl_error = QLabel()
         self.lbl_error.setWordWrap(True)
-        self.lbl_error.setStyleSheet(f"color: {theme.STATUS_ERROR.name()}; font-weight: bold; padding: 4px;")
+        self.lbl_error.setStyleSheet(
+            f"color: {theme.STATUS_ERROR.name()}; font-weight: bold; padding: 4px;"
+        )
         self.lbl_error.hide()
         layout.addWidget(self.lbl_error)
 
@@ -132,13 +138,13 @@ class ControlsPanel(QWidget):
         self._build_seed_section(layout)
 
         layout.addStretch()
-        scroll.setWidget(container)
-        main_layout.addWidget(scroll)
+        self.scroll_area.setWidget(container)
+        main_layout.addWidget(self.scroll_area)
 
     def _build_input_section(self, layout: QVBoxLayout) -> None:
         input_box = QGroupBox("Input Source")
         i_layout = QFormLayout(input_box)
-        self.cmb_input = QComboBox()
+        self.cmb_input = NoWheelComboBox()
         self.cmb_input.addItems(["Simulation", "MP4 Video"])
         self.cmb_input.currentIndexChanged.connect(self._on_input_changed)
         self.btn_browse_mp4 = QPushButton("Browse...")
@@ -158,34 +164,25 @@ class ControlsPanel(QWidget):
         layout.addWidget(input_box)
 
     def _build_mode_section(self, layout: QVBoxLayout) -> None:
+        """Gimbal control mode selector (AUTO/MANUAL). Manual rate not exposed in UI."""
         mode_box = QGroupBox("Gimbal Control Mode")
         m_layout = QFormLayout(mode_box)
-        self.cmb_mode = QComboBox()
+        self.cmb_mode = NoWheelComboBox()
         self.cmb_mode.addItems(["AUTO", "MANUAL"])
         self.cmb_mode.currentIndexChanged.connect(self._on_mode_changed)
-
-        self.spn_manual_rate = QDoubleSpinBox()
-        self.spn_manual_rate.setRange(0.1, 10.0)
-        self.spn_manual_rate.setDecimals(1)
-        self.spn_manual_rate.setSingleStep(0.1)
-        self.spn_manual_rate.setValue(2.0)
-        self.spn_manual_rate.setToolTip("Manual steering rate [0.1..gimbal.slew_rate_deg_s] °/s")
-        self.spn_manual_rate.valueChanged.connect(self._on_manual_rate_changed)
-
         m_layout.addRow("Mode:", self.cmb_mode)
-        m_layout.addRow("Manual Rate (°/s):", self.spn_manual_rate)
         layout.addWidget(mode_box)
 
     def _build_camera_gimbal_section(self, layout: QVBoxLayout) -> None:
         cam_box = QGroupBox("Camera & Gimbal")
         c_layout = QFormLayout(cam_box)
-        self.spn_fps = QDoubleSpinBox()
+        self.spn_fps = NoWheelDoubleSpinBox()
         self.spn_fps.setRange(30.0, 120.0)
         self.spn_fps.setValue(30.0)
         self.spn_fps.setToolTip("Camera FPS [30..120] Hz (PS §2: min 30)")
         self.spn_fps.valueChanged.connect(self._on_fps_changed)
 
-        self.spn_slew = QDoubleSpinBox()
+        self.spn_slew = NoWheelDoubleSpinBox()
         self.spn_slew.setRange(0.1, 10.0)
         self.spn_slew.setValue(5.0)
         self.spn_slew.setToolTip("Max slew rate [0.1..10.0] °/s (PS §3)")
@@ -201,21 +198,21 @@ class ControlsPanel(QWidget):
         tgt_box = QGroupBox("Target Settings")
         t_layout = QFormLayout(tgt_box)
 
-        self.spn_target_count = QSpinBox()
+        self.spn_target_count = NoWheelSpinBox()
         self.spn_target_count.setRange(1, 4)
         self.spn_target_count.setValue(1)
         self.spn_target_count.setToolTip("Number of targets [1..4]")
         self.spn_target_count.valueChanged.connect(self._on_target_count_changed)
 
-        self.cmb_tgt_motion = QComboBox()
+        self.cmb_tgt_motion = NoWheelComboBox()
         self.cmb_tgt_motion.addItems([k for k in MOTION_KINDS])
         self.cmb_tgt_motion.currentIndexChanged.connect(self._on_target_changed)
-        self.spn_tgt_size = QSpinBox()
+        self.spn_tgt_size = NoWheelSpinBox()
         self.spn_tgt_size.setRange(5, 20)
         self.spn_tgt_size.setValue(10)
         self.spn_tgt_size.setToolTip("Target size [5..20] px (PS §4)")
         self.spn_tgt_size.valueChanged.connect(self._on_target_changed)
-        self.cmb_tgt_shape = QComboBox()
+        self.cmb_tgt_shape = NoWheelComboBox()
         self.cmb_tgt_shape.addItems([s for s in SHAPES])
         self.cmb_tgt_shape.currentIndexChanged.connect(self._on_target_changed)
         self.chk_rand_pos = QCheckBox("Random Initial Position")
@@ -285,12 +282,6 @@ class ControlsPanel(QWidget):
             row.value_changed.connect(self._on_dist_row_value)
             d_layout.addWidget(row)
 
-        # Atmosphere
-        self.atmos_section = AtmosphereSection(self)
-        self.atmos_section.atmos_changed.connect(self._on_atmos_combined)
-        d_layout.addWidget(QLabel("— Atmosphere —"))
-        d_layout.addWidget(self.atmos_section)
-
         self._add_error_label(d_layout, "disturbances", "disturbances_error")
         layout.addWidget(dist_box)
 
@@ -317,7 +308,7 @@ class ControlsPanel(QWidget):
     def _build_seed_section(self, layout: QVBoxLayout) -> None:
         seed_box = QGroupBox("RNG Seed")
         s_layout = QHBoxLayout(seed_box)
-        self.spn_seed = QSpinBox()
+        self.spn_seed = NoWheelSpinBox()
         self.spn_seed.setRange(0, 999999)
         self.spn_seed.setValue(42)
         self.spn_seed.setToolTip("Random seed [0..999999]")
@@ -345,11 +336,6 @@ class ControlsPanel(QWidget):
     # Properties
     # ------------------------------------------------------------------
 
-    @property
-    def manual_rate_deg_s(self) -> float:
-        """Current manual steering rate in °/s."""
-        return self.spn_manual_rate.value()
-
     # ------------------------------------------------------------------
     # Sync from config (widget ← config)
     # ------------------------------------------------------------------
@@ -367,9 +353,6 @@ class ControlsPanel(QWidget):
                 self.spn_fps.setRange(1.0, 120.0)
             else:
                 self.spn_fps.setRange(30.0, 120.0)
-
-            # Update manual rate max to match slew
-            self.spn_manual_rate.setMaximum(cfg.gimbal.slew_rate_deg_s)
 
             # Control mode
             mode_idx = 0 if cfg.control.mode == "AUTO" else 1
@@ -427,12 +410,6 @@ class ControlsPanel(QWidget):
             self.dist_drift.set_value(cfg.disturbances.platform.max_px_frame)
             self.dist_blur.set_enabled_checked(cfg.disturbances.blur.enabled)
             self.dist_blur.set_value(cfg.disturbances.blur.sigma_px)
-
-            # Atmosphere
-            self.atmos_section.sync(
-                cfg.disturbances.atmosphere.mode,
-                cfg.disturbances.atmosphere.strength,
-            )
 
             # Seed
             self.spn_seed.setValue(cfg.seed)
@@ -509,10 +486,6 @@ class ControlsPanel(QWidget):
         mode_text = self.cmb_mode.currentText()
         self.mode_changed.emit(mode_text)
 
-    def _on_manual_rate_changed(self) -> None:
-        # Just updates the property; MainWindow reads it via property
-        pass
-
     def _on_fps_changed(self) -> None:
         if self._block_signals:
             return
@@ -523,8 +496,6 @@ class ControlsPanel(QWidget):
             return
         overrides = slew_override(self.editor.config, self.spn_slew.value())
         self._apply_dict(overrides)
-        # Update manual rate max
-        self.spn_manual_rate.setMaximum(self.spn_slew.value())
 
     def _on_target_count_changed(self) -> None:
         if self._block_signals:
@@ -587,14 +558,6 @@ class ControlsPanel(QWidget):
         if self._block_signals:
             return
         self._apply_dict({f"disturbances.{dist_name}.{field_key}": val})
-
-    def _on_atmos_combined(self, mode: str, strength: float) -> None:
-        """Handle atmosphere mode + strength change."""
-        if self._block_signals:
-            return
-        overrides = atmosphere_override(self.editor.config, mode)
-        overrides["disturbances.atmosphere.strength"] = strength
-        self._apply_dict(overrides)
 
     def _on_preset_selected(self, fn_name: str) -> None:
         """Apply a disturbance preset."""

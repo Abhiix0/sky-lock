@@ -45,19 +45,43 @@ STATE_COLORS = _StateColorsMapping()
 def _get_state_style(state: TrackState) -> str:
     """Return styling CSS for a given TrackState."""
     if state == TrackState.SEARCH:
-        return f"background-color: {theme.STATE_SEARCH_BG.name()}; color: {theme.STATE_SEARCH_TEXT.name()}; border: 1px solid {theme.STATE_SEARCH_PRIMARY.name()};"
+        return (
+            f"background-color: {theme.STATE_SEARCH_BG.name()}; "
+            f"color: {theme.STATE_SEARCH_TEXT.name()}; "
+            f"border: 1px solid {theme.STATE_SEARCH_PRIMARY.name()};"
+        )
     if state == TrackState.ACQUIRE:
-        return f"background-color: {theme.STATE_ACQUIRE_BG.name()}; color: {theme.STATE_ACQUIRE_TEXT.name()}; border: 1px solid {theme.STATE_ACQUIRE_PRIMARY.name()};"
+        return (
+            f"background-color: {theme.STATE_ACQUIRE_BG.name()}; "
+            f"color: {theme.STATE_ACQUIRE_TEXT.name()}; "
+            f"border: 1px solid {theme.STATE_ACQUIRE_PRIMARY.name()};"
+        )
     if state == TrackState.TRACK:
-        return f"background-color: {theme.STATE_TRACK_BG.name()}; color: {theme.STATE_TRACK_TEXT.name()}; border: 1px solid {theme.STATE_TRACK_PRIMARY.name()};"
+        return (
+            f"background-color: {theme.STATE_TRACK_BG.name()}; "
+            f"color: {theme.STATE_TRACK_TEXT.name()}; "
+            f"border: 1px solid {theme.STATE_TRACK_PRIMARY.name()};"
+        )
     if state == TrackState.LOST:
-        return f"background-color: {theme.STATE_LOST_BG.name()}; color: {theme.STATE_LOST_TEXT.name()}; border: 1px solid {theme.STATE_LOST_PRIMARY.name()};"
+        return (
+            f"background-color: {theme.STATE_LOST_BG.name()}; "
+            f"color: {theme.STATE_LOST_TEXT.name()}; "
+            f"border: 1px solid {theme.STATE_LOST_PRIMARY.name()};"
+        )
     if state == TrackState.REACQUIRE:
-        return f"background-color: {theme.STATE_REACQUIRE_BG.name()}; color: {theme.STATE_REACQUIRE_TEXT.name()}; border: 1px solid {theme.STATE_REACQUIRE_PRIMARY.name()};"
+        return (
+            f"background-color: {theme.STATE_REACQUIRE_BG.name()}; "
+            f"color: {theme.STATE_REACQUIRE_TEXT.name()}; "
+            f"border: 1px solid {theme.STATE_REACQUIRE_PRIMARY.name()};"
+        )
     return _DEFAULT_STYLE
 
 
-_DEFAULT_STYLE = f"background-color: {theme.ALT_BASE_BG.name()}; color: {theme.TEXT_SECONDARY.name()}; border: 1px solid {theme.BORDER_NORMAL.name()};"
+_DEFAULT_STYLE = (
+    f"background-color: {theme.ALT_BASE_BG.name()}; "
+    f"color: {theme.TEXT_SECONDARY.name()}; "
+    f"border: 1px solid {theme.BORDER_NORMAL.name()};"
+)
 
 
 class StateBadge(QLabel):

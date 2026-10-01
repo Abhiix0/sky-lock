@@ -128,29 +128,29 @@ def test_table_rows_colors_and_em_dash(qapp) -> None:
     assert _wait_for_condition(lambda: len(panel._records) == 2)
 
     # Check row 0 (measured)
-    for col in (0, 1, 2, 5, 6, 7, 8, 9):
+    for col in (0, 1, 2, 3, 4, 5, 6, 7):
         assert panel.table.item(0, col) is not None
     assert panel.table.item(0, 0).text() == "S01_test"  # type: ignore[union-attr]
     assert panel.table.item(0, 1).text() == "42"  # type: ignore[union-attr]
     assert panel.table.item(0, 2).text() == "PASS"  # type: ignore[union-attr]
-    assert panel.table.item(0, 5).text() == "1.250"  # type: ignore[union-attr]
-    assert panel.table.item(0, 6).text() == "3.45"  # type: ignore[union-attr]
-    assert panel.table.item(0, 7).text() == "0.0200"  # type: ignore[union-attr]
-    assert panel.table.item(0, 8).text() == "0.350"  # type: ignore[union-attr]
-    assert panel.table.item(0, 9).text() == "55.4"  # type: ignore[union-attr]
+    assert panel.table.item(0, 3).text() == "1.250"  # type: ignore[union-attr]
+    assert panel.table.item(0, 4).text() == "3.45"  # type: ignore[union-attr]
+    assert panel.table.item(0, 5).text() == "0.0200"  # type: ignore[union-attr]
+    assert panel.table.item(0, 6).text() == "0.350"  # type: ignore[union-attr]
+    assert panel.table.item(0, 7).text() == "55.4"  # type: ignore[union-attr]
 
     # Check row 1 (None metrics show em dash and tooltip)
     em_dash = "—"
-    for col in (0, 2, 5, 6, 8):
+    for col in (0, 2, 3, 4, 6):
         assert panel.table.item(1, col) is not None
     assert panel.table.item(1, 0).text() == "S02_none"  # type: ignore[union-attr]
     assert panel.table.item(1, 2).text() == "INDETERMINATE"  # type: ignore[union-attr]
-    assert panel.table.item(1, 5).text() == em_dash  # type: ignore[union-attr]
-    assert "Target never entered TRACK" in panel.table.item(1, 5).toolTip()  # type: ignore[union-attr]
+    assert panel.table.item(1, 3).text() == em_dash  # type: ignore[union-attr]
+    assert "Target never entered TRACK" in panel.table.item(1, 3).toolTip()  # type: ignore[union-attr]
+    assert panel.table.item(1, 4).text() == em_dash  # type: ignore[union-attr]
+    assert "Requires ground truth" in panel.table.item(1, 4).toolTip()  # type: ignore[union-attr]
     assert panel.table.item(1, 6).text() == em_dash  # type: ignore[union-attr]
-    assert "Requires ground truth" in panel.table.item(1, 6).toolTip()  # type: ignore[union-attr]
-    assert panel.table.item(1, 8).text() == em_dash  # type: ignore[union-attr]
-    assert "No loss event occurred" in panel.table.item(1, 8).toolTip()  # type: ignore[union-attr]
+    assert "No loss event occurred" in panel.table.item(1, 6).toolTip()  # type: ignore[union-attr]
 
     # Summary row updated
     assert "2 runs" in panel.lbl_summary.text()

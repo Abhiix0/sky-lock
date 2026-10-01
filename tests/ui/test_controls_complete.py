@@ -48,7 +48,6 @@ _WIDGET_RANGES: list[tuple[str, float, float]] = [
     ("spn_seed", 0, 999999),
     ("spn_tgt_size", 5, 20),
     ("spn_target_count", 1, 4),
-    ("spn_manual_rate", 0.1, 10.0),
 ]
 
 
@@ -276,28 +275,20 @@ def test_start_button_has_disabled_style(controls) -> None:  # noqa: ANN001
 
 
 # ───────────────────────────────────────────────────────────────────
-# 10. Manual rate property
+# 10. Phase 1 regression: removed controls must not exist
 # ───────────────────────────────────────────────────────────────────
 
-def test_manual_rate_property(controls) -> None:  # noqa: ANN001
-    """manual_rate_deg_s property must reflect the spin box value."""
-    controls.spn_manual_rate.setValue(3.5)
-    assert controls.manual_rate_deg_s == pytest.approx(3.5)
+def test_controls_no_manual_rate_widget(controls) -> None:  # noqa: ANN001
+    """Phase 1: ControlsPanel must NOT expose a Manual Rate spinbox."""
+    assert not hasattr(controls, "spn_manual_rate"), (
+        "spn_manual_rate must not exist on ControlsPanel after Phase 1 cleanup"
+    )
 
 
-# ───────────────────────────────────────────────────────────────────
-# 11. Atmosphere section
-# ───────────────────────────────────────────────────────────────────
-
-def test_atmosphere_strength_range(controls) -> None:  # noqa: ANN001
-    """Atmosphere strength at 0 and 1 must not produce errors."""
-    controls.atmos_section.cmb_mode.setCurrentText("Haze")
-    QApplication.processEvents()
-
-    controls.atmos_section.spn_strength.setValue(0.0)
-    QApplication.processEvents()
-    assert not controls._has_violations()
-
-    controls.atmos_section.spn_strength.setValue(1.0)
-    QApplication.processEvents()
-    assert not controls._has_violations()
+def test_controls_no_atmosphere_mode_control(controls) -> None:  # noqa: ANN001
+    """Phase 1: ControlsPanel must NOT expose an Atmosphere mode control."""
+    # atmos_section must either not exist or not be visible
+    if hasattr(controls, "atmos_section"):
+        assert not controls.atmos_section.isVisible(), (
+            "Atmosphere section must not be visible in the controls panel"
+        )

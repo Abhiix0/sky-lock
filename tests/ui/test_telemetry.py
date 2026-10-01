@@ -65,18 +65,13 @@ class TestTelemetryPanel:
         panel.update_telemetry(fv)
 
         em_dash = "—"
+        # Phase 1 compact panel: only the approved essential fields
         assert panel.lbl_best_centroid.text() == em_dash
         assert panel.lbl_est_pos.text() == em_dash
-        assert panel.lbl_est_offset.text() == em_dash
         assert panel.lbl_acq_time.text() == em_dash
         assert panel.lbl_track_err.text() == em_dash
         assert panel.lbl_fps_pipe.text() == em_dash
-        assert panel.lbl_fps_wall.text() == em_dash
-        assert panel.lbl_latency.text() == em_dash
-        assert panel.lbl_lock_retention.text() == em_dash
-        assert panel.lbl_loss_events.text() == em_dash
         assert panel.lbl_last_reacq.text() == em_dash
-        assert panel.lbl_state_times.text() == em_dash
 
         panel.close()
 
@@ -110,19 +105,14 @@ class TestTelemetryPanel:
         )
         panel.update_telemetry(fv)
 
+        # Phase 1 compact panel: only essential fields
         assert panel.lbl_det_count.text() == "2"
         assert panel.lbl_best_centroid.text() == "(155.3, 118.8)"
         assert panel.lbl_est_pos.text() == "(162.5, 121.9)"
-        assert panel.lbl_est_offset.text() == "(+2.5, +1.9)"
         assert panel.lbl_acq_time.text() == "1.235"
         assert panel.lbl_track_err.text() == "3.46"
         assert panel.lbl_fps_pipe.text() == "59.9"
-        assert panel.lbl_fps_wall.text() == "29.9"
-        assert panel.lbl_latency.text() == "16.79"
-        assert panel.lbl_lock_retention.text() == "94.6%"
-        assert panel.lbl_loss_events.text() == "2"
         assert panel.lbl_last_reacq.text() == "0.450"
-        assert "S:10 A:5 T:85 L:2 R:3" in panel.lbl_state_times.text()
 
         panel.close()
 
@@ -141,12 +131,39 @@ class TestTelemetryPanel:
         panel.update_telemetry(fv)
 
         em_dash = "—"
-        assert panel.lbl_source.text() == "MP4"
-        assert panel.lbl_progress.text() == "frame 16 / 100"
         assert panel.lbl_acq_time.text() == em_dash
         assert panel.lbl_track_err.text() == em_dash
         assert panel.lbl_acq_time.toolTip() == "needs ground truth"
         assert panel.lbl_track_err.toolTip() == "needs ground truth"
+
+        panel.close()
+
+
+    def test_telemetry_phase1_essential_fields_only(self, qapp) -> None:
+        """Phase 1: TelemetryPanel must have only approved essential fields."""
+        panel = TelemetryPanel()
+        panel.show()
+
+        # Must exist
+        essential = [
+            "badge", "lbl_lock",
+            "lbl_det_count", "lbl_best_centroid", "lbl_est_pos",
+            "lbl_pan", "lbl_tilt",
+            "lbl_acq_time", "lbl_track_err", "lbl_last_reacq", "lbl_fps_pipe",
+        ]
+        for attr in essential:
+            assert hasattr(panel, attr), f"Essential field {attr!r} missing from TelemetryPanel"
+
+        # Must NOT exist (removed in Phase 1)
+        removed = [
+            "lbl_fps_wall", "lbl_latency", "lbl_cmd_rate",
+            "lbl_lock_retention", "lbl_loss_events", "lbl_state_times",
+            "lbl_est_offset", "lbl_progress", "lbl_source",
+        ]
+        for attr in removed:
+            assert not hasattr(panel, attr), (
+                f"Removed field {attr!r} must not exist on TelemetryPanel (Phase 1)"
+            )
 
         panel.close()
 

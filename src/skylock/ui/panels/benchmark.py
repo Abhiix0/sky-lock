@@ -1,4 +1,13 @@
-"""Benchmark execution panel for running scenario suites without freezing the UI."""
+"""Benchmark execution panel - Phase 1 UI cleanup.
+
+Removed from UI (not from core):
+  - MP4 file browser / path display (S16 still works via _mp4_path internal state)
+  - Status column from table
+  - Frames column from table
+  - Wall Time column from table
+  - Long horizontal button row replaced with 2-row compact layout
+  - Secondary actions (Details, Export, Load) moved to a More menu button
+"""
 
 from __future__ import annotations
 
@@ -10,16 +19,15 @@ from PySide6.QtCore import QObject, Qt, QThread, Signal, Slot
 from PySide6.QtGui import QColor, QFont
 from PySide6.QtWidgets import (
     QCheckBox,
-    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QMessageBox,
     QProgressBar,
     QPushButton,
-    QSpinBox,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -33,8 +41,9 @@ from skylock.benchmark.scenario import Scenario
 from skylock.config.models import SkyLockConfig
 from skylock.ui import theme
 from skylock.ui.panels.benchmark_detail import BenchmarkDetailDialog
+from skylock.ui.widgets.no_wheel import NoWheelComboBox, NoWheelSpinBox
 
-_EM_DASH = "—"
+_EM_DASH = "\u2014"
 
 
 def _get_verdict_color(verdict: str) -> QColor:
@@ -77,7 +86,6 @@ class _BenchWorker(QObject):
                 record = self.runner.run(sc, seed=seed)
                 self.record_ready.emit(record)
             except Exception as e:
-                # Emit a synthetic failed record on unexpected error
                 rec = RunRecord(
                     run_id="error",
                     scenario_id=sc.id,
@@ -121,6 +129,7 @@ class BenchmarkPanel(QWidget):
         self._records: list[RunRecord] = []
         self._worker_thread: QThread | None = None
         self._worker: _BenchWorker | None = None
+        # Internal state for S16 mp4 path (not exposed in UI per Phase 1 rules)
         self._mp4_path: str | None = None
 
         self._build_ui()
@@ -128,112 +137,125 @@ class BenchmarkPanel(QWidget):
 
     def _build_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 8, 8, 8)
-        layout.setSpacing(6)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(4)
 
-        # 1. Primary controls bar (Scenario, Seed, Multi-seeds, Run buttons, Cancel)
-        ctrl_bar = QHBoxLayout()
-        ctrl_bar.addWidget(QLabel("Scenario:"))
-        self.cmb_scenarios = QComboBox()
-        ctrl_bar.addWidget(self.cmb_scenarios)
+        # ── Row 1: Scenario and Seed selection ──────────────────────────────
+        row1 = QHBoxLayout()
+        row1.setSpacing(6)
 
-        self.chk_link_seed = QCheckBox("Link to controls seed")
-        self.chk_link_seed.setChecked(True)
-        self.chk_link_seed.toggled.connect(self._on_toggle_link_seed)
-        ctrl_bar.addWidget(self.chk_link_seed)
+        row1.addWidget(QLabel("Scenario:"))
+        self.cmb_scenarios = NoWheelComboBox()
+        self.cmb_scenarios.setMinimumWidth(150)
+        self.cmb_scenarios.setMaximumWidth(220)
+        row1.addWidget(self.cmb_scenarios)
 
-        ctrl_bar.addWidget(QLabel("Seed:"))
-        self.spn_seed = QSpinBox()
+        row1.addWidget(QLabel("Seed:"))
+        self.spn_seed = NoWheelSpinBox()
         self.spn_seed.setRange(0, 999999)
         self.spn_seed.setValue(42)
-        self.spn_seed.setReadOnly(True)  # Read-only initially since linked by default
-        ctrl_bar.addWidget(self.spn_seed)
+        self.spn_seed.setReadOnly(True)
+        self.spn_seed.setMaximumWidth(70)
+        row1.addWidget(self.spn_seed)
 
-        ctrl_bar.addWidget(QLabel("Seeds:"))
+        self.chk_link_seed = QCheckBox("Link seed")
+        self.chk_link_seed.setChecked(True)
+        self.chk_link_seed.setToolTip("Mirror seed from the Controls panel")
+        self.chk_link_seed.toggled.connect(self._on_toggle_link_seed)
+        row1.addWidget(self.chk_link_seed)
+
+        row1.addWidget(QLabel("Seeds:"))
         self.txt_seeds = QLineEdit()
-        self.txt_seeds.setPlaceholderText("e.g. 42, 100, 2024")
-        self.txt_seeds.setToolTip("Comma-separated integers; if empty uses single seed above")
-        self.txt_seeds.setMaximumWidth(140)
-        ctrl_bar.addWidget(self.txt_seeds)
+        self.txt_seeds.setPlaceholderText("e.g. 42,100,2024")
+        self.txt_seeds.setToolTip("Comma-separated integers; leave blank to use single seed")
+        self.txt_seeds.setMaximumWidth(120)
+        row1.addWidget(self.txt_seeds)
+
+        row1.addStretch()
+        layout.addLayout(row1)
+
+        # ── Row 2: Action buttons + status & summary ───────────────────────
+        row2 = QHBoxLayout()
+        row2.setSpacing(6)
 
         self.btn_run = QPushButton("Run Scenario")
+        self.btn_run.setToolTip("Run selected scenario")
         self.btn_run.clicked.connect(self._run_selected)
-        ctrl_bar.addWidget(self.btn_run)
+        row2.addWidget(self.btn_run)
 
         self.btn_run_all = QPushButton("Run All")
+        self.btn_run_all.setToolTip("Run all scenarios")
         self.btn_run_all.clicked.connect(self._run_all)
-        ctrl_bar.addWidget(self.btn_run_all)
+        row2.addWidget(self.btn_run_all)
 
         self.btn_cancel = QPushButton("Cancel")
         self.btn_cancel.setEnabled(False)
         self.btn_cancel.clicked.connect(self._cancel_benchmark)
-        ctrl_bar.addWidget(self.btn_cancel)
+        row2.addWidget(self.btn_cancel)
 
-        ctrl_bar.addStretch()
-
-        self.btn_details = QPushButton("Details...")
-        self.btn_details.clicked.connect(self._open_selected_details)
-        ctrl_bar.addWidget(self.btn_details)
-
-        self.btn_load_report = QPushButton("Load Report...")
-        self.btn_load_report.clicked.connect(self._load_report)
-        ctrl_bar.addWidget(self.btn_load_report)
-
-        self.btn_export_json = QPushButton("Export JSON")
-        self.btn_export_json.clicked.connect(self._export_json)
-        ctrl_bar.addWidget(self.btn_export_json)
-
-        self.btn_export_md = QPushButton("Export Markdown")
-        self.btn_export_md.clicked.connect(self._export_md)
-        ctrl_bar.addWidget(self.btn_export_md)
-
-        layout.addLayout(ctrl_bar)
-
-        # 2. Secondary bar: MP4 File configuration for S16
-        mp4_bar = QHBoxLayout()
-        mp4_bar.addWidget(QLabel("MP4 file for S16:"))
-        self.lbl_mp4_status = QLabel("No file selected")
-        self.lbl_mp4_status.setStyleSheet(f"color: {theme.TEXT_SECONDARY.name()}; font-style: italic;")
-        mp4_bar.addWidget(self.lbl_mp4_status)
-
-        self.btn_browse_mp4 = QPushButton("Browse MP4...")
-        self.btn_browse_mp4.clicked.connect(self._browse_mp4)
-        mp4_bar.addWidget(self.btn_browse_mp4)
-
-        mp4_bar.addStretch()
-        layout.addLayout(mp4_bar)
-
-        # 3. Summary & Progress status row
-        stat_bar = QHBoxLayout()
-        self.lbl_summary = QLabel("Summary: 0 runs | PASS: 0 | FAIL: 0 | INDET: 0 | NOT_RUN: 0")
-        self.lbl_summary.setStyleSheet(f"font-weight: bold; color: {theme.TEXT_PRIMARY.name()};")
-        stat_bar.addWidget(self.lbl_summary)
-
-        stat_bar.addStretch()
-
-        self.lbl_status = QLabel("Idle")
-        self.lbl_status.setStyleSheet(f"color: {theme.TEXT_SECONDARY.name()}; font-style: italic;")
-        stat_bar.addWidget(self.lbl_status)
+        # More Actions menu (secondary actions)
+        self.btn_more = QPushButton("More Actions \u25be")
+        self.btn_more.setToolTip("Secondary actions: Details, Export, Load Report")
+        self._more_menu = QMenu(self)
+        act_details = self._more_menu.addAction("Details")
+        act_details.triggered.connect(self._open_selected_details)
+        self._more_menu.addSeparator()
+        act_export_json = self._more_menu.addAction("Export JSON")
+        act_export_json.triggered.connect(self._export_json)
+        act_export_md = self._more_menu.addAction("Export Markdown")
+        act_export_md.triggered.connect(self._export_md)
+        self._more_menu.addSeparator()
+        act_load = self._more_menu.addAction("Load Report")
+        act_load.triggered.connect(self._load_report)
+        self.btn_more.setMenu(self._more_menu)
+        row2.addWidget(self.btn_more)
 
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setRange(0, 100)
-        self.progress_bar.setMaximumWidth(180)
-        stat_bar.addWidget(self.progress_bar)
+        self.progress_bar.setMaximumWidth(120)
+        row2.addWidget(self.progress_bar)
 
-        layout.addLayout(stat_bar)
+        row2.addSpacing(10)
+        self.lbl_summary = QLabel("0 runs | PASS: 0 | FAIL: 0 | INDET: 0")
+        self.lbl_summary.setStyleSheet(
+            f"font-weight: bold; color: {theme.TEXT_PRIMARY.name()};"
+        )
+        row2.addWidget(self.lbl_summary)
 
-        # 4. Results table
+        row2.addStretch()
+
+        self.lbl_status = QLabel("Idle")
+        self.lbl_status.setStyleSheet(
+            f"color: {theme.TEXT_SECONDARY.name()}; font-style: italic;"
+        )
+        row2.addWidget(self.lbl_status)
+
+        layout.addLayout(row2)
+
+        # ── Results table (cleaned columns) ──────────────────────────────
         self.table = QTableWidget()
+        # Primary columns only (Rules 5 & 6):
+        #   0=Scenario, 1=Seed, 2=Verdict, 3=Acq(s), 4=Track RMS(px),
+        #   5=Loss Rate, 6=Reacq(s), 7=Proc FPS
         cols = [
-            "Scenario", "Seed", "Verdict", "Frames",
-            "Wall (s)", "Acq (s)", "Trk RMS (px)",
-            "Loss Rate", "Reacq (s)", "Proc FPS", "Status",
+            "Scenario",
+            "Seed",
+            "Verdict",
+            "Acquisition (s)",
+            "Tracking Error (px)",
+            "Loss Rate",
+            "Reacquisition (s)",
+            "FPS",
         ]
         self.table.setColumnCount(len(cols))
         self.table.setHorizontalHeaderLabels(cols)
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.ResizeToContents
+        )
+        self.table.horizontalHeader().setSectionResizeMode(
+            0, QHeaderView.ResizeMode.Stretch
+        )
         self.table.setSortingEnabled(True)
         self.table.itemDoubleClicked.connect(self._on_table_double_clicked)
         layout.addWidget(self.table)
@@ -244,22 +266,12 @@ class BenchmarkPanel(QWidget):
             self.cmb_scenarios.addItem(sc.id, sc)
 
     def _on_toggle_link_seed(self, checked: bool) -> None:
-        """When link is checked, seed is read-only and mirrors controls."""
         self.spn_seed.setReadOnly(checked)
 
     def sync_controls_seed(self, seed: int) -> None:
         """Called when controls seed changes to mirror it if linked."""
         if self.chk_link_seed.isChecked():
             self.spn_seed.setValue(seed)
-
-    def _browse_mp4(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select MP4 Video for S16", "", "MP4 Video (*.mp4 *.m4v);;All Files (*.*)"
-        )
-        if path:
-            self._mp4_path = path
-            self.lbl_mp4_status.setText(Path(path).name)
-            self.lbl_mp4_status.setStyleSheet(f"color: {theme.STATUS_SUCCESS.name()};")
 
     def _parse_seeds(self) -> list[int] | None:
         raw = self.txt_seeds.text().strip()
@@ -305,7 +317,6 @@ class BenchmarkPanel(QWidget):
                     if not self._mp4_path:
                         skipped_s16 = True
                         continue
-                    # Supply the selected MP4 path
                     sc_with_mp4 = dataclasses.replace(sc, mp4_path=self._mp4_path)
                     tasks.append((sc_with_mp4, s))
                 else:
@@ -356,7 +367,6 @@ class BenchmarkPanel(QWidget):
         self.lbl_status.setText(f"Completed {len(self._records)} benchmark run(s)")
         self._update_summary_label()
 
-        # Clean up worker and thread
         if self._worker is not None:
             self._worker.deleteLater()
             self._worker = None
@@ -447,18 +457,16 @@ class BenchmarkPanel(QWidget):
             else:
                 fps_tooltip = fps_entry.get("reason", fps_entry.get("status", ""))
 
+        # Table columns: Scenario, Seed, Verdict, Acq, TrkRMS, Loss, Reacq, FPS
         items = [
             (record.scenario_id, ""),
             (str(record.seed), ""),
             (record.overall_verdict, ""),
-            (str(record.frames), ""),
-            (f"{record.wall_time_s:.2f}", ""),
             (acq_str, acq_tooltip),
             (trk_str, trk_tooltip),
             (loss_str, loss_tooltip),
             (reacq_str, reacq_tooltip),
             (fps_str, fps_tooltip),
-            (record.status, ""),
         ]
 
         color = _get_verdict_color(record.overall_verdict)
@@ -481,11 +489,10 @@ class BenchmarkPanel(QWidget):
             v = r.overall_verdict
             counts[v] = counts.get(v, 0) + 1
         self.lbl_summary.setText(
-            f"Summary: {len(self._records)} runs | "
+            f"{len(self._records)} runs | "
             f"PASS: {counts.get('PASS', 0)} | "
             f"FAIL: {counts.get('FAIL', 0)} | "
-            f"INDET: {counts.get('INDETERMINATE', 0)} | "
-            f"NOT_RUN: {counts.get('NOT_RUN', 0)}"
+            f"INDET: {counts.get('INDETERMINATE', 0)}"
         )
 
     def _on_table_double_clicked(self, item: QTableWidgetItem) -> None:
@@ -558,8 +565,7 @@ class BenchmarkPanel(QWidget):
             QMessageBox.information(self, "Export", "No benchmark records to export.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save JSON Report", "report.json",
-            "JSON (*.json)",
+            self, "Save JSON Report", "report.json", "JSON (*.json)",
         )
         if path:
             try:
@@ -574,8 +580,7 @@ class BenchmarkPanel(QWidget):
             QMessageBox.information(self, "Export", "No benchmark records to export.")
             return
         path, _ = QFileDialog.getSaveFileName(
-            self, "Save Markdown Report", "report.md",
-            "Markdown (*.md)",
+            self, "Save Markdown Report", "report.md", "Markdown (*.md)",
         )
         if path:
             try:

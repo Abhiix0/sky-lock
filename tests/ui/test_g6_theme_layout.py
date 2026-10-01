@@ -131,9 +131,9 @@ def test_menu_actions_exist_and_connected(qapp: QApplication) -> None:
     assert window.act_stop.shortcut().toString() == "Ctrl+."
     assert window.act_reset.shortcut().toString() == "Ctrl+Shift+R"
 
-    # Check View menu
+    # Check View menu: Controls, Telemetry, separator, GT, Legend, separator, Reset Layout
     view_actions = window.menuBar().actions()[2].menu().actions()
-    assert len(view_actions) >= 5  # Controls, Telemetry, separator, GT, Legend, separator, Reset Layout
+    assert len(view_actions) >= 5
 
     # Check Help menu
     help_actions = window.menuBar().actions()[3].menu().actions()
@@ -181,7 +181,8 @@ def test_no_hex_colour_literals_outside_theme(tmp_path: Path) -> None:
             if matches:
                 violations.append(f"{py_file}:{line_no}: {line.strip()}")
 
-    assert len(violations) == 0, "Found hex colour literals outside theme.py:\n" + "\n".join(violations)
+    msg = "Found hex colour literals outside theme.py:\n" + "\n".join(violations)
+    assert len(violations) == 0, msg
 
 
 def test_screenshot_generation(qapp: QApplication, tmp_path: Path) -> None:
@@ -244,8 +245,9 @@ def test_docks_are_closable_and_restorable(qapp: QApplication) -> None:
     qapp.processEvents()
 
     # Docks should be closable
-    assert window.dock_controls.features() & window.dock_controls.DockWidgetFeature.DockWidgetClosable
-    assert window.dock_telemetry.features() & window.dock_telemetry.DockWidgetFeature.DockWidgetClosable
+    closable = window.dock_controls.DockWidgetFeature.DockWidgetClosable
+    assert window.dock_controls.features() & closable
+    assert window.dock_telemetry.features() & closable
 
     # Close controls dock
     window.dock_controls.close()

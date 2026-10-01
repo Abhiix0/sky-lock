@@ -447,11 +447,6 @@ class MainWindow(QMainWindow):
         # Manual steering
         self._steering_filter.rate_changed.connect(self._worker.set_manual_rates)
 
-        # Manual rate from controls -> steering filter
-        self.controls_panel.spn_manual_rate.valueChanged.connect(
-            self._steering_filter.set_manual_rate
-        )
-
         # Seed link: sync controls panel seed to benchmark panel
         self.controls_panel.spn_seed.valueChanged.connect(
             self.bench_panel.sync_controls_seed

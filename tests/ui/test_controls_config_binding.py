@@ -86,8 +86,14 @@ def test_blur_checkbox_enables_valid_config(controls) -> None:  # noqa: ANN001
 # ---------------------------------------------------------------------------
 
 def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
-    """Changing the atmosphere combo to Haze must not show a config error."""
-    controls.atmos_section.cmb_mode.setCurrentText("Haze")
+    """Setting atmosphere mode via config must not produce a config error.
+
+    NOTE: atmos_section is no longer in the Controls UI (Phase 1 Rule 2).
+    Validate via direct config editor to keep the bug regression alive.
+    """
+    from skylock.ui.config_model import atmosphere_override
+    overrides = atmosphere_override(controls.editor.config, "haze")
+    controls._apply_dict(overrides)
 
     assert not controls._has_violations()
     assert controls.editor.config.disturbances.atmosphere.mode == "haze"
@@ -98,15 +104,16 @@ def test_atmosphere_combo_change_no_error(controls) -> None:  # noqa: ANN001
 # ---------------------------------------------------------------------------
 
 def test_atmosphere_options_complete(controls) -> None:  # noqa: ANN001
-    """Atmosphere combo must include all five PS_SPEC modes including low_light."""
-    cmb = controls.atmos_section.cmb_mode
-    items_normalised = {
-        cmb.itemText(i).lower().replace(" ", "_")
-        for i in range(cmb.count())
-    }
+    """All five PS_SPEC atmosphere modes must be valid config modes.
+
+    NOTE: atmos_section is no longer in the Controls UI (Phase 1 Rule 2).
+    Validate the config model still accepts all modes.
+    """
+    from skylock.ui.config_model import ATMOSPHERE_MODES
+
     expected = {"clear", "haze", "fog", "rain", "low_light"}
-    assert items_normalised == expected, (
-        f"Missing atmosphere options: {expected - items_normalised}"
+    assert set(ATMOSPHERE_MODES) == expected, (
+        f"Missing atmosphere modes in config model: {expected - set(ATMOSPHERE_MODES)}"
     )
 
 

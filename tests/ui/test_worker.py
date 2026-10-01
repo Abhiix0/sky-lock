@@ -75,9 +75,8 @@ class TestWorkerPacing:
 
         # Also check wall_fps value from FrameView
         if len(frame_times) >= 10:
-            # Get a frame after the window fills
-            last_fv_idx = [i for i, (idx, _) in enumerate(frame_times) if idx == frame_times[-1][0]]
             # We can't access the FrameView easily here, but we verified timing is correct
+            pass
 
 
 class TestWorkerShutdown:
@@ -388,7 +387,9 @@ class TestManualSteeringFilter:
         QCoreApplication.processEvents()
 
         # Should return to (0, 0)
-        assert rates_received[-1] == (0.0, 0.0), f"Rate not reset after release: {rates_received[-1]}"
+        assert rates_received[-1] == (0.0, 0.0), (
+            f"Rate not reset after release: {rates_received[-1]}"
+        )
 
         window.close()
 
@@ -415,7 +416,7 @@ class TestManualSteeringFilter:
         # Simulate key press
         QTest.keyPress(window, Qt.Key.Key_Up)
         QCoreApplication.processEvents()
-        initial_count = len(rates_received)
+        assert len(rates_received) >= 1
 
         # Simulate auto-repeat (PySide6 QTest doesn't have native auto-repeat simulation,
         # but the filter checks event.isAutoRepeat())
