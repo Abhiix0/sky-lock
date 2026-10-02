@@ -63,3 +63,6 @@ strict = true
 [tool.pyright]
 include = ["src", "tests", "scripts"]
 extraPaths = [".", "src"]
+executionEnvironments = [
+  { root = "." }
+]
