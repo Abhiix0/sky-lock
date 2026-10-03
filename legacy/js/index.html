@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sky Lock - Space Environment Simulation</title>
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' blob: data: ws:;">
+  <style>
+    /* ============================================================
+       RESET & BODY
+    ============================================================ */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: #000;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      user-select: none;
+    }
+
+    /* Full-page 3D canvas sits underneath everything */
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+
+    /* ============================================================
+       LAYOUT SHELL
+       A 3-column CSS Grid that overlays the 3D canvas.
+       Panels sit in named grid areas and stack naturally.
+       Below 1280 px wide, columns collapse to a single stack.
+    ============================================================ */
+    #ui-shell {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: 350px 1fr 295px;
+      grid-template-rows: 1fr auto;
+      grid-template-areas:
+        "left  center right"
+        "left  bottom right";
+      gap: 0;
+      pointer-events: none; /* pass clicks through to 3D canvas by default */
+      padding: 10px;
+      align-items: start;
+    }
+
+    /* Re-enable pointer events on any actual panel inside the shell */
+    #ui-shell > * {
+      pointer-events: auto;
+    }
+
+    /* LEFT COLUMN — gimbal cam + disturbances */
+    #left-col {
+      grid-area: left;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: auto;
+      min-width: 0;
+      align-self: start;
+    }
+
+    /* CENTER COLUMN — metrics/charts (top) + comms terminal (bottom) */
+    #center-col {
+      grid-area: center / center / bottom / center;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 8px;
+      pointer-events: none;
+      padding: 0 8px;
+      min-width: 0;
+      align-self: end;
+    }
+
+    #center-col > * {
+      pointer-events: auto;
+    }
+
+    /* RIGHT COLUMN — simulation + satellites panel */
+    #right-col {
+      grid-area: right;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      pointer-events: auto;
+      min-width: 0;
+      align-self: start;
+    }
+
+    /* FPS counter in top-left, above the grid */
+    #fps-counter {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 1100;
+      color: #0f0;
+      font-size: 13px;
+      font-weight: 600;
+      text-shadow: 0 0 6px rgba(0, 255, 0, 0.4);
+      pointer-events: none;
+      font-family: 'Courier New', monospace;
+      background: rgba(0, 0, 0, 0.45);
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(0, 255, 0, 0.2);
+    }
+
+    /* ============================================================
+       BELOW 1280 px: stack columns vertically
+    ============================================================ */
+    @media (max-width: 1280px) {
+      #ui-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto;
+        grid-template-areas:
+          "left"
+          "center"
+          "right";
+        overflow-y: auto;
+        align-items: start;
+      }
+
+      #center-col {
+        justify-content: flex-start;
+        align-self: start;
+        padding: 0;
+      }
+
+      #right-col {
+        align-self: start;
+      }
+    }
+
+    /* ============================================================
+       SATELLITE HOVER TOOLTIP (global overlay)
+    ============================================================ */
+    #satellite-tooltip {
+      position: fixed;
+      display: none;
+      pointer-events: none;
+      z-index: 2000;
+      background: rgba(15, 23, 42, 0.92);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.7);
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+      padding: 3px 8px;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1px;
+      transform: translate(-50%, -135%);
+      white-space: nowrap;
+    }
+
+    /* ============================================================
+       SHARED PANEL CHROME
+    ============================================================ */
+    .panel-base {
+      background: rgba(12, 16, 26, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 10px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.65);
+      color: #e2e8f0;
+      font-size: 13px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    /* ============================================================
+       SIMULATION CONTROL PANEL (right col)
+    ============================================================ */
+    #control-panel {
+      padding: 14px 16px;
+      max-height: calc(100vh - 20px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    #control-panel::-webkit-scrollbar { width: 4px; }
+    #control-panel::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+
+    .control-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .control-label {
+      font-weight: 500;
+      color: #cbd5e1;
+    }
+
+    /* Speed button group */
+    .speed-btn-group {
+      display: flex;
+      gap: 4px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 3px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .speed-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      padding: 4px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .speed-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .speed-btn.active { background: #2563eb; color: #fff; box-shadow: 0 0 10px rgba(37,99,235,0.4); }
+
+    /* Toggle buttons */
+    .toggle-btn {
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+      min-width: 65px;
+      text-align: center;
+    }
+
+    .toggle-btn.on  { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(16,185,129,0.5); box-shadow: 0 0 8px rgba(16,185,129,0.2); }
+    .toggle-btn.on:hover { background: rgba(16,185,129,0.3); }
+    .toggle-btn.off { background: rgba(239,68,68,0.15); color: #f87171; border: 1px solid rgba(239,68,68,0.4); }
+    .toggle-btn.off:hover { background: rgba(239,68,68,0.25); }
+
+    .pause-btn { background: rgba(255,255,255,0.08); color: #e2e8f0; border: 1px solid rgba(255,255,255,0.15); }
+    .pause-btn:hover { background: rgba(255,255,255,0.15); }
+    .pause-btn.paused { background: rgba(245,158,11,0.2); color: #fbbf24; border: 1px solid rgba(245,158,11,0.5); box-shadow: 0 0 10px rgba(245,158,11,0.3); }
+    .pause-btn.paused:hover { background: rgba(245,158,11,0.3); }
+
+    /* Mode buttons */
+    .mode-btn-group {
+      display: flex; gap: 4px; background: rgba(0,0,0,0.35);
+      padding: 3px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.08); width: 100%;
+    }
+
+    .mode-btn {
+      flex: 1; background: transparent; border: none; color: #94a3b8;
+      padding: 5px 8px; font-size: 11px; font-weight: 600; border-radius: 6px;
+      cursor: pointer; transition: all 0.2s ease; font-family: inherit; text-align: center;
+    }
+
+    .mode-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .mode-btn.active { background: #2563eb; color: #fff; box-shadow: 0 0 10px rgba(37,99,235,0.4); }
+
+    /* Manual mode section */
+    #manual-satellite-section {
+      display: none; margin-top: 14px; padding-top: 12px;
+      border-top: 1px solid rgba(255,255,255,0.1); text-align: center;
+    }
+
+    .panel-subheader {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      color: #38bdf8; text-transform: uppercase; margin-bottom: 8px;
+    }
+
+    .preview-box {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      background: rgba(0,0,0,0.45); border: 1px dashed rgba(56,189,248,0.4);
+      border-radius: 8px; padding: 8px 6px; cursor: grab; transition: all 0.2s ease;
+    }
+
+    .preview-box:hover { border-color: #38bdf8; background: rgba(56,189,248,0.08); box-shadow: 0 0 14px rgba(56,189,248,0.2); }
+    .preview-box:active, .preview-box.dragging { cursor: grabbing; opacity: 0.7; }
+
+    #satellite-preview-canvas { width: 140px; height: 90px; pointer-events: none; }
+
+    .drag-hint {
+      font-size: 11px; font-weight: 700; color: #38bdf8; letter-spacing: 1.5px;
+      margin-top: 4px; pointer-events: none; text-shadow: 0 0 8px rgba(56,189,248,0.5);
+    }
+
+    /* Satellite status section */
+    #satellites-status-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1); }
+
+    .no-satellites-msg { font-size: 12px; color: #64748b; font-style: italic; text-align: center; padding: 10px 0; }
+
+    .satellite-card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; transition: border-color 0.2s;
+    }
+
+    .satellite-card:hover { border-color: rgba(56,189,248,0.3); }
+
+    .sat-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+
+    .sat-id-tag { font-weight: 700; font-family: 'Courier New', monospace; font-size: 13px; color: #38bdf8; letter-spacing: 1px; }
+
+    .sat-status-badge { font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .sat-status-badge.active { color: #34d399; }
+    .sat-status-badge.paused { color: #fbbf24; }
+    .status-dot { font-size: 9px; }
+
+    .sat-control-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .sat-control-label { font-size: 11px; font-weight: 500; color: #94a3b8; }
+
+    .sat-speed-group {
+      display: flex; gap: 3px; background: rgba(0,0,0,0.35); padding: 2px;
+      border-radius: 6px; border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .sat-speed-btn {
+      background: transparent; border: none; color: #94a3b8; padding: 2px 7px;
+      font-size: 10.5px; font-weight: 600; border-radius: 4px; cursor: pointer;
+      transition: all 0.15s ease; font-family: inherit;
+    }
+
+    .sat-speed-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+    .sat-speed-btn.active { background: #2563eb; color: #fff; }
+
+    .sat-actions-row { display: flex; gap: 6px; }
+
+    .sat-action-btn {
+      flex: 1; padding: 4px 6px; font-size: 11px; font-weight: 600; border-radius: 5px;
+      cursor: pointer; border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.06);
+      color: #e2e8f0; transition: all 0.15s ease; font-family: inherit; text-align: center;
+    }
+
+    .sat-action-btn:hover { background: rgba(255,255,255,0.14); }
+    .sat-action-btn.pause-action.paused { background: rgba(245,158,11,0.2); border-color: rgba(245,158,11,0.5); color: #fbbf24; }
+    .sat-action-btn.remove-action:hover { background: rgba(239,68,68,0.2); border-color: rgba(239,68,68,0.5); color: #f87171; }
+
+    /* ============================================================
+       GIMBAL CAMERA PiP PANEL (left col, top)
+    ============================================================ */
+    #gimbal-cam-panel {
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      border-radius: 10px;
+      background: rgba(10, 15, 26, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    }
+
+    .gimbal-cam-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #38bdf8;
+      text-transform: uppercase;
+      gap: 6px;
+    }
+
+    #gimbal-cam-header-title {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .gimbal-cam-body {
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    #gimbal-cam-canvas {
+      width: 320px;
+      height: 240px;
+      border-radius: 4px;
+      background: #000;
+      display: block;
+    }
+
+    #gimbal-cam-telemetry {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      color: #94a3b8;
+      padding: 2px 0 2px;
+      text-align: center;
+    }
+
+    .gimbal-cam-controls {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 100%;
+      margin-top: 2px;
+    }
+
+    .gimbal-btn-row {
+      display: flex;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .gimbal-action-btn {
+      flex: 1;
+      padding: 4px 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      background: rgba(56, 189, 248, 0.1);
+      color: #38bdf8;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      text-align: center;
+    }
+
+    .gimbal-action-btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: #38bdf8;
+      color: #fff;
+      box-shadow: 0 0 8px rgba(56, 189, 248, 0.35);
+    }
+
+    .gimbal-dpad-btn {
+      width: 26px;
+      height: 22px;
+      padding: 0;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.08);
+      color: #e2e8f0;
+      transition: all 0.15s ease;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .gimbal-dpad-btn:hover {
+      background: rgba(56, 189, 248, 0.25);
+      border-color: #38bdf8;
+      color: #38bdf8;
+    }
+
+    /* Observer selector segmented control */
+    .obs-selector {
+      display: flex;
+      gap: 0;
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      border-radius: 5px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .obs-selector-btn {
+      background: transparent;
+      border: none;
+      border-right: 1px solid rgba(56, 189, 248, 0.2);
+      color: #64748b;
+      padding: 2px 7px;
+      font-size: 10px;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      letter-spacing: 0.5px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .obs-selector-btn:last-child { border-right: none; }
+    .obs-selector-btn:hover:not(:disabled) { color: #38bdf8; background: rgba(56,189,248,0.12); }
+    .obs-selector-btn.active { background: rgba(56,189,248,0.2); color: #38bdf8; }
+    .obs-selector-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* ============================================================
+       DISTURBANCE INJECTION PANEL (left col, below gimbal cam)
+    ============================================================ */
+    #disturbance-panel {
+      border: 1px solid rgba(244, 63, 94, 0.3);
+      border-radius: 10px;
+      background: rgba(10, 15, 26, 0.90);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    }
+
+    .disturbance-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    #disturbance-panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 12px;
+      max-height: 260px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+    }
+
+    .dist-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    /* Label row: name on its own line so it never truncates */
+    .dist-row-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      font-size: 10px;
+      color: #94a3b8;
+      white-space: nowrap;
+      flex-wrap: nowrap;
+      gap: 6px;
+    }
+
+    .dist-row-name {
+      /* Allow name to take as much space as it needs */
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: visible;
+      white-space: nowrap;
+    }
+
+    .dist-val {
+      color: #f43f5e;
+      font-weight: 600;
+      flex-shrink: 0;
+      text-align: right;
+      min-width: 52px;
+    }
+
+    .dist-slider {
+      width: 100%;
+      height: 4px;
+      accent-color: #f43f5e;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    /* ============================================================
+       METRICS HUD & CHARTS PANEL (center col, top portion)
+    ============================================================ */
+    #metrics-panel {
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      border-radius: 10px;
+      background: rgba(10, 15, 26, 0.90);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    }
+
+    .metrics-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: rgba(15, 23, 42, 0.95);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #38bdf8;
+      text-transform: uppercase;
+    }
+
+    #metrics-panel-body {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 8px 10px;
+    }
+
+    .hud-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+      background: rgba(0, 0, 0, 0.35);
+      padding: 6px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .hud-card { display: flex; flex-direction: column; gap: 2px; }
+
+    .hud-label { font-size: 9px; color: #94a3b8; letter-spacing: 0.5px; text-transform: uppercase; }
+    .hud-value { font-size: 11px; font-weight: 700; color: #e2e8f0; }
+
+    .hud-state-search   { color: #94a3b8; text-shadow: 0 0 6px rgba(148,163,184,0.4); }
+    .hud-state-acquire  { color: #f59e0b; text-shadow: 0 0 6px rgba(245,158,11,0.4); }
+    .hud-state-track    { color: #10b981; text-shadow: 0 0 6px rgba(16,185,129,0.4); }
+    .hud-state-lost     { color: #ef4444; text-shadow: 0 0 6px rgba(239,68,68,0.4); }
+    .hud-state-reacquire{ color: #f97316; text-shadow: 0 0 6px rgba(249,115,22,0.4); }
+
+    .chart-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .chart-canvas {
+      width: 100%;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      display: block;
+    }
+
+    /* Fixed heights — prevent the canvas height feedback loop */
+    #chart-error    { height: 42px; }
+    #chart-latency  { height: 30px; }
+    #chart-timeline { height: 12px; }
+
+    /* ============================================================
+       ISL COMMS TERMINAL (center col, bottom)
+    ============================================================ */
+    #comms-console {
+      border: 1px solid rgba(56, 189, 248, 0.22);
+      border-radius: 10px;
+      background: rgba(10, 15, 26, 0.88);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', 'Courier New', monospace;
+    }
+
+    .comms-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 7px 12px;
+      background: rgba(15, 23, 42, 0.9);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    .comms-title { display: flex; align-items: center; gap: 8px; color: #38bdf8; }
+
+    .comms-status-indicator {
+      display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+      background: #22c55e; box-shadow: 0 0 8px #22c55e;
+      animation: comms-pulse 1.8s infinite ease-in-out;
+    }
+
+    .comms-status-indicator.offline { background: #eab308; box-shadow: 0 0 6px #eab308; animation: none; }
+
+    @keyframes comms-pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.35; transform: scale(0.85); }
+    }
+
+    .comms-log {
+      height: 140px;
+      max-height: 140px;
+      min-height: 140px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(56, 189, 248, 0.25) transparent;
+      user-select: text;
+      box-sizing: border-box;
+    }
+
+    .comms-log::-webkit-scrollbar { width: 4px; }
+    .comms-log::-webkit-scrollbar-thumb { background: rgba(56,189,248,0.25); border-radius: 4px; }
+
+    .comms-line {
+      flex-shrink: 0; height: 18px; min-height: 18px; font-size: 11px;
+      line-height: 18px; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; box-sizing: border-box;
+    }
+
+    .comms-peer       { color: #38bdf8; font-weight: 600; }
+    .comms-type       { color: #c084fc; font-weight: 600; }
+    .comms-dist       { color: #e2e8f0; }
+    .comms-dv         { color: #fbbf24; }
+    .comms-link-locked      { color: #4ade80; font-weight: 600; }
+    .comms-link-wait        { color: #f59e0b; font-weight: 600; }
+    .comms-link-obstructed  { color: #ef4444; font-weight: 700; text-shadow: 0 0 6px rgba(239,68,68,0.4); }
+
+    .comms-status-indicator.obstructed {
+      background: #ef4444; box-shadow: 0 0 8px #ef4444;
+      animation: comms-pulse-fast 0.8s infinite ease-in-out;
+    }
+
+    @keyframes comms-pulse-fast {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.25; transform: scale(0.75); }
+    }
+
+    /* ============================================================
+       PANEL COLLAPSE
+    ============================================================ */
+    .panel-collapse-btn {
+      width: 20px; height: 18px; font-size: 13px; line-height: 1;
+      padding: 0; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+
+    #gimbal-cam-panel.collapsed   .gimbal-cam-body                          { display: none !important; }
+    #disturbance-panel.collapsed  #disturbance-panel-body,
+    #disturbance-panel.collapsed  .dist-preset-bar                          { display: none !important; }
+    #metrics-panel.collapsed      #metrics-panel-body                       { display: none !important; }
+    #comms-console.collapsed      .comms-log                                { display: none !important; }
+    #control-panel.collapsed      > *:not(.panel-header)                    { display: none !important; }
+
+    /* ============================================================
+       KEYBOARD SHORTCUTS MODAL
+    ============================================================ */
+    #keyboard-help-overlay {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    .help-modal-backdrop {
+      position: absolute; inset: 0;
+      background: rgba(0,0,0,0.75);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+
+    .help-modal-card {
+      position: relative; z-index: 10000; width: 580px; max-width: 92vw;
+      background: rgba(15,23,42,0.96);
+      border: 1px solid rgba(56,189,248,0.35);
+      border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(0,0,0,0.85);
+      overflow: hidden;
+      font-family: 'SF Mono','Cascadia Code','Fira Code','Courier New',monospace;
+      color: #e2e8f0;
+    }
+
+    .help-modal-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 16px;
+      background: rgba(30,41,59,0.85);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .help-modal-body {
+      padding: 12px 16px; max-height: 64vh; overflow-y: auto;
+    }
+
+    .help-shortcuts-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+
+    .help-shortcuts-table th {
+      text-align: left; padding: 6px 8px; color: #94a3b8;
+      border-bottom: 1px solid rgba(255,255,255,0.1); font-weight: 700; letter-spacing: 0.5px;
+    }
+
+    .help-shortcuts-table td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+
+    .help-shortcuts-table kbd {
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 700;
+      color: #38bdf8; box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+
+    .help-modal-footer {
+      padding: 8px 16px; background: rgba(15,23,42,0.95);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      font-size: 10.5px; color: #94a3b8; text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D scene renders here, full-page behind everything -->
+  <div id="canvas-container"></div>
+
+  <!-- FPS counter: always top-left, above grid -->
+  <div id="fps-counter">FPS: --</div>
+
+  <!-- Satellite hover tooltip (positioned by JS) -->
+  <div id="satellite-tooltip">S-1</div>
+
+  <!-- ============================================================
+       MAIN UI LAYOUT SHELL  (3-column grid)
+  ============================================================ -->
+  <div id="ui-shell">
+
+    <!-- LEFT COLUMN: Gimbal cam + Disturbances (stacked) -->
+    <div id="left-col">
+
+      <!-- Gimbal Camera PiP Panel -->
+      <div id="gimbal-cam-panel">
+        <div class="gimbal-cam-header">
+          <span id="gimbal-cam-header-title">S-1 GIMBAL CAM → S-2</span>
+          <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+            <div class="obs-selector" title="Select observer satellite">
+              <button class="obs-selector-btn active" id="obs-btn-s1">S-1</button>
+              <button class="obs-selector-btn" id="obs-btn-s2">S-2</button>
+            </div>
+            <span style="color:#34d399;font-size:10px;font-weight:600;">LIVE</span>
+            <button class="gimbal-dpad-btn panel-collapse-btn" id="gimbal-collapse-btn" title="Collapse / Expand PiP Panel">−</button>
+          </div>
+        </div>
+        <div class="gimbal-cam-body">
+          <canvas id="gimbal-cam-canvas" width="320" height="240"></canvas>
+          <div id="gimbal-cam-telemetry">S-1→S-2 | FOV 20.0° | PAN 90.0° | TILT 0.0°</div>
+          <div class="gimbal-cam-controls">
+            <div class="gimbal-btn-row">
+              <button class="gimbal-action-btn" id="cam-btn-earth" title="Aim directly at Earth (PAN 90°, TILT 0°)">EARTH</button>
+              <button class="gimbal-action-btn" id="cam-btn-target" title="Aim toward target satellite S-2">AIM S-2</button>
+            </div>
+            <div class="control-row" style="margin-top:8px;margin-bottom:6px;padding:0 4px;">
+              <span style="font-size:11px;font-weight:600;color:#94a3b8;letter-spacing:0.5px;">TRACKING</span>
+              <div class="speed-btn-group" id="tracking-mode-group">
+                <button class="speed-btn active" id="track-mode-auto" style="padding:3px 10px;font-size:11px;">AUTO</button>
+                <button class="speed-btn" id="track-mode-manual" style="padding:3px 10px;font-size:11px;">MANUAL</button>
+              </div>
+            </div>
+            <div style="text-align:center;padding:3px 4px 1px;font-size:10px;color:#475569;letter-spacing:0.3px;">
+              Use arrow keys to pan / tilt manually
+            </div>
+          </div>
+        </div>
+      </div><!-- /#gimbal-cam-panel -->
+
+      <!-- Disturbance Injection Panel -->
+      <div id="disturbance-panel">
+        <div class="disturbance-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#f43f5e;font-weight:700;letter-spacing:1px;">DISTURBANCES</span>
+            <span id="dist-seed-display" style="color:#64748b;font-size:10px;">SEED: 12345</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:5px;">
+            <button class="gimbal-action-btn" id="dist-seed-random-btn" style="padding:2px 6px;font-size:9px;" title="Roll new random seed">RND</button>
+            <button class="gimbal-dpad-btn panel-collapse-btn" id="disturbance-collapse-btn" title="Collapse / Expand Disturbances">−</button>
+          </div>
+        </div>
+        <div class="dist-preset-bar" style="display:flex;gap:4px;padding:5px 8px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.06);">
+          <button class="speed-btn active" id="dist-btn-off"  style="flex:1;padding:3px 0;font-size:10px;">OFF</button>
+          <button class="speed-btn"        id="dist-btn-low"  style="flex:1;padding:3px 0;font-size:10px;">LOW</button>
+          <button class="speed-btn"        id="dist-btn-med"  style="flex:1;padding:3px 0;font-size:10px;">MED</button>
+          <button class="speed-btn"        id="dist-btn-high" style="flex:1;padding:3px 0;font-size:10px;">HIGH</button>
+        </div>
+        <div id="disturbance-panel-body">
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Turbulence Wander</span>
+              <span class="dist-val" id="dist-val-wander">0.0 px</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-wander" type="range" min="0" max="8" step="0.5" value="0">
+          </div>
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Scintillation (Log-N)</span>
+              <span class="dist-val" id="dist-val-scint">0.00</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-scint" type="range" min="0" max="1" step="0.05" value="0">
+          </div>
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Platform Jitter</span>
+              <span class="dist-val" id="dist-val-jitter">0.00°</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-jitter" type="range" min="0" max="0.8" step="0.02" value="0">
+          </div>
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Read Noise</span>
+              <span class="dist-val" id="dist-val-noise">0 LSB</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-noise" type="range" min="0" max="30" step="1" value="0">
+          </div>
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Hot Pixels</span>
+              <span class="dist-val" id="dist-val-hot">0</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-hot" type="range" min="0" max="30" step="1" value="0">
+          </div>
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Blur Radius</span>
+              <span class="dist-val" id="dist-val-blur">0 px</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-blur" type="range" min="0" max="4" step="1" value="0">
+          </div>
+          <div class="dist-row">
+            <div class="dist-row-label">
+              <span class="dist-row-name">Frame Drop Rate</span>
+              <span class="dist-val" id="dist-val-drop">0%</span>
+            </div>
+            <input class="dist-slider" id="dist-slider-drop" type="range" min="0" max="0.30" step="0.01" value="0">
+          </div>
+        </div>
+      </div><!-- /#disturbance-panel -->
+
+    </div><!-- /#left-col -->
+
+    <!-- CENTER COLUMN: Metrics/charts + Comms terminal -->
+    <div id="center-col">
+
+      <!-- Metrics HUD & Charts Panel -->
+      <div id="metrics-panel">
+        <div class="metrics-header">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#38bdf8;font-weight:700;letter-spacing:1px;">METRICS &amp; TELEMETRY HUD</span>
+          </div>
+          <button class="gimbal-dpad-btn" id="metrics-collapse-btn" style="width:20px;height:18px;font-size:13px;line-height:1;">−</button>
+        </div>
+        <div id="metrics-panel-body">
+          <div class="hud-grid">
+            <div class="hud-card">
+              <span class="hud-label">STATE</span>
+              <span class="hud-value hud-state-search" id="hud-state">SEARCH</span>
+            </div>
+            <div class="hud-card">
+              <span class="hud-label">LOCK TIME</span>
+              <span class="hud-value" id="hud-lock-time">0.0s</span>
+            </div>
+            <div class="hud-card">
+              <span class="hud-label">RETENTION</span>
+              <span class="hud-value" style="color:#38bdf8;" id="hud-retention">0.0%</span>
+            </div>
+            <div class="hud-card">
+              <span class="hud-label">POINTING ERR</span>
+              <span class="hud-value" id="hud-pointing-err">--</span>
+            </div>
+            <div class="hud-card">
+              <span class="hud-label">TRACKING ERR</span>
+              <span class="hud-value" id="hud-tracking-err">--</span>
+            </div>
+            <div class="hud-card">
+              <span class="hud-label">LATENCY / FPS</span>
+              <div style="display:flex;gap:4px;align-items:baseline;">
+                <span class="hud-value" id="hud-latency">-- ms</span>
+                <span style="color:#64748b;font-size:10px;">|</span>
+                <span class="hud-value" style="color:#22c55e;" id="hud-fps">60</span>
+              </div>
+            </div>
+          </div>
+          <div class="chart-container">
+            <canvas class="chart-canvas" id="chart-error"    width="420" height="42"></canvas>
+            <canvas class="chart-canvas" id="chart-latency"  width="420" height="30"></canvas>
+            <canvas class="chart-canvas" id="chart-timeline" width="420" height="12"></canvas>
+          </div>
+          <!-- Benchmark Controls & Progress -->
+          <div style="display:flex;flex-direction:column;gap:5px;padding-top:5px;border-top:1px solid rgba(255,255,255,0.06);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">
+              <button class="gimbal-action-btn" id="btn-run-benchmark" style="background:rgba(34,197,94,0.15);border-color:#22c55e;color:#4ade80;padding:4px 8px;flex:1;">
+                RUN BENCHMARK (8 SCENARIOS × 3 SEEDS)
+              </button>
+              <a href="#" id="link-determinism-check" style="color:#94a3b8;font-size:10px;text-decoration:underline;white-space:nowrap;cursor:pointer;">Determinism Check</a>
+            </div>
+            <div id="benchmark-progress-box" style="display:none;flex-direction:column;gap:3px;">
+              <div style="display:flex;justify-content:space-between;font-size:10px;color:#94a3b8;">
+                <span id="benchmark-status-text">Preparing benchmark...</span>
+                <span id="benchmark-percent-text">0%</span>
+              </div>
+              <div style="width:100%;height:5px;background:rgba(255,255,255,0.1);border-radius:3px;overflow:hidden;">
+                <div id="benchmark-progress-bar" style="width:0%;height:100%;background:#22c55e;transition:width 0.1s linear;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div><!-- /#metrics-panel -->
+
+      <!-- ISL Comms Terminal -->
+      <div id="comms-console">
+        <div class="comms-header">
+          <div class="comms-title">
+            <span class="comms-status-indicator" id="comms-status-dot"></span>
+            <span>ISL COMMS TERMINAL</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:#64748b;font-size:10px;font-weight:600;">ACTIVE LINK</span>
+            <button class="gimbal-dpad-btn panel-collapse-btn" id="comms-collapse-btn" title="Collapse / Expand Comms Terminal">−</button>
+          </div>
+        </div>
+        <div class="comms-log" id="comms-log-container">
+          <!-- Live telemetry log lines injected by JS -->
+        </div>
+      </div><!-- /#comms-console -->
+
+    </div><!-- /#center-col -->
+
+    <!-- RIGHT COLUMN: Simulation Control Panel -->
+    <div id="right-col">
+
+      <div id="control-panel" class="panel-base">
+        <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>SIMULATION</span>
+          <button class="gimbal-dpad-btn panel-collapse-btn" id="control-collapse-btn" title="Collapse / Expand Simulation Panel">−</button>
+        </div>
+
+        <!-- Speed -->
+        <div class="control-row">
+          <span class="control-label">Speed</span>
+          <div class="speed-btn-group" id="speed-group">
+            <button class="speed-btn active" data-speed="1" id="speed-1x">1×</button>
+            <button class="speed-btn" data-speed="2" id="speed-2x">2×</button>
+            <button class="speed-btn" data-speed="4" id="speed-4x">4×</button>
+          </div>
+        </div>
+
+        <!-- Orbit Lines -->
+        <div class="control-row">
+          <span class="control-label">Orbit Lines</span>
+          <button class="toggle-btn on" id="orbit-lines-toggle">ON</button>
+        </div>
+
+        <!-- ISL Link -->
+        <div class="control-row">
+          <span class="control-label">ISL Link</span>
+          <button class="toggle-btn on" id="isl-link-toggle">ON</button>
+        </div>
+
+        <!-- Pause -->
+        <div class="control-row">
+          <span class="control-label">Pause</span>
+          <button class="toggle-btn pause-btn" id="pause-toggle">PAUSE</button>
+        </div>
+
+        <!-- Satellite Mode -->
+        <div class="control-row" style="flex-direction:column;align-items:flex-start;gap:6px;margin-top:6px;">
+          <span class="control-label">Satellite Mode</span>
+          <div class="mode-btn-group" id="mode-group">
+            <button class="mode-btn active" id="mode-auto">AUTOMATIC</button>
+            <button class="mode-btn" id="mode-manual">MANUAL</button>
+          </div>
+        </div>
+
+        <!-- Manual Mode Add Satellite Section -->
+        <div id="manual-satellite-section">
+          <div class="panel-subheader">ADD SATELLITE</div>
+          <div id="satellite-preview-container" class="preview-box">
+            <canvas id="satellite-preview-canvas" width="140" height="90"></canvas>
+            <div class="drag-hint">DRAG ME</div>
+          </div>
+        </div>
+
+        <!-- Live Satellite Status Section -->
+        <div id="satellites-status-section">
+          <div class="panel-header">SATELLITES</div>
+          <div id="satellites-list">
+            <!-- Dynamically rendered satellite cards -->
+          </div>
+        </div>
+      </div><!-- /#control-panel -->
+
+    </div><!-- /#right-col -->
+
+  </div><!-- /#ui-shell -->
+
+  <!-- ============================================================
+       KEYBOARD SHORTCUTS MODAL (global overlay, z-index 9999)
+  ============================================================ -->
+  <div id="keyboard-help-overlay" style="display:none;">
+    <div class="help-modal-backdrop" id="help-backdrop"></div>
+    <div class="help-modal-card">
+      <div class="help-modal-header">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-size:16px;">⌨️</span>
+          <span style="color:#38bdf8;font-weight:700;letter-spacing:1px;">KEYBOARD SHORTCUTS</span>
+        </div>
+        <button id="help-close-btn" class="gimbal-dpad-btn" style="width:24px;height:22px;font-size:13px;">✕</button>
+      </div>
+      <div class="help-modal-body">
+        <table class="help-shortcuts-table">
+          <thead>
+            <tr><th>Key</th><th>Action</th><th>Context</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><kbd>?</kbd></td><td>Toggle Keyboard Help Overlay</td><td>Global</td></tr>
+            <tr><td><kbd>Space</kbd></td><td>Pause / Resume Simulation Clock</td><td>Global</td></tr>
+            <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>4</kbd></td><td>Set Sim Speed (1x, 2x, 4x)</td><td>Global</td></tr>
+            <tr><td><kbd>O</kbd></td><td>Toggle Orbit Path Lines</td><td>Simulation</td></tr>
+            <tr><td><kbd>L</kbd></td><td>Toggle Optical Inter-Satellite Link</td><td>Simulation</td></tr>
+            <tr><td><kbd>G</kbd></td><td>Toggle Gimbal Camera PiP Feed</td><td>Tracking</td></tr>
+            <tr><td><kbd>Arrow Keys</kbd></td><td>Manual Gimbal Slew (Pan / Tilt)</td><td>Gimbal (Manual)</td></tr>
+            <tr><td><kbd>Shift</kbd> + <kbd>Arrows</kbd></td><td>Fast Slew Mode</td><td>Gimbal (Manual)</td></tr>
+            <tr><td><kbd>C</kbd></td><td>Center / Reset Bore-Sight (0°, 0°)</td><td>Gimbal</td></tr>
+            <tr><td><kbd>B</kbd></td><td>Run One-Click Benchmark Suite</td><td>Benchmark</td></tr>
+            <tr><td><kbd>P</kbd></td><td>Capture Main + PiP View PNG</td><td>Telemetry</td></tr>
+            <tr><td><kbd>D</kbd></td><td>Start / Stop Choreographed Demo</td><td>Demo Mode</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close Help Dialog</td><td>Global</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="help-modal-footer">
+        Press <kbd>?</kbd> or <kbd>Esc</kbd> anytime to dismiss this help window.
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/main.js"></script>
+  <script type="module">
+    import { initDisturbancePanel } from '/tracking/disturbancePanel.js';
+    import { initHudPanel } from '/tracking/hud.js';
+    import { initChartsPanel } from '/tracking/charts.js';
+
+    function setupTelemetryUI() {
+      initDisturbancePanel();
+
+      // Setup collapsible panels
+      const panels = [
+        { panelId: 'gimbal-cam-panel',   btnId: 'gimbal-collapse-btn' },
+        { panelId: 'disturbance-panel',  btnId: 'disturbance-collapse-btn' },
+        { panelId: 'metrics-panel',      btnId: 'metrics-collapse-btn' },
+        { panelId: 'comms-console',      btnId: 'comms-collapse-btn' },
+        { panelId: 'control-panel',      btnId: 'control-collapse-btn' }
+      ];
+
+      for (const { panelId, btnId } of panels) {
+        const panel = document.getElementById(panelId);
+        const btn   = document.getElementById(btnId);
+        if (panel && btn) {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            panel.classList.toggle('collapsed');
+            btn.textContent = panel.classList.contains('collapsed') ? '+' : '−';
+          });
+        }
+      }
+
+      // Keyboard Help Overlay
+      const helpOverlay  = document.getElementById('keyboard-help-overlay');
+      const helpCloseBtn = document.getElementById('help-close-btn');
+      const helpBackdrop = document.getElementById('help-backdrop');
+
+      const toggleHelp = () => {
+        if (!helpOverlay) return;
+        const isHidden = helpOverlay.style.display === 'none';
+        helpOverlay.style.display = isHidden ? 'flex' : 'none';
+      };
+
+      const closeHelp = () => { if (helpOverlay) helpOverlay.style.display = 'none'; };
+
+      if (helpCloseBtn) helpCloseBtn.addEventListener('click', closeHelp);
+      if (helpBackdrop) helpBackdrop.addEventListener('click', closeHelp);
+
+      window.addEventListener('keydown', (e) => {
+        if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+        if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+          e.preventDefault();
+          toggleHelp();
+        } else if (e.key === 'Escape') {
+          closeHelp();
+        }
+      });
+
+      const checkReady = () => {
+        if (window.__sky && window.__sky.tracking) {
+          const tracking = window.__sky.tracking;
+          initHudPanel(tracking.metrics, tracking);
+          initChartsPanel(tracking.metrics);
+        } else {
+          setTimeout(checkReady, 50);
+        }
+      };
+      checkReady();
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', setupTelemetryUI);
+    } else {
+      setupTelemetryUI();
+    }
+  </script>
+</body>
+</html>

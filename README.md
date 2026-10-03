@@ -1,134 +1,290 @@
-# Sky Lock - Space Environment Simulation
+# Sky Lock - Autonomous Free-Space Optical Beacon Tracking System
 
-A Three.js-based space environment prototype featuring Earth and orbiting satellites. Built for hackathon demo purposes with clean visuals and easily tweakable parameters.
+[![Tests](https://img.shields.io/badge/tests-43%20passed-brightgreen.svg)]()
+[![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Web%20%7C%20Electron%20Windows%20x64-blue.svg)]()
+[![Offline](https://img.shields.io/badge/network-100%25%20offline-success.svg)]()
 
-## Features
+**Sky Lock** is a high-fidelity space environment simulation and autonomous line-of-sight tracking system designed for inter-satellite Free-Space Optical Communications (FSOC). Mounted on an observer satellite (S-1), the 2-axis gimbal camera autonomously searches for, acquires, tracks, and reacquires an optical beacon emitted by a target satellite (S-2) in low Earth orbit.
 
-- **Pure black space background** (skybox to be added in future phase)
-- **Normalized 3D models** - Earth and satellites auto-scaled from GLB files
-- **Dual satellite orbits** - Two satellites on different orbital planes
-- **Orbit visualization** - Subtle path lines showing orbital planes
-- **Interactive camera** - Orbit controls with zoom and rotation
-- **Performance monitoring** - Built-in FPS counter
-- **Triangle count logging** - Asset complexity reporting
+The system features robust rejection of Earth albedo, sensor noise, beam wander, scintillation, structural jitter, and optical decoys using matched-filter periodic blink-code identification.
 
-## Quick Start
+---
 
-```bash
-# Install dependencies
-npm install
+## Architecture Diagram
 
-# Start development server
-npm run dev
+```
++---------------------------------------------------------------------------------------------------+
+|                                      SKY LOCK ARCHITECTURE                                        |
++---------------------------------------------------------------------------------------------------+
+                                                                                                     
+    +---------------------------+                     +----------------------------+                 
+    |    Three.js 3D Engine     |                     |    Space Disturbances      |                 
+    |   (Earth, S-1, S-2 bus)   |                     |   Turbulence, Wander,      |                 
+    +-------------+-------------+                     |   Jitter, Scintillation    |                 
+                  |                                   +-------------+--------------+                 
+                  v                                                 |                                
+    +-------------+-------------+                                   v                                
+    |    Virtual Gimbal Cam     | -------------------> +------------+-------------+                  
+    |  (Offscreen WebGL FBO)    |   Corrupted Frame    |      Blob Detector       |                  
+    |     640x480 @ 30 Hz       |                      |  Chroma/Luma Segmentation|                  
+    +---------------------------+                      +------------+-------------+                  
+                                                                    | Centroids & Radiometry         
+                                                                    v                                
+    +---------------------------+                      +------------+-------------+                  
+    |    Decoys & Clutter       |                      |    Candidate Tracker     |                  
+    |  3x Modulated Emitters    |                      |  Spatial Gating & Assoc  |                  
+    +---------------------------+                      +------------+-------------+                  
+                                                                    | Tracked Intensities            
+                                                                    v                                
+    +---------------------------+                      +------------+-------------+                  
+    |  Blink-Code Identification| <------------------- |   Matched-Filter Engine  |                  
+    |  8-bit periodic Barker ID |   Confirmed Beacon   |   Pearson Correlation    |                  
+    +-------------+-------------+                      +--------------------------+                  
+                  |                                                                                  
+                  v                                                                                  
+    +-------------+-------------+                      +--------------------------+                  
+    |  State Machine Controller |                      |     Kalman Filter        |                  
+    | SEARCH -> ACQUIRE -> TRACK| <==================> | 4-State Const-Velocity   |                  
+    |    LOST -> REACQUIRE      |                      | Continuous Line-of-Sight |                  
+    +-------------+-------------+                      +------------+-------------+                  
+                  |                                                 | State & Rate Estimates         
+                  | Setpoint & State                                v                                
+                  v                                    +------------+-------------+                  
+    +-------------+-------------+                      |    PID Rate Controller   |                  
+    |    Scan Generators        |                      |  Anti-Windup Integrator  |                  
+    |  Raster / Expanding Spiral|                      |  Velocity Feed-Forward   |                  
+    +---------------------------+                      +------------+-------------+                  
+                                                                    | Commanded Slew Rates           
+                                                                    v                                
+                                                       +------------+-------------+                  
+                                                       |     2-Axis Gimbal Rig    |                  
+                                                       | Pan: [-180, 180] (Wrap)  |                  
+                                                       | Tilt: [-60, +60] deg     |                  
+                                                       +--------------------------+                  
 ```
 
-The application will automatically open in your browser at `http://localhost:3000`.
+---
 
-## Project Structure
+## Key Features
+
+1. **Autonomous 5-State Machine**:
+   - `SEARCH`: Continuous raster sweep ($\pm 55^\circ$ elevation envelope, $360^\circ$ azimuth, $20\%$ row overlap).
+   - `ACQUIRE`: Multi-frame candidate confirmation with spatial gating ($35\text{ px}$).
+   - `TRACK`: Closed-loop Kalman filtering and feed-forward PID gimbal steering.
+   - `LOST`: Up to $12.0\text{ s}$ coastal propagation on orbital kinematics during Earth occlusions.
+   - `REACQUIRE`: Expanding Archimedean spiral search centered on predicted line-of-sight.
+
+2. **Optical Beacon & Decoy Rejection**:
+   - Sub-pixel Gaussian centroiding and chroma-difference background segmentation.
+   - Matched-filter Pearson correlation evaluating candidate pulse trains against an 8-bit periodic signature (`10110010`).
+   - Proven zero false locks against 3 competing optical decoys drifting at $0.2^\circ/\text{s}$.
+
+3. **Space Environmental Disturbances**:
+   - Beam wander modeled via 1st-order Gauss-Markov low-pass filtered wander.
+   - Log-normal irradiance scintillation fluctuations.
+   - Satellite bus reaction-wheel structural jitter ($10\text{ Hz}$).
+   - Zero-mean Gaussian read noise, hot pixel defects, and frame drop modeling.
+
+4. **Telemetry HUD & Real-Time Canvas Charts**:
+   - Live metrics: Observable time, pointing error (RMS/mean/max in px and mrad), tracking error, latency percentiles, and FPS.
+   - Strip-chart visualizers: Pointing error history, compute latency, and state timeline strip.
+
+5. **Headless Turbo Benchmark Suite**:
+   - Automated evaluation across 8 test scenarios (S0 through S7) across 3 reproducible PRNG seeds.
+   - Headless execution at $>300\text{ FPS}$ with time-budgeted animation frame slicing.
+   - Automatic export to CSV and JSON matching `docs/BENCHMARK_SCHEMA.md`.
+
+6. **100% Offline Standalone Desktop Application**:
+   - Packaged with Electron and `electron-builder` for Windows x64 (NSIS installer + portable executable).
+   - Zero external CDN requests, local Draco-free assets, Content Security Policy enforcement, and software OpenGL fallback (`SKYLOCK_SOFTWARE_GL=1`).
+
+---
+
+## Module Map
 
 ```
 sky-lock/
+├── electron/
+│   ├── main.cjs                # Electron main process (1600x900, IPC, GPU fallback)
+│   └── preload.cjs             # Context isolation bridge (window.skylock.saveFile)
 ├── public/
-│   └── assets/
-│       ├── earth.glb               # Earth 3D model
-│       ├── satellite.glb           # Satellite 1 3D model
-│       ├── satellite2.glb          # Satellite 2 3D model
-│       └── skybox.glb (not yet present - reserved for future phase)
+│   └── assets/                 # Embedded GLB models (earth.glb, satellite.glb, satellite2.glb)
 ├── src/
-│   ├── GLTFSpecGlossExtension.js   # KHR_materials_pbrSpecularGlossiness support
-│   ├── loadAssets.js               # GLB loading & normalization
-│   ├── main.js                     # Application entry & animation loop
-│   ├── orbit.js                    # Orbit calculations & visualization
-│   ├── sceneSetup.js               # Scene, camera, renderer, lighting
-│   └── ui.js                       # UI control panel, state management & preview
-├── index.html
-├── package.json
-└── vite.config.js
+│   ├── GLTFSpecGlossExtension.js # Specular-glossiness PBR shader extensions
+│   ├── loadAssets.js           # GLTF asset loading and geometric normalization
+│   ├── main.js                 # Primary simulation loop and state coordinator
+│   ├── orbit.js                # Keplerian dual-satellite orbit propagation
+│   ├── sceneSetup.js           # Three.js scene, lighting, stars, and orbit controls
+│   ├── ui.js                   # Simulation controls and satellite management UI
+│   └── tracking/
+│       ├── beacon.js           # Optical beacon emitter shader and point rendering
+│       ├── beaconId.js         # Matched-filter blink correlation and beacon confirmation
+│       ├── benchmark.js        # Turbo headless benchmark runner and determinism check
+│       ├── cameraPanel.js      # Picture-in-Picture feed canvas controller
+│       ├── candidateTracker.js # Multi-target spatial gating and intensity history buffers
+│       ├── capture.js          # Synchronous frame capture to PNG
+│       ├── charts.js           # High-performance 2D canvas telemetry charts
+│       ├── config.js           # Central constants, thresholds, and disturbance presets
+│       ├── controller.js       # PID rate controller with anti-windup and feed-forward
+│       ├── decoys.js           # Modulated decoy point sources and drift physics
+│       ├── detector.js         # Sub-pixel blob detector and albedo filtering
+│       ├── disturbancePanel.js # Sliders and disturbance preset UI controller
+│       ├── disturbances.js     # Space turbulence, jitter, noise, and drop injection
+│       ├── exporter.js         # Benchmark JSON/CSV formatter and file saving seam
+│       ├── geometry.js         # Kinematics, coordinate transforms, and spherical projections
+│       ├── hud.js              # Real-time telemetry HUD card grid
+│       ├── kalman.js           # Constant-velocity 4-state line-of-sight Kalman filter
+│       ├── linkLine.js         # Visual optical inter-satellite communication laser beam
+│       ├── metrics.js          # Mathematical telemetry metrics accumulator
+│       ├── overlay.js          # PiP crosshair, gating ring, and state badge HUD overlay
+│       ├── scanPatterns.js     # Continuous raster search and Archimedean spiral algorithms
+│       ├── scenarios.js        # Benchmark scenario definitions (S0 through S7)
+│       ├── stateMachine.js     # Acquisition & tracking finite state machine
+│       ├── trackingSystem.js   # Closed-loop tracking coordinator and pipeline orchestrator
+│       └── virtualCamera.js    # Offscreen WebGL gimbal camera rig and render target
+├── tests/                      # Comprehensive Vitest test suite (43 unit tests)
+├── docs/
+│   ├── BENCHMARK_SCHEMA.md     # CSV and JSON benchmark logging data specification
+│   ├── CLEAN_MACHINE_TEST.md   # Offline clean machine verification checklist
+│   ├── CONFIG.md               # Parameter table (name, meaning, unit, default, PS ref)
+│   └── METRICS.md              # Mathematical definitions of tracking metrics
+├── index.html                  # Responsive UI layout and HUD overlays
+├── package.json                # Project dependencies, build scripts, and electron config
+└── vite.config.js              # Vite bundler configuration (relative base './')
 ```
 
-## Configuration
+---
 
-All major parameters are exposed as constants at the top of each file for easy tweaking:
+## Getting Started
 
-### Model Scales (`src/loadAssets.js`)
-```javascript
-export const EARTH_RADIUS = 10;
-export const SATELLITE_SIZE = 2.0;
+### Prerequisites
+- Python 3.10+ 
+- pip (Python package manager)
+- (Optional) Node.js 18+ and npm 9+ for legacy web version
+
+### Installation
+
+Install SkyLock with GUI and development dependencies:
+
+```bash
+# Clone the repository
+git clone https://github.com/Abhiix0/sky-lock.git
+cd sky-lock
+
+# Install Python package with GUI support
+pip install -e ".[gui,dev]"
 ```
 
-### Orbit Parameters (`src/orbit.js`)
-```javascript
-// Automatic orbit parameters
-export const ORBIT_1_RADIUS      = 20;    // 2× Earth radius
-export const ORBIT_1_SPEED       = 0.3;   // radians per second
-export const ORBIT_1_INCLINATION = 25;    // degrees
-
-export const ORBIT_2_RADIUS      = 26;    // 2.6× Earth radius
-export const ORBIT_2_SPEED       = 0.2;   // radians per second
-export const ORBIT_2_INCLINATION = 65;    // degrees
-
-// Manual orbit constraints
-export const MAX_MANUAL_SATELLITES     = 2;
-export const MANUAL_ORBIT_ECCENTRICITY = 0.25;
-export const MIN_SATELLITE_DISTANCE    = EARTH_RADIUS * 1.15; // 11.5
-export const MAX_SATELLITE_DISTANCE    = 38.0;
+For legacy web/Electron version:
+```bash
+# Install Node.js dependencies
+npm install
 ```
 
-### Camera & Lighting (`src/sceneSetup.js`)
-```javascript
-export const CAMERA_FOV  = 60;
-export const CAMERA_NEAR = 0.1;
-export const CAMERA_FAR  = 10000;
-export const CAMERA_INITIAL_POSITION = { x: 32, y: 24, z: 38 };
+### Running the GUI
 
-export const SUN_INTENSITY    = 3.0;
-export const SUN_POSITION     = { x: 20, y: 10, z: 15 };
-export const AMBIENT_INTENSITY = 0.15;
+Launch the graphical user interface:
+
+```bash
+# Start GUI with default configuration
+skylock gui
+
+# Start GUI with specific configuration file
+skylock gui --config path/to/config.json
 ```
 
-## Asset Pipeline
+The GUI provides:
+- **Live tracking visualization** with camera view and telemetry
+- **Interactive controls** for all system parameters
+- **Real-time metrics** and performance monitoring
+- **Benchmark execution** with automated scenario testing
+- **Configuration management** (load/save JSON configs)
 
-The project includes automatic model normalization:
+See `docs/GUI.md` for complete GUI documentation.
 
-1. **Bounding box calculation** - Computes true model dimensions
-2. **Re-centering** - Centers model on its own origin
-3. **Normalization** - Scales to target size regardless of source scale
-4. **Triangle counting** - Logs complexity for optimization decisions
+### Running Benchmarks
 
-This ensures models from different creators work together seamlessly.
+Execute automated benchmark scenarios from the command line:
 
-## Controls
+```bash
+# Run specific scenario with seed
+skylock bench --scenario S01_line_clean --seed 42
 
-- **Left mouse drag** - Rotate camera around Earth
-- **Scroll wheel** - Zoom in/out
-- **Panning disabled** - Keeps Earth centered
+# Run multiple scenarios
+skylock bench --scenario S01_line_clean S02_circle_clean --seeds 1,2,3
 
-## Performance
+# Export results to JSON
+skylock bench --scenario S01_line_clean --seed 42 --export results.json
+```
 
-- Target: 60 FPS
-- Shadows enabled (can be disabled in `sceneSetup.js` if needed)
-- Single satellite model reused via cloning
-- Efficient orbit calculation using parametric motion
+See `docs/BENCHMARK.md` for benchmark documentation.
 
-## Future Phases
+### Running Automated Tests
+```bash
+# Run the complete Vitest unit test suite (11 test files, 43 tests)
+npm test
+```
 
-- [ ] Add skybox.glb for space background
-- [ ] Add star field
-- [ ] Additional satellites
-- [ ] Orbital decay simulation
-- [ ] Ground station markers
+### Code Style & Linting
+```bash
+# Verify ESLint rules (0 errors, 0 warnings)
+npm run lint
 
-## Technical Notes
+# Format codebase using Prettier
+npm run format
+```
 
-- Uses Three.js color space and tone mapping for proper glTF rendering
-- Orbit lines use low-poly line loops for minimal performance impact
-- Satellites oriented toward Earth for natural appearance
-- Models are never clipped into Earth (orbit radii > Earth radius)
+### Production Build
+```bash
+# Compile web bundle to dist/
+npm run build
+```
 
-## Browser Compatibility
+---
 
-Requires modern browser with WebGL 2.0 support:
-- Chrome 79+
-- Firefox 71+
-- Safari 14+
-- Edge 79+
+## Desktop Packaging (Electron)
+
+Sky Lock can be packaged as a standalone offline desktop application for Windows:
+
+```bash
+# Build Vite production bundle and package Windows installer + portable exe
+npm run dist
+```
+
+Executables will be generated in `release/`:
+- `release/Sky Lock Setup 1.0.0.exe` (NSIS Installer)
+- `release/Sky Lock 1.0.0.exe` (Portable Executable, ~111 MB)
+
+### Offline Execution & GPU Fallback
+If running on a system with outdated or incompatible GPU hardware acceleration drivers:
+```cmd
+set SKYLOCK_SOFTWARE_GL=1
+"Sky Lock 1.0.0.exe"
+```
+
+---
+
+## Keyboard Controls
+
+| Key | Action | Context |
+| :--- | :--- | :--- |
+| `?` or `Shift + /` | Toggle Keyboard Shortcuts Help Overlay | Global |
+| `Space` | Pause / Resume Simulation Clock | Global |
+| `1` / `2` / `4` | Set Simulation Speed (1x, 2x, 4x) | Global |
+| `O` | Toggle Orbit Path Lines | Simulation |
+| `L` | Toggle Optical Inter-Satellite Link | Simulation |
+| `G` | Toggle Gimbal Camera PiP Feed | Tracking |
+| `Arrow Keys` | Manual Gimbal Slew (Pan / Tilt) | Gimbal (Manual) |
+| `Shift + Arrows` | Fast Manual Slew | Gimbal (Manual) |
+| `C` | Center / Reset Bore-Sight (0°, 0°) | Gimbal |
+| `B` | Run One-Click Benchmark Suite (8 Scenarios × 3 Seeds) | Benchmark |
+| `P` | Capture High-Resolution Viewport PNG | Telemetry |
+| `D` | Start / Stop Choreographed Demo Mode | Demo Mode |
+| `Esc` | Close Modal Overlays | Global |
+
+---
+
+## License
+
+MIT License. Designed and developed for the Sky Lock Free-Space Optical Communications Hackathon.

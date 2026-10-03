@@ -1,0 +1,702 @@
+import * as THREE from 'three';
+import { setupScene } from './sceneSetup.js';
+import { loadAssets } from './loadAssets.js';
+import {
+  initializeOrbits,
+  setupOrbitLines,
+  createManualOrbit,
+  MAX_MANUAL_SATELLITES
+} from './orbit.js';
+import {
+  setupUI,
+  initSatellitePreview,
+  renderSatellitePreview,
+  renderSatelliteStatusList,
+  simulationSpeed,
+  isPaused,
+  orbitLinesVisible,
+  islLinkEnabled,
+  satelliteMode
+} from './ui.js';
+import {
+  update as updateLinkLine,
+  setLinkLineVisible
+} from './tracking/linkLine.js';
+import {
+  initCommsConsole,
+  update as updateCommsConsole,
+  setCommsConsoleVisible
+} from './tracking/commsConsole.js';
+import { createVirtualCamera } from './tracking/virtualCamera.js';
+import { createBeacon } from './tracking/beacon.js';
+import { createDecoys } from './tracking/decoys.js';
+import { createGimbal, runGimbalSelfTest } from './tracking/gimbal.js';
+import { createTrackingApi } from './tracking/api.js';
+import { createTrackingSystem } from './tracking/trackingSystem.js';
+import { runBenchmark, runDeterminismCheck } from './tracking/benchmark.js';
+import {
+  initCameraPanel,
+  updateCameraPanel,
+  hideCameraPanel,
+  setTrackingModeUI,
+  setObserverSelectorUI
+} from './tracking/cameraPanel.js';
+import { CAMERA_CONFIG, SAT_ORIENT_SMOOTH_TAU_SEC } from './tracking/config.js';
+import { getObserverId, getTargetId, setObserver } from './tracking/observerState.js';
+import { createSimClock } from './simClock.js';
+import { requestCapture, captureFrame } from './tracking/capture.js';
+
+// ============================================================
+// CONFIGURATION CONSTANTS
+// ============================================================
+
+/**
+ * Earth continuous rotation speed (radians/second at 1x simulation speed).
+ */
+export const EARTH_ROTATION_SPEED = 0.08;
+
+// Internal reusable math objects
+const _position = new THREE.Vector3();
+const _targetQuat = new THREE.Quaternion();
+
+// ============================================================
+// FPS COUNTER
+// ============================================================
+
+let frameCount = 0;
+let lastFpsUpdate = 0;
+const fpsUpdateInterval = 500; // ms
+
+function updateFpsCounter(currentTime) {
+  frameCount++;
+
+  if (currentTime - lastFpsUpdate >= fpsUpdateInterval) {
+    const fps = Math.round(frameCount / ((currentTime - lastFpsUpdate) / 1000));
+    window.__skyFps = fps;
+    document.getElementById('fps-counter').textContent = `FPS: ${fps}`;
+    frameCount = 0;
+    lastFpsUpdate = currentTime;
+  }
+}
+
+// ============================================================
+// MAIN APPLICATION
+// ============================================================
+
+async function main() {
+  // 1. Setup Three.js scene, camera, renderer, orbit controls
+  const { scene, camera, renderer, controls } = setupScene();
+
+  // 2. Load all GLB assets (Earth with Sketchfab textures + 2 satellites)
+  const { earth, satellite1, satellite2 } = await loadAssets(scene);
+
+  // Satellite collections
+  let autoSatellites = [];
+  const manualSatellites = [];
+
+  // Helper to attach satellite state directly to the 3D model hierarchy
+  function attachStateToHierarchy(model, state) {
+    model.userData.satelliteId = state.id;
+    Object.defineProperty(model.userData, 'satelliteState', {
+      value: state,
+      enumerable: false,
+      writable: true,
+      configurable: true
+    });
+
+    model.traverse((child) => {
+      child.userData.satelliteId = state.id;
+      Object.defineProperty(child.userData, 'satelliteState', {
+        value: state,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      });
+      if (child.isMesh) {
+        child.castShadow = false;
+      }
+    });
+  }
+
+  // Build automatic satellite instances
+  function buildAutomaticSatellites() {
+    // Clear any previous automatic satellites
+    autoSatellites.forEach((sat) => {
+      scene.remove(sat.model);
+      scene.remove(sat.orbitLine);
+      if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
+      if (sat.orbitLine.material) sat.orbitLine.material.dispose();
+    });
+
+    const lines = setupOrbitLines(scene);
+    const orbits = initializeOrbits();
+
+    const sat1Data = {
+      id: 'S-1',
+      model: satellite1,
+      orbit: orbits[0],
+      orbitLine: lines[0],
+      individualSpeed: 1.0,
+      paused: false,
+      isManual: false
+    };
+
+    const sat2Data = {
+      id: 'S-2',
+      model: satellite2,
+      orbit: orbits[1],
+      orbitLine: lines[1],
+      individualSpeed: 1.0,
+      paused: false,
+      isManual: false
+    };
+
+    // Apply stable initial positions and orientations immediately
+    [sat1Data, sat2Data].forEach((sat) => {
+      sat.orbit.getPosition(_position);
+      sat.model.position.copy(_position);
+      sat.orbit.getOrientation(_targetQuat);
+      sat.model.quaternion.copy(_targetQuat);
+      attachStateToHierarchy(sat.model, sat);
+      sat.model.visible = satelliteMode === 'AUTOMATIC';
+      sat.orbitLine.visible = satelliteMode === 'AUTOMATIC' && orbitLinesVisible;
+      scene.add(sat.model);
+    });
+
+    autoSatellites = [sat1Data, sat2Data];
+  }
+
+  buildAutomaticSatellites();
+
+  // Return currently active satellite list based on mode
+  function getActiveSatellites() {
+    return satelliteMode === 'AUTOMATIC' ? autoSatellites : manualSatellites;
+  }
+
+  // Refresh the UI Satellite Status cards
+  function refreshStatusList() {
+    renderSatelliteStatusList(getActiveSatellites(), {
+      onSatelliteSpeedChange: (sat, speed) => {
+        sat.individualSpeed = speed;
+        console.log(`${sat.id} individual speed set to ${speed}×`);
+      },
+      onSatelliteTogglePause: (sat, paused) => {
+        sat.paused = paused;
+        console.log(`${sat.id} ${paused ? 'PAUSED' : 'RESUMED'}`);
+        refreshStatusList();
+      },
+      onSatelliteRemove: (sat) => {
+        if (!sat.isManual) return;
+        console.log(`Removing ${sat.id}`);
+        scene.remove(sat.model);
+        scene.remove(sat.orbitLine);
+        if (sat.orbitLine.geometry) sat.orbitLine.geometry.dispose();
+        if (sat.orbitLine.material) sat.orbitLine.material.dispose();
+
+        sat.model.traverse((child) => {
+          if (child.isMesh) {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach((m) => m.dispose());
+              } else {
+                child.material.dispose();
+              }
+            }
+          }
+        });
+
+        const idx = manualSatellites.indexOf(sat);
+        if (idx !== -1) manualSatellites.splice(idx, 1);
+        refreshStatusList();
+      }
+    });
+  }
+
+  // Initialize 3D preview in the control panel
+  initSatellitePreview(satellite1);
+
+  // Handle manual drag-and-drop placement
+  function handleDropSatellite(dropPosition) {
+    if (manualSatellites.length >= MAX_MANUAL_SATELLITES) {
+      alert('Maximum 2 satellites allowed.');
+      return;
+    }
+
+    // Determine unique ID ('S-1' or 'S-2')
+    const usedIds = manualSatellites.map((s) => s.id);
+    const newId = !usedIds.includes('S-1') ? 'S-1' : 'S-2';
+    const satIndex = newId === 'S-1' ? 0 : 1;
+
+    // First manual satellite uses satellite1, second uses satellite2
+    const sourceModel = satIndex === 0 ? satellite1 : satellite2;
+    const newModel = sourceModel.clone(true);
+    newModel.traverse((child) => {
+      if (child.isMesh && child.material) {
+        if (Array.isArray(child.material)) {
+          child.material = child.material.map((m) => m.clone());
+        } else {
+          child.material = child.material.clone();
+        }
+      }
+    });
+
+    // Generate elliptical orbit passing through dropPosition
+    const { orbitState, orbitLine, initialPosition } = createManualOrbit(dropPosition, satIndex);
+
+    const satData = {
+      id: newId,
+      model: newModel,
+      orbit: orbitState,
+      orbitLine: orbitLine,
+      individualSpeed: 1.0,
+      paused: false,
+      isManual: true
+    };
+
+    // Set position and orientation immediately at drop location
+    newModel.position.copy(initialPosition);
+    orbitState.getOrientation(_targetQuat);
+    newModel.quaternion.copy(_targetQuat);
+
+    attachStateToHierarchy(newModel, satData);
+
+    newModel.visible = satelliteMode === 'MANUAL';
+    orbitLine.visible = satelliteMode === 'MANUAL' && orbitLinesVisible;
+
+    scene.add(newModel);
+    scene.add(orbitLine);
+
+    manualSatellites.push(satData);
+
+    console.log(`Placed ${newId} in orbit at:`, initialPosition);
+    refreshStatusList();
+  }
+
+  // Handle switching between AUTOMATIC and MANUAL mode
+  function handleModeChange(mode) {
+    if (mode === 'AUTOMATIC') {
+      // Re-create standard 2-satellite automatic configuration if needed
+      if (autoSatellites.length < 2) {
+        buildAutomaticSatellites();
+      }
+
+      autoSatellites.forEach((sat) => {
+        sat.model.visible = true;
+        sat.orbitLine.visible = orbitLinesVisible;
+      });
+
+      manualSatellites.forEach((sat) => {
+        sat.model.visible = false;
+        sat.orbitLine.visible = false;
+      });
+    } else {
+      // MANUAL MODE
+      autoSatellites.forEach((sat) => {
+        sat.model.visible = false;
+        sat.orbitLine.visible = false;
+      });
+
+      manualSatellites.forEach((sat) => {
+        sat.model.visible = true;
+        sat.orbitLine.visible = orbitLinesVisible;
+      });
+    }
+
+    refreshStatusList();
+  }
+
+  // 3. Setup UI Control Panel
+  setupUI({
+    onSpeedChange: (speed) => {
+      console.log(`Global simulation speed: ${speed}×`);
+    },
+    onToggleOrbitLines: (visible) => {
+      const activeList = getActiveSatellites();
+      activeList.forEach((sat) => {
+        sat.orbitLine.visible = visible;
+      });
+    },
+    onToggleISLLink: (enabled) => {
+      if (!enabled) {
+        setLinkLineVisible(false);
+        setCommsConsoleVisible(false);
+      } else {
+        setCommsConsoleVisible(true);
+      }
+    },
+    onTogglePause: (paused) => {
+      console.log(`Global simulation ${paused ? 'PAUSED' : 'RESUMED'}`);
+    },
+    onModeChange: handleModeChange,
+    onDropSatellite: handleDropSatellite,
+    getManualCount: () => manualSatellites.length,
+    getActiveSatellites,
+    camera,
+    scene,
+    controls,
+    ghostModelTemplate: satellite1
+  });
+
+  // Initial live status rendering
+  refreshStatusList();
+
+  // Initialize inter-satellite comms console
+  initCommsConsole();
+
+  // ---- Virtual gimbal camera (sub-phase 1A) ----
+  const virtualCamera = createVirtualCamera(scene, renderer);
+
+  // ---- Optical beacon on target satellite (sub-phase 1B) ----
+  const beacon = createBeacon(scene, renderer);
+
+  // ---- Optical decoys (sub-phase 3B) ----
+  const decoys = createDecoys(scene);
+
+  // ---- Simulation clock (sub-phase 1C-1) ----
+  const simClock = createSimClock({ stepHz: CAMERA_CONFIG.simStepHz || 120 });
+
+  // ---- Gimbal servo & Tracking API (sub-phase 1C-2) ----
+  const gimbal = createGimbal(virtualCamera, CAMERA_CONFIG);
+  const trackingApi = createTrackingApi({
+    virtualCamera,
+    gimbal,
+    simClock,
+    getTargetSat: () => getActiveSatellites().find((s) => s.id === getTargetId())
+  });
+
+  // ---- Autonomous tracking system (sub-phase 2D) ----
+  const trackingSystem = createTrackingSystem(trackingApi);
+
+  initCameraPanel({
+    onSetTrackingMode: (mode) => {
+      trackingSystem.setMode(mode);
+    },
+    onObserverChange: (newObserverId) => {
+      const allIds = getActiveSatellites().map((s) => s.id);
+      if (!allIds.includes(newObserverId)) return; // observer not currently active
+
+      const changed = setObserver(newObserverId, allIds);
+      if (!changed) return;
+
+      // Reset tracking so it searches from the new observer's vantage point
+      trackingSystem.stateMachine.reset(trackingApi.getSimTime());
+      trackingSystem.setMode('AUTO');
+      setTrackingModeUI('AUTO');
+
+      // Re-home gimbal
+      gimbal.setGimbalCommand(90, 0);
+
+      setObserverSelectorUI(newObserverId);
+    },
+    onAimEarth: () => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
+      gimbal.setGimbalCommand(90, 0);
+    },
+    onAimTarget: () => {
+      trackingSystem.setMode('MANUAL');
+      setTrackingModeUI('MANUAL');
+      const active = getActiveSatellites();
+      const targetSat = active.find((s) => s.id === getTargetId());
+      if (targetSat) {
+        const gt = virtualCamera.getGroundTruthDirection(targetSat);
+        gimbal.setGimbalCommand(gt.panDeg, gt.tiltDeg);
+      }
+    }
+  });
+
+  // Initialize observer selector UI to match default (S-1)
+  setObserverSelectorUI(getObserverId());
+
+  // ============================================================
+  // MANUAL CONTROLS (sub-phase 1C-2)
+  // Arrow keys command rates (+/- manualRateDegS), Shift doubles rate.
+  // Releasing smoothly decelerates at maxSlewAccel.
+  // ============================================================
+  const activeKeys = new Set();
+
+  function updateManualRates() {
+    let pRate = 0;
+    let tRate = 0;
+    const baseRate = CAMERA_CONFIG.manualRateDegS || 20;
+    const rate = activeKeys.has('Shift') ? baseRate * 2 : baseRate;
+
+    if (activeKeys.has('ArrowLeft')) pRate -= rate;
+    if (activeKeys.has('ArrowRight')) pRate += rate;
+    if (activeKeys.has('ArrowUp')) tRate += rate;
+    if (activeKeys.has('ArrowDown')) tRate -= rate;
+
+    const hasArrow = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].some((k) => activeKeys.has(k));
+    if (hasArrow) {
+      gimbal.setGimbalRateCommand(pRate, tRate);
+    } else if (gimbal.getGimbalState().mode === 'RATE') {
+      gimbal.setGimbalRateCommand(0, 0);
+    }
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (e.key === 'p' || e.key === 'P') {
+      requestCapture();
+    }
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'].includes(e.key)) {
+      e.preventDefault();
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        if (trackingSystem.getMode() === 'AUTO') {
+          trackingSystem.setMode('MANUAL');
+          setTrackingModeUI('MANUAL');
+        }
+      }
+      activeKeys.add(e.key);
+      updateManualRates();
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.target && ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Shift'].includes(e.key)) {
+      activeKeys.delete(e.key);
+      updateManualRates();
+    }
+  });
+
+  const simContext = {
+    simClock,
+    gimbal,
+    virtualCamera,
+    beacon,
+    decoys,
+    trackingSystem,
+    getActiveSatellites,
+    scene,
+    renderer,
+    controls
+  };
+
+  window.__sky = {
+    getSimTime: () => simClock.getSimTime(),
+    getSatellitePositions: () => {
+      const active = getActiveSatellites();
+      const s1 = active.find((s) => s.id === 'S-1');
+      const s2 = active.find((s) => s.id === 'S-2');
+      const pos1 = new THREE.Vector3();
+      const pos2 = new THREE.Vector3();
+      if (s1 && s1.model) s1.model.getWorldPosition(pos1);
+      if (s2 && s2.model) s2.model.getWorldPosition(pos2);
+      return {
+        s1: { x: pos1.x, y: pos1.y, z: pos1.z },
+        s2: { x: pos2.x, y: pos2.y, z: pos2.z }
+      };
+    },
+    selfTestGimbal: () => runGimbalSelfTest(gimbal),
+    api: trackingApi,
+    gimbal,
+    tracking: trackingSystem,
+    beacon,
+    decoys,
+    runBenchmark: (opts) => runBenchmark(simContext, opts),
+    runDeterminismCheck: () => runDeterminismCheck(simContext)
+  };
+
+  // Wire Benchmark button and Determinism check link in HUD panel
+  const benchmarkBtn = document.getElementById('btn-run-benchmark');
+  const determinismLink = document.getElementById('link-determinism-check');
+  const progressBox = document.getElementById('benchmark-progress-box');
+  const statusText = document.getElementById('benchmark-status-text');
+  const percentText = document.getElementById('benchmark-percent-text');
+  const progressBar = document.getElementById('benchmark-progress-bar');
+
+  if (benchmarkBtn) {
+    benchmarkBtn.addEventListener('click', async () => {
+      benchmarkBtn.disabled = true;
+      benchmarkBtn.textContent = 'RUNNING BENCHMARK...';
+      if (progressBox) progressBox.style.display = 'flex';
+
+      try {
+        const results = await runBenchmark(simContext, {
+          onProgress: ({ scenario, seed, runIndex, totalRuns, runProgress }) => {
+            const overall = ((runIndex - 1 + runProgress) / totalRuns) * 100;
+            if (statusText) {
+              statusText.textContent = `${scenario.id} (${scenario.name}) [Seed ${seed}] - Run ${runIndex}/${totalRuns}`;
+            }
+            if (percentText) {
+              percentText.textContent = `${Math.round(overall)}%`;
+            }
+            if (progressBar) {
+              progressBar.style.width = `${overall.toFixed(1)}%`;
+            }
+          }
+        });
+
+        if (statusText) statusText.textContent = 'Benchmark Complete! JSON & CSV exported.';
+        if (percentText) percentText.textContent = '100%';
+        if (progressBar) progressBar.style.width = '100%';
+        console.log('[Benchmark] Finished successfully. Aggregate summary:', results.aggregate);
+      } catch (err) {
+        console.error('[Benchmark] Error running benchmark:', err);
+        if (statusText) statusText.textContent = `Error: ${err.message}`;
+      } finally {
+        benchmarkBtn.disabled = false;
+        benchmarkBtn.textContent = 'RUN BENCHMARK (8 SCENARIOS × 3 SEEDS)';
+      }
+    });
+  }
+
+  if (determinismLink) {
+    determinismLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      determinismLink.textContent = 'Checking...';
+      try {
+        const res = await runDeterminismCheck(simContext);
+        if (res.passed) {
+          determinismLink.textContent = 'Determinism: PASS ✓';
+          determinismLink.style.color = '#22c55e';
+        } else {
+          determinismLink.textContent = 'Determinism: FAIL ✗';
+          determinismLink.style.color = '#ef4444';
+        }
+      } catch (err) {
+        console.error(err);
+        determinismLink.textContent = 'Check Error';
+      }
+    });
+  }
+
+  // 4. Animation loop
+  let lastTime = performance.now();
+
+  function animate() {
+    requestAnimationFrame(animate);
+
+    const currentTime = performance.now();
+    const deltaTime = (currentTime - lastTime) / 1000;
+    lastTime = currentTime;
+
+    // Simulation delta time multiplier: 0 when paused, otherwise simulationSpeed
+    const timeScale = isPaused ? 0 : simulationSpeed;
+
+    // Advance deterministic fixed-timestep simulation clock
+    simClock.advance(deltaTime, timeScale, (fixedDt, simTime) => {
+      const activeSats = getActiveSatellites();
+
+      // Orbits and satellites
+      activeSats.forEach((sat) => {
+        if (sat.paused) return; // Individual pause
+
+        const satDt = fixedDt * sat.individualSpeed;
+        if (satDt <= 0) return;
+
+        sat.orbit.update(satDt);
+        sat.orbit.getPosition(_position);
+        sat.model.position.copy(_position);
+
+        // Stable, flip-free orientation along direction of travel with time-based smoothing
+        sat.orbit.getOrientation(_targetQuat);
+        const alpha = 1 - Math.exp(-satDt / SAT_ORIENT_SMOOTH_TAU_SEC);
+        sat.model.quaternion.slerp(_targetQuat, alpha);
+      });
+
+      // Continuous slow Earth rotation
+      if (earth) {
+        earth.rotation.y += EARTH_ROTATION_SPEED * fixedDt;
+      }
+
+      // Observer and target satellites
+      const observerSat = activeSats.find((sat) => sat.id === getObserverId());
+      const targetSat = activeSats.find((sat) => sat.id === getTargetId());
+
+      // Update optical beacon with real simTime
+      if (targetSat && targetSat.model && targetSat.model.visible !== false) {
+        beacon.update(targetSat, simTime, observerSat);
+        decoys.update(simTime, targetSat.model.position);
+      } else {
+        beacon.setEnabled(false);
+        decoys.setEnabled(false);
+      }
+
+      // Update virtual camera rig pose and render feed at fixed cadence
+      if (observerSat && observerSat.model && observerSat.model.visible !== false) {
+        virtualCamera.syncRig(observerSat);
+        virtualCamera.renderFeed(observerSat, simTime, targetSat);
+
+        // Process frame through closed-loop tracking system (sub-phase 2D)
+        trackingSystem.onFrame(virtualCamera.getFrame());
+      }
+
+      // Step closed-loop tracking system controller (sub-phase 2D)
+      trackingSystem.step(fixedDt);
+
+      // Step physical gimbal servo dynamics (sub-phase 1C-2)
+      gimbal.step(fixedDt);
+    });
+
+    // Update OrbitControls (smooth damping)
+    controls.update();
+
+    const currentActive = getActiveSatellites();
+    const observerSat = currentActive.find((sat) => sat.id === getObserverId());
+
+    // Update inter-satellite link line and comms console telemetry (when enabled)
+    if (islLinkEnabled) {
+      const hasLOS = updateLinkLine(scene, currentActive, earth);
+      updateCommsConsole(currentActive, deltaTime, hasLOS);
+    }
+
+    // Update PiP panel only when observer is active (sub-phase 1C-2/2D: pass gimbal state + tracking status)
+    if (observerSat && observerSat.model && observerSat.model.visible !== false) {
+      updateCameraPanel(virtualCamera.getFrame(), gimbal.getGimbalState(), trackingSystem.getStatus());
+    } else {
+      // Selected observer has gone inactive — try to fall back to the other satellite
+      const allActive = currentActive.filter(
+        (s) => s.model && s.model.visible !== false && !s.paused
+      );
+      if (allActive.length > 0 && allActive[0].id !== getObserverId()) {
+        const fallbackId = allActive[0].id;
+        setObserver(fallbackId, allActive.map((s) => s.id));
+        setObserverSelectorUI(fallbackId);
+      } else if (allActive.length === 0) {
+        setObserverSelectorUI('S-1', true); // NO OBSERVER
+      }
+      hideCameraPanel();
+    }
+
+    // Render mini 3D preview in control panel (when in Manual mode)
+    renderSatellitePreview();
+
+    // Real-time FPS display
+    updateFpsCounter(currentTime);
+
+    // Render 3D scene
+    renderer.render(scene, camera);
+
+    // Frame capture on key P (Sub-phase 4C)
+    const pipEl = document.getElementById('gimbal-cam-canvas');
+    const trkStatus = trackingSystem ? trackingSystem.getStatus() : null;
+    captureFrame(
+      renderer.domElement,
+      pipEl,
+      trkStatus ? trkStatus.state : 'IDLE',
+      simClock.getSimTime()
+    );
+  }
+
+  animate();
+  console.log(
+    '🌍 Simulation running with stable orientation, individual controls, and live status.'
+  );
+}
+
+// ============================================================
+// BOOTSTRAP
+// ============================================================
+
+main().catch((error) => {
+  console.error('Failed to start application:', error);
+  document.body.innerHTML = `
+    <div style="color: #f00; padding: 20px; font-family: monospace;">
+      <h2>Error Loading Application</h2>
+      <pre>${error.message}</pre>
+    </div>
+  `;
+});
