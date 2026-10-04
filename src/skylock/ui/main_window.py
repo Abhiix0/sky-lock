@@ -45,6 +45,7 @@ from skylock.ui.panels.gimbal_control import GimbalControlPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
 from skylock.ui.settings import AppSettings
 from skylock.ui.web3d.view_3d import SpaceView3D
+from skylock.ui.panels.camera_feed_view import CameraFeedView
 from skylock.ui.widgets.camera_view import CameraView
 from skylock.ui.widgets.state_timeline import StateTimeline
 from skylock.ui.worker import SessionWorker
@@ -253,7 +254,7 @@ class MainWindow(QMainWindow):
         self.space_view_3d = SpaceView3D(self.view_tabs)
         self.toolbar_3d = self.space_view_3d.toolbar
         self.btn_pause_3d = self.space_view_3d.btn_pause
-        self.camera_view = CameraView(self.view_tabs)
+        self.camera_view = CameraFeedView(self.view_tabs)
         self.configuration_view = ConfigurationView(self.view_tabs)
         self.view_tabs.addTab(self.space_view_3d, "3D Space Simulation")
         self.view_tabs.addTab(self.camera_view, "Camera Sensor Feed")
@@ -534,6 +535,7 @@ class MainWindow(QMainWindow):
         self.controls_panel.mode_changed.connect(self._on_mode_changed)
 
         # Worker -> Views
+        self.camera_view.set_worker(self._worker, self._steering_filter)
         self._worker.frame_ready.connect(self.camera_view.update_frame)
         self._worker.frame_ready.connect(self.telemetry_panel.update_telemetry)
         self._worker.frame_ready.connect(self._on_frame_ready)
@@ -656,6 +658,7 @@ class MainWindow(QMainWindow):
         self._worker.set_control_mode(mode)
         self._steering_filter.set_manual_mode(mode == "MANUAL")
         self._is_auto_tracking = (mode == "AUTO")
+        self.camera_view.sync_mode_from_external(mode)
 
     def _on_toggle_gt(self, checked: bool) -> None:
         self.camera_view.show_ground_truth = checked
