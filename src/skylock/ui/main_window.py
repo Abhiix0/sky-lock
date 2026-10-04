@@ -255,6 +255,7 @@ class MainWindow(QMainWindow):
         self.toolbar_3d = self.space_view_3d.toolbar
         self.btn_pause_3d = self.space_view_3d.btn_pause
         self.camera_view = CameraFeedView(self.view_tabs)
+        self.camera_view.set_fov(self.editor.config.camera.fov_v_deg)
         self.configuration_view = ConfigurationView(self.view_tabs)
         self.view_tabs.addTab(self.space_view_3d, "3D Space Simulation")
         self.view_tabs.addTab(self.camera_view, "Camera Sensor Feed")
@@ -569,6 +570,10 @@ class MainWindow(QMainWindow):
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
         self.view_tabs.currentChanged.connect(lambda _: self._worker.ack_frame())
 
+        # Synchronized pause across both 3D views (Space Simulation tab & Gimbal Camera tab)
+        self.space_view_3d.pause_toggled.connect(self.camera_view.set_paused)
+        self.camera_view.pause_toggled.connect(self.space_view_3d.set_paused)
+
     def _on_frame_ready(self, fv: Any) -> None:  # noqa: ANN401
         """Update timeline, status bar, and 3D simulation with latest state."""
         if hasattr(fv, "state_history_tail"):
@@ -602,16 +607,19 @@ class MainWindow(QMainWindow):
     def _on_gimbal_manual_pan(self, pan: float) -> None:
         self._current_pan = float(pan)
         self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
+        self.camera_view.gimbal_cam.set_pose(self._current_pan, self._current_tilt)
         self.telemetry_panel.update_gimbal(self._current_pan, self._current_tilt)
 
     def _on_gimbal_manual_tilt(self, tilt: float) -> None:
         self._current_tilt = float(tilt)
         self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
+        self.camera_view.gimbal_cam.set_pose(self._current_pan, self._current_tilt)
         self.telemetry_panel.update_gimbal(self._current_pan, self._current_tilt)
 
     def _on_gimbal_manual_fov(self, fov: float) -> None:
         self._current_fov = float(fov)
         self.space_view_3d.set_camera_fov(self._current_fov)
+        self.camera_view.set_fov(self._current_fov)
 
     def _on_gimbal_reset(self) -> None:
         self._current_pan = 0.0
@@ -619,6 +627,7 @@ class MainWindow(QMainWindow):
         self._current_fov = 20.0
         self.gimbal_control_panel.set_values(0.0, 0.0, 20.0, emit_signals=False)
         self.space_view_3d.reset_camera()
+        self.camera_view.gimbal_cam.reset_pose()
         self.telemetry_panel.update_gimbal(0.0, 0.0)
 
     def _on_gimbal_track_target(self) -> None:
@@ -639,6 +648,7 @@ class MainWindow(QMainWindow):
                 phase_deg=ph,
             )
             self.space_view_3d.set_satellite_orbit("s1", r, inc, spd, ph)
+            self.camera_view.gimbal_cam.set_satellite_orbit("s1", r, inc, spd, ph)
         if "s2" in data:
             s2 = data["s2"]
             r = float(s2.get("radius", self._s2_orbit.radius))
@@ -652,6 +662,7 @@ class MainWindow(QMainWindow):
                 phase_deg=ph,
             )
             self.space_view_3d.set_satellite_orbit("s2", r, inc, spd, ph)
+            self.camera_view.gimbal_cam.set_satellite_orbit("s2", r, inc, spd, ph)
 
     def _on_mode_changed(self, mode: str) -> None:
         """Handle mode change: update worker and steering filter."""

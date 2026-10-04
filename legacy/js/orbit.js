@@ -93,7 +93,8 @@ export class OrbitState {
     this.radius = radius;
     this.speed = speed;
     this.inclination = THREE.MathUtils.degToRad(inclinationDeg);
-    this.angle = THREE.MathUtils.degToRad(initialAngleDeg);
+    this.initialAngle = THREE.MathUtils.degToRad(initialAngleDeg);
+    this.angle = this.initialAngle;
 
     // Constant orbital plane normal vector N = (0, -cos(inc), sin(inc))
     this.normal = new THREE.Vector3(
@@ -105,6 +106,10 @@ export class OrbitState {
 
   update(deltaTime) {
     this.angle += this.speed * deltaTime;
+  }
+
+  setTime(timeSec) {
+    this.angle = this.initialAngle + this.speed * timeSec;
   }
 
   getPosition(outVec) {

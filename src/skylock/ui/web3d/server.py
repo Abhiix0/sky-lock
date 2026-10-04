@@ -14,21 +14,21 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def get_static_assets_path() -> Path:
+def get_static_assets_path(bundle: str = "static") -> Path:
     """Resolve the directory containing static 3D WebGL assets."""
     if hasattr(sys, "_MEIPASS"):
         # PyInstaller bundled location
-        base = Path(sys._MEIPASS) / "skylock" / "ui" / "web3d" / "static"
+        base = Path(sys._MEIPASS) / "skylock" / "ui" / "web3d" / bundle
         if base.exists():
             return base
 
     # Development source location
-    dev_path = Path(__file__).parent / "static"
+    dev_path = Path(__file__).parent / bundle
     return dev_path.resolve()
 
 
 class _QuietHTTPHandler(http.server.SimpleHTTPRequestHandler):
-    """Quiet static file handler with correct MIME types for 3D assets."""
+    """Quiet static file handler with correct MIME types and multi-bundle routing."""
 
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
@@ -49,17 +49,43 @@ class _QuietHTTPHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         super().end_headers()
 
+    def translate_path(self, path: str) -> str:
+        """Route /gimbal/... to static_gimbal directory."""
+        clean_path = path.split("?", 1)[0].split("#", 1)[0]
+        if clean_path.startswith("/gimbal/"):
+            rel_path = clean_path[len("/gimbal/"):]
+            return str((get_static_assets_path("static_gimbal") / rel_path).resolve())
+        if clean_path == "/gimbal":
+            return str((get_static_assets_path("static_gimbal") / "index.html").resolve())
+        return super().translate_path(path)
+
 
 class Embedded3DServer:
     """Lightweight local HTTP server for serving Three.js WebGL assets."""
 
-    def __init__(self, host: str = "127.0.0.1", port: int = 0) -> None:
+    _shared_instance: Embedded3DServer | None = None
+
+    @classmethod
+    def get_shared_server(cls) -> Embedded3DServer:
+        """Return or start the shared Embedded3DServer instance serving both 3D bundles."""
+        if cls._shared_instance is None or not cls._shared_instance.is_alive():
+            cls._shared_instance = Embedded3DServer()
+            cls._shared_instance.start()
+        return cls._shared_instance
+
+    def __init__(
+        self,
+        host: str = "127.0.0.1",
+        port: int = 0,
+        bundle: str = "static",
+        assets_dir: Path | None = None,
+    ) -> None:
         self.host = host
         self.requested_port = port
         self.port = 0
         self._server: http.server.ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
-        self._assets_dir = get_static_assets_path()
+        self._assets_dir = assets_dir or get_static_assets_path(bundle)
 
     @property
     def assets_dir(self) -> Path:

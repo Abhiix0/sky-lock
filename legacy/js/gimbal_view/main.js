@@ -1,8 +1,7 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { GLTFSpecGlossExtension } from '../GLTFSpecGlossExtension.js';
-import { OrbitState, setupOrbitLines, createOrbitLine } from '../orbit.js';
+import { OrbitState } from '../orbit.js';
 
 // ============================================================
 // CONSTANTS & CONFIGURATION
@@ -23,14 +22,17 @@ let isPaused = false;
 let simulationSpeed = 1.0;
 let isReady = false;
 let hasLineOfSight = false;
-let focusTarget = null; // null for Earth, or satellite Object3D
+let mountSatId = 's1'; // 's1' or 's2'
 
-// Visualization toggles
-let showOrbitLines = true;
-let showTrackingBeam = true;
+// Gimbal & FOV state
+let currentPanDeg = 0.0;
+let currentTiltDeg = 0.0;
+let currentFovDeg = 20.0;
+let hasCustomPose = false;
+let currentTime = 0.0;
 
 // Three.js Core Objects
-let scene, mainCamera, renderer, controls;
+let scene, camera, renderer;
 let earthMesh = null;
 let sat1Obj = null;
 let sat2Obj = null;
@@ -38,7 +40,6 @@ let beacon1Mesh = null;
 let beacon2Mesh = null;
 let orbit1 = null;
 let orbit2 = null;
-let orbitLines = [];
 
 // Optical Tracking Beam Line
 let trackingBeam = null;
@@ -60,9 +61,10 @@ function initScene() {
   // Background stars / particle field
   createStarfield();
 
-  // Main Camera
-  mainCamera = new THREE.PerspectiveCamera(55, width / height, 0.1, 10000);
-  mainCamera.position.set(34, 22, 40);
+  // First-Person Perspective Gimbal Camera
+  camera = new THREE.PerspectiveCamera(currentFovDeg, width / height, 0.1, 10000);
+  camera.rotation.order = 'YXZ';
+  scene.add(camera);
 
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
@@ -74,15 +76,7 @@ function initScene() {
   renderer.shadowMap.enabled = false;
   container.appendChild(renderer.domElement);
 
-  // OrbitControls
-  controls = new OrbitControls(mainCamera, renderer.domElement);
-  controls.enableDamping = true;
-  controls.dampingFactor = 0.05;
-  controls.minDistance = 12;
-  controls.maxDistance = 250;
-  controls.target.set(0, 0, 0);
-
-  // Lighting
+  // Lighting (Identical to 3D Space Simulation tab)
   const sunLight = new THREE.DirectionalLight(0xffffff, 3.2);
   sunLight.position.set(30, 15, 20);
   scene.add(sunLight);
@@ -97,7 +91,6 @@ function initScene() {
   // Initial Orbits: S-1 (radius 20, inc 25°, phase 0°), S-2 (radius 26, inc 65°, phase 45°)
   orbit1 = new OrbitState(20, 0.3, 25, 0);
   orbit2 = new OrbitState(26, 0.2, 65, 45);
-  orbitLines = setupOrbitLines(scene);
 
   // Optical Tracking Beam Line
   setupTrackingBeam();
@@ -144,8 +137,8 @@ function createStarfield() {
 function onWindowResize() {
   const width = window.innerWidth;
   const height = window.innerHeight;
-  mainCamera.aspect = width / height;
-  mainCamera.updateProjectionMatrix();
+  camera.aspect = width / height;
+  camera.updateProjectionMatrix();
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(width, height);
 }
@@ -193,14 +186,13 @@ async function loadGlbAssets() {
     });
   };
 
-  // Fix 1: Load 'satellite.glb' for both S-1 and S-2 (symmetric models)
   const [earthGltf, sat1Gltf, sat2Gltf] = await Promise.all([
     loadOne(`${cleanBase}assets/earth.glb`, 'Earth'),
     loadOne(`${cleanBase}assets/satellite.glb`, 'S-1'),
     loadOne(`${cleanBase}assets/satellite.glb`, 'S-2')
   ]);
 
-  // 1. Earth (ensure maximum sharpness and anisotropic texture filtering)
+  // 1. Earth
   if (earthGltf && earthGltf.scene) {
     const maxAnisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 1;
     earthGltf.scene.traverse((child) => {
@@ -245,11 +237,11 @@ async function loadGlbAssets() {
   }
   scene.add(sat2Obj);
 
-  // Fix 2: Attach identical optical beacons to both S-1 and S-2
+  // Attach optical beacons
   beacon1Mesh = attachBeacon(sat1Obj, 'S-1 Beacon');
   beacon2Mesh = attachBeacon(sat2Obj, 'S-2 Beacon');
 
-  // Immediately initialize satellites at their orbital coordinates
+  // Immediately initialize satellites at orbital coordinates
   if (orbit1 && sat1Obj) {
     orbit1.getPosition(_position);
     sat1Obj.position.copy(_position);
@@ -265,8 +257,8 @@ async function loadGlbAssets() {
     sat2Obj.updateMatrixWorld(true);
   }
 
-  // Update tracking state and beam immediately upon load
-  updateTrackingState();
+  // Update visibility according to initial mount
+  updateMountVisibility();
 
   // Hide loading overlay
   const overlay = document.getElementById('loading-overlay');
@@ -276,20 +268,18 @@ async function loadGlbAssets() {
   }
 
   isReady = true;
-  console.log('✅ SkyLock 3D Space Scene initialized successfully');
+  console.log('✅ SkyLock Gimbal POV View initialized successfully');
 }
 
 function createFallbackSatellite(colorHex, name) {
   const group = new THREE.Group();
   group.name = name;
 
-  // Main bus
   const busGeo = new THREE.BoxGeometry(1.2, 0.8, 0.8);
   const busMat = new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.8, roughness: 0.3 });
   const busMesh = new THREE.Mesh(busGeo, busMat);
   group.add(busMesh);
 
-  // Solar panels
   const panelGeo = new THREE.BoxGeometry(2.4, 0.04, 0.7);
   const panelMat = new THREE.MeshStandardMaterial({ color: colorHex, metalness: 0.9, roughness: 0.2 });
   const panelL = new THREE.Mesh(panelGeo, panelMat);
@@ -307,7 +297,7 @@ function attachBeacon(satObj, name) {
   const beaconGroup = new THREE.Group();
   beaconGroup.name = name || 'OpticalBeacon';
 
-  const beaconLight = new THREE.PointLight(0x38bdf8, 1.2, 25, 2);
+  const beaconLight = new THREE.PointLight(0x38bdf8, 1.4, 30, 2);
   beaconLight.position.set(0, 0.5, 0);
   beaconGroup.add(beaconLight);
 
@@ -321,15 +311,11 @@ function attachBeacon(satObj, name) {
   return beaconMesh;
 }
 
-// ============================================================
-// OPTICAL TRACKING BEAM
-// ============================================================
-
 function setupTrackingBeam() {
   const beamMat = new THREE.LineBasicMaterial({
     color: 0x00ffff,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.9,
     linewidth: 2.0
   });
   const positions = new Float32Array(6);
@@ -342,10 +328,6 @@ function setupTrackingBeam() {
   scene.add(trackingBeam);
 }
 
-// ============================================================
-// GEOMETRIC OCCLUSION & TRACKING LOGIC
-// ============================================================
-
 function checkLineOfSight(p1, p2, radius = EARTH_RADIUS) {
   const dx = p2.x - p1.x;
   const dy = p2.y - p1.y;
@@ -353,7 +335,6 @@ function checkLineOfSight(p1, p2, radius = EARTH_RADIUS) {
   const segLenSq = dx * dx + dy * dy + dz * dz;
   if (segLenSq < 1e-10) return p1.length() >= radius;
 
-  // Closest point on segment to origin (0, 0, 0)
   const t = -(p1.x * dx + p1.y * dy + p1.z * dz) / segLenSq;
   const tClamped = Math.max(0, Math.min(1, t));
 
@@ -364,35 +345,10 @@ function checkLineOfSight(p1, p2, radius = EARTH_RADIUS) {
   return (cx * cx + cy * cy + cz * cz) >= (radius * radius);
 }
 
-function updateTrackingState() {
-  if (!beacon1Mesh || !beacon2Mesh) return;
-
-  beacon1Mesh.getWorldPosition(_s1BeaconPos);
-  beacon2Mesh.getWorldPosition(_s2BeaconPos);
-
-  // Geometric line-of-sight test directly between S-1 and S-2 beacons
-  hasLineOfSight = checkLineOfSight(_s1BeaconPos, _s2BeaconPos, EARTH_RADIUS);
-
-  // Tracking beam is ON only when:
-  // 1. Direct line-of-sight between beacons is NOT blocked by Earth
-  // 2. User has enabled tracking beam
-  if (trackingBeam && trackingBeamGeo) {
-    if (hasLineOfSight && showTrackingBeam) {
-      const posAttr = trackingBeamGeo.attributes.position;
-      const arr = posAttr.array;
-      arr[0] = _s1BeaconPos.x;
-      arr[1] = _s1BeaconPos.y;
-      arr[2] = _s1BeaconPos.z;
-      arr[3] = _s2BeaconPos.x;
-      arr[4] = _s2BeaconPos.y;
-      arr[5] = _s2BeaconPos.z;
-      posAttr.needsUpdate = true;
-      trackingBeamGeo.computeBoundingSphere();
-      trackingBeam.visible = true;
-    } else {
-      trackingBeam.visible = false;
-    }
-  }
+function updateMountVisibility() {
+  const isS1Mount = mountSatId === 's1';
+  if (sat1Obj) sat1Obj.visible = !isS1Mount;
+  if (sat2Obj) sat2Obj.visible = isS1Mount;
 }
 
 // ============================================================
@@ -400,9 +356,6 @@ function updateTrackingState() {
 // ============================================================
 
 let lastTime = performance.now();
-let frameCount = 0;
-let lastFpsTime = performance.now();
-let currentFps = 60;
 
 function animate(now) {
   requestAnimationFrame(animate);
@@ -410,15 +363,10 @@ function animate(now) {
   const dt = Math.min((now - lastTime) / 1000, 0.1);
   lastTime = now;
 
-  // FPS calculation
-  frameCount++;
-  if (now - lastFpsTime >= 500) {
-    currentFps = Math.round((frameCount * 1000) / (now - lastFpsTime));
-    frameCount = 0;
-    lastFpsTime = now;
-  }
-
   const effectiveDt = isPaused ? 0 : dt * simulationSpeed;
+  if (effectiveDt > 0) {
+    currentTime += effectiveDt;
+  }
 
   // 1. Earth rotation
   if (earthMesh && effectiveDt > 0) {
@@ -445,40 +393,92 @@ function animate(now) {
   if (sat1Obj) sat1Obj.updateMatrixWorld(true);
   if (sat2Obj) sat2Obj.updateMatrixWorld(true);
 
-  // 3. Continuous per-frame LOS check & laser beam update
-  updateTrackingState();
+  // 3. Update Camera Position & Orientation (First-Person Mounted Gimbal)
+  const mountObj = (mountSatId === 's1') ? sat1Obj : sat2Obj;
+  const targetObj = (mountSatId === 's1') ? sat2Obj : sat1Obj;
 
-  // 4. Update OrbitControls & Focus
-  if (focusTarget) {
-    controls.target.lerp(focusTarget.position, 0.08);
+  if (mountObj) {
+    camera.position.copy(mountObj.position);
   }
-  controls.update();
 
-  // 5. Render Main 3D View
-  renderer.render(scene, mainCamera);
+  if (hasCustomPose) {
+    // Standard SkyLock gimbal convention:
+    // pan rotates azimuth around Y axis (-deg rotates right in Three.js)
+    // tilt rotates elevation above horizontal (+deg raises up)
+    const panRad = THREE.MathUtils.degToRad(currentPanDeg);
+    const tiltRad = THREE.MathUtils.degToRad(currentTiltDeg);
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = -panRad;
+    camera.rotation.x = tiltRad;
+    camera.rotation.z = 0;
+  } else if (targetObj) {
+    camera.lookAt(targetObj.position);
+  }
+
+  // 4. Update Optical Tracking Beam
+  if (beacon1Mesh && beacon2Mesh) {
+    beacon1Mesh.getWorldPosition(_s1BeaconPos);
+    beacon2Mesh.getWorldPosition(_s2BeaconPos);
+    hasLineOfSight = checkLineOfSight(_s1BeaconPos, _s2BeaconPos, EARTH_RADIUS);
+
+    if (trackingBeam && trackingBeamGeo) {
+      if (hasLineOfSight) {
+        const arr = trackingBeamGeo.attributes.position.array;
+        arr[0] = _s1BeaconPos.x;
+        arr[1] = _s1BeaconPos.y;
+        arr[2] = _s1BeaconPos.z;
+        arr[3] = _s2BeaconPos.x;
+        arr[4] = _s2BeaconPos.y;
+        arr[5] = _s2BeaconPos.z;
+        trackingBeamGeo.attributes.position.needsUpdate = true;
+        trackingBeamGeo.computeBoundingSphere();
+        trackingBeam.visible = true;
+      } else {
+        trackingBeam.visible = false;
+      }
+    }
+  }
+
+  // 5. Render Gimbal View
+  renderer.render(scene, camera);
 }
 
 // ============================================================
-// PYTHON ↔ 3D JAVASCRIPT BRIDGE
+// PYTHON ↔ GIMBAL CAM JAVASCRIPT BRIDGE
 // ============================================================
 
-window.skylock3d = {
+window.gimbalcam = {
   isReady: () => isReady,
 
-  setGimbalPose: () => {},
-  setCameraFov: () => {},
-  resetCamera: () => {},
-  setShowCameraFov: () => {},
-  setShowOpticalAxis: () => {},
-
-  setShowOrbitLines: (show) => {
-    showOrbitLines = Boolean(show);
-    orbitLines.forEach((l) => { if (l) l.visible = showOrbitLines; });
+  setPose: (panDeg, tiltDeg) => {
+    currentPanDeg = Number(panDeg);
+    currentTiltDeg = Number(tiltDeg);
+    hasCustomPose = true;
   },
 
-  setShowTrackingBeam: (show) => {
-    showTrackingBeam = Boolean(show);
-    updateTrackingState();
+  setFov: (fovDeg) => {
+    const fov = Number(fovDeg);
+    if (fov > 0 && fov < 180) {
+      currentFovDeg = fov;
+      if (camera) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
+    }
+  },
+
+  setMount: (satId) => {
+    const id = String(satId).toLowerCase().replace('-', '');
+    mountSatId = (id === 's2' || id === 'sat2' || id === '2') ? 's2' : 's1';
+    updateMountVisibility();
+  },
+
+  setPaused: (paused) => {
+    isPaused = Boolean(paused);
+  },
+
+  setSimulationSpeed: (speed) => {
+    simulationSpeed = Number(speed);
   },
 
   setSatelliteOrbit: (satId, radius, incDeg, speed, phaseDeg) => {
@@ -489,70 +489,14 @@ window.skylock3d = {
 
     if (satId === 's1' || satId === 1) {
       orbit1 = new OrbitState(r, spd, inc, phase);
-      if (orbitLines[0]) {
-        scene.remove(orbitLines[0]);
-        orbitLines[0].geometry.dispose();
-        orbitLines[0].material.dispose();
-      }
-      orbitLines[0] = createOrbitLine(r, inc, 0x6699cc);
-      orbitLines[0].visible = showOrbitLines;
-      scene.add(orbitLines[0]);
     } else if (satId === 's2' || satId === 2) {
       orbit2 = new OrbitState(r, spd, inc, phase);
-      if (orbitLines[1]) {
-        scene.remove(orbitLines[1]);
-        orbitLines[1].geometry.dispose();
-        orbitLines[1].material.dispose();
-      }
-      orbitLines[1] = createOrbitLine(r, inc, 0xcc7766);
-      orbitLines[1].visible = showOrbitLines;
-      scene.add(orbitLines[1]);
     }
-  },
-
-  resetView: () => {
-    focusTarget = null;
-    if (controls) controls.target.set(0, 0, 0);
-    if (mainCamera) mainCamera.position.set(34, 22, 40);
-  },
-
-  focusSatellite: (satId) => {
-    if (satId === 's1' || satId === 1) {
-      if (sat1Obj) focusTarget = sat1Obj;
-    } else if (satId === 's2' || satId === 2) {
-      if (sat2Obj) focusTarget = sat2Obj;
-    } else {
-      focusTarget = null;
-      if (controls) controls.target.set(0, 0, 0);
-    }
-  },
-
-  updateState: (state) => {
-    if (!state) return;
-    if (state.showOrbitLines !== undefined) {
-      showOrbitLines = Boolean(state.showOrbitLines);
-      orbitLines.forEach((l) => { if (l) l.visible = showOrbitLines; });
-    }
-    if (state.showTrackingBeam !== undefined) {
-      showTrackingBeam = Boolean(state.showTrackingBeam);
-      updateTrackingState();
-    }
-    if (state.paused !== undefined) {
-      isPaused = Boolean(state.paused);
-    }
-    if (state.speed !== undefined) {
-      simulationSpeed = Number(state.speed);
-    }
-  },
-
-  getFps: () => currentFps,
-
-  setPaused: (paused) => {
-    isPaused = Boolean(paused);
   },
 
   setTime: (timeSec) => {
     const t = Number(timeSec);
+    currentTime = t;
     if (orbit1 && sat1Obj) {
       orbit1.setTime(t);
       orbit1.getPosition(_position);
@@ -569,11 +513,6 @@ window.skylock3d = {
     }
     if (sat1Obj) sat1Obj.updateMatrixWorld(true);
     if (sat2Obj) sat2Obj.updateMatrixWorld(true);
-    updateTrackingState();
-  },
-
-  setSimulationSpeed: (speed) => {
-    simulationSpeed = Number(speed);
   },
 
   getState: () => {
@@ -581,11 +520,13 @@ window.skylock3d = {
     const s2Pos = sat2Obj ? { x: sat2Obj.position.x, y: sat2Obj.position.y, z: sat2Obj.position.z } : null;
     return {
       ready: isReady,
-      lineOfSight: hasLineOfSight,
-      beamActive: hasLineOfSight && showTrackingBeam,
-      fps: currentFps,
+      mount: mountSatId,
       paused: isPaused,
-      speed: simulationSpeed,
+      pan: currentPanDeg,
+      tilt: currentTiltDeg,
+      fov: currentFovDeg,
+      lineOfSight: hasLineOfSight,
+      currentTime: currentTime,
       satellite1: s1Pos,
       satellite2: s2Pos
     };

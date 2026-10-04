@@ -12,6 +12,7 @@ from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
+from skylock.ui import theme
 from skylock.ui.web3d.server import Embedded3DServer
 
 logger = logging.getLogger(__name__)
@@ -22,12 +23,13 @@ class SpaceView3D(QWidget):
 
     scene_ready = Signal()
     state_updated = Signal(dict)
+    pause_toggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setMinimumSize(320, 240)
 
-        self._server = Embedded3DServer()
+        self._server = Embedded3DServer.get_shared_server()
         self._server.start()
 
         self._is_ready = False
@@ -50,37 +52,35 @@ class SpaceView3D(QWidget):
         self.btn_pause.setCheckable(True)
         self.btn_pause.setToolTip("Pause or resume 3D orbital motion")
         self.btn_pause.setStyleSheet(
-            "QPushButton { font-weight: bold; padding: 4px 14px; background: #1e293b; color: #f1f5f9; border: 1px solid #38bdf8; border-radius: 4px; }"
-            "QPushButton:checked { background: #b91c1c; border-color: #ef4444; }"
-            "QPushButton:hover { background: #334155; }"
+            f"QPushButton {{ font-weight: bold; padding: 4px 14px; background: {theme.SLATE_BG.name()}; "
+            f"color: {theme.TEXT_PRIMARY.name()}; border: 1px solid {theme.SKY_ACCENT.name()}; border-radius: 4px; }}"
+            f"QPushButton:checked {{ background: {theme.RED_ACTIVE.name()}; border-color: {theme.STATUS_ERROR.name()}; }}"
+            f"QPushButton:hover {{ background: {theme.SLATE_HOVER.name()}; }}"
         )
         self.btn_pause.toggled.connect(self._on_pause_toggled)
         tb_layout.addWidget(self.btn_pause)
 
+        btn_action_style = (
+            f"QPushButton {{ padding: 4px 10px; background: {theme.SLATE_BG.name()}; color: {theme.SLATE_TEXT.name()}; "
+            f"border: 1px solid {theme.SLATE_BORDER.name()}; border-radius: 4px; }}"
+            f"QPushButton:hover {{ background: {theme.SLATE_HOVER.name()}; border-color: {theme.SKY_ACCENT.name()}; }}"
+        )
+
         self.btn_reset_cam = QPushButton("⟲ Reset Camera")
         self.btn_reset_cam.setToolTip("Reset camera to Earth overview")
-        self.btn_reset_cam.setStyleSheet(
-            "QPushButton { padding: 4px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; }"
-            "QPushButton:hover { background: #334155; border-color: #38bdf8; }"
-        )
+        self.btn_reset_cam.setStyleSheet(btn_action_style)
         self.btn_reset_cam.clicked.connect(self.reset_view)
         tb_layout.addWidget(self.btn_reset_cam)
 
         self.btn_focus_s1 = QPushButton("Focus S-1")
         self.btn_focus_s1.setToolTip("Focus camera on Satellite 1")
-        self.btn_focus_s1.setStyleSheet(
-            "QPushButton { padding: 4px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; }"
-            "QPushButton:hover { background: #334155; border-color: #38bdf8; }"
-        )
+        self.btn_focus_s1.setStyleSheet(btn_action_style)
         self.btn_focus_s1.clicked.connect(self.focus_s1)
         tb_layout.addWidget(self.btn_focus_s1)
 
         self.btn_focus_s2 = QPushButton("Focus S-2")
         self.btn_focus_s2.setToolTip("Focus camera on Satellite 2")
-        self.btn_focus_s2.setStyleSheet(
-            "QPushButton { padding: 4px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; }"
-            "QPushButton:hover { background: #334155; border-color: #38bdf8; }"
-        )
+        self.btn_focus_s2.setStyleSheet(btn_action_style)
         self.btn_focus_s2.clicked.connect(self.focus_s2)
         tb_layout.addWidget(self.btn_focus_s2)
 
@@ -91,9 +91,9 @@ class SpaceView3D(QWidget):
         self.lbl_fps.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_fps.setToolTip("3D Space Simulation Rendering FPS (Target: 60)")
         self.lbl_fps.setStyleSheet(
-            "QLabel { color: #22c55e; font-weight: bold; font-family: 'Consolas', 'Courier New', monospace; "
-            "font-size: 13px; padding: 2px 8px; background: #0f172a; border: 1px solid #22c55e55; "
-            "border-radius: 4px; min-width: 24px; }"
+            f"QLabel {{ color: {theme.FPS_GREEN.name()}; font-weight: bold; font-family: 'Consolas', 'Courier New', monospace; "
+            f"font-size: 13px; padding: 2px 8px; background: {theme.DARK_BG.name()}; border: 1px solid {theme.BORDER_NORMAL.name()}; "
+            f"border-radius: 4px; min-width: 24px; }}"
         )
         tb_layout.addWidget(self.lbl_fps)
 
@@ -181,7 +181,10 @@ class SpaceView3D(QWidget):
 
     def set_paused(self, paused: bool) -> None:
         """Pause or resume the 3D orbit simulation."""
-        self._is_paused = bool(paused)
+        new_val = bool(paused)
+        if self._is_paused == new_val:
+            return
+        self._is_paused = new_val
         if hasattr(self, "btn_pause"):
             self.btn_pause.blockSignals(True)
             self.btn_pause.setChecked(self._is_paused)
@@ -190,6 +193,7 @@ class SpaceView3D(QWidget):
         js_val = "true" if self._is_paused else "false"
         js = f"window.skylock3d?.setPaused({js_val});"
         self._web_view.page().runJavaScript(js)
+        self.pause_toggled.emit(self._is_paused)
 
     def _on_pause_toggled(self, checked: bool) -> None:
         """Handle toolbar pause button toggle."""
@@ -284,17 +288,17 @@ class SpaceView3D(QWidget):
 
         self.lbl_fps.setText(str(fps))
         if fps >= 55:
-            color = "#22c55e"  # bright green
+            color = theme.FPS_GREEN.name()
         elif fps >= 40:
-            color = "#84cc16"  # lime green
+            color = theme.FPS_LIME.name()
         elif fps >= 25:
-            color = "#eab308"  # amber / yellow
+            color = theme.FPS_AMBER.name()
         else:
-            color = "#ef4444"  # bright red
+            color = theme.FPS_RED.name()
 
         self.lbl_fps.setStyleSheet(
             f"QLabel {{ color: {color}; font-weight: bold; font-family: 'Consolas', 'Courier New', monospace; "
-            f"font-size: 13px; padding: 2px 8px; background: #0f172a; border: 1px solid {color}55; "
+            f"font-size: 13px; padding: 2px 8px; background: {theme.DARK_BG.name()}; border: 1px solid {theme.BORDER_NORMAL.name()}; "
             f"border-radius: 4px; min-width: 24px; }}"
         )
 

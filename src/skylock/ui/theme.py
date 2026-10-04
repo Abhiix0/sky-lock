@@ -98,6 +98,29 @@ OVERLAY_HUD_TEXT = TEXT_PRIMARY
 OVERLAY_COORD_TEXT = QColor("#93C5FD")  # Light blue
 OVERLAY_LEGEND_TEXT = TEXT_SECONDARY
 
+# Extended UI & Status Palette
+BTN_HOVER_BG = QColor("#2D3748")
+BTN_BORDER_ACTIVE = QColor("#3B82F6")
+COLOR_WHITE = QColor("#FFFFFF")
+SLATE_BG = QColor("#1E293B")
+SLATE_HOVER = QColor("#334155")
+SLATE_BORDER = QColor("#475569")
+SLATE_TEXT = QColor("#CBD5E1")
+SKY_ACCENT = QColor("#38BDF8")
+RED_ACTIVE = QColor("#B91C1C")
+FPS_GREEN = QColor("#22C55E")
+FPS_LIME = QColor("#84CC16")
+FPS_AMBER = QColor("#EAB308")
+FPS_RED = QColor("#EF4444")
+COLOR_EMERALD = QColor("#34D399")
+COLOR_LIGHT_EMERALD = QColor("#6EE7B7")
+COLOR_ROSE = QColor("#F87171")
+COLOR_AMBER = QColor("#FBBF24")
+COLOR_BLUE = QColor("#60A5FA")
+COLOR_GREY = QColor("#9CA3AF")
+COLOR_TIME_MUTED = QColor("#6B7280")
+COLOR_DOT_MUTED = QColor("#4B5563")
+
 
 # ============================================================================
 # Global Stylesheet

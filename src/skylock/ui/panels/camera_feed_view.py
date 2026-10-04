@@ -28,6 +28,7 @@ from skylock.core.enums import ControlMode, TrackState
 from skylock.core.los import check_line_of_sight, get_satellite_position
 from skylock.ui import theme
 from skylock.ui.widgets.camera_view import CameraView
+from skylock.ui.web3d.gimbal_cam_view import GimbalCamView
 from skylock.ui.worker import FrameView, SessionWorker
 
 
@@ -35,12 +36,14 @@ class CameraFeedView(QWidget):
     """Integrated Camera Sensor Feed tab containing sensor view and live status log."""
 
     frame_painted = Signal()  # Forwarded from inner CameraView for back-pressure
+    pause_toggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._worker: SessionWorker | None = None
         self._steering_filter: Any = None
         self._selected_sat: str = "s1"  # "s1" or "s2"
+        self._is_paused: bool = False
 
         # State tracking for events
         self._s1_locked = False
@@ -120,9 +123,9 @@ class CameraFeedView(QWidget):
             f"QPushButton {{ background-color: {theme.ALT_BASE_BG.name()}; color: {theme.TEXT_SECONDARY.name()}; "
             f"border: 1px solid {theme.BORDER_NORMAL.name()}; border-radius: 4px; padding: 4px 10px; "
             f"font-weight: 600; font-size: 11px; }}"
-            f"QPushButton:hover {{ background-color: #2D3748; color: {theme.TEXT_PRIMARY.name()}; }}"
-            f"QPushButton:checked {{ background-color: {theme.HIGHLIGHT_BG.name()}; color: #FFFFFF; "
-            f"border-color: #3B82F6; }}"
+            f"QPushButton:hover {{ background-color: {theme.BTN_HOVER_BG.name()}; color: {theme.TEXT_PRIMARY.name()}; }}"
+            f"QPushButton:checked {{ background-color: {theme.HIGHLIGHT_BG.name()}; color: {theme.COLOR_WHITE.name()}; "
+            f"border-color: {theme.BTN_BORDER_ACTIVE.name()}; }}"
         )
 
         self.btn_focus_earth = QPushButton("Focus Earth", control_bar)
@@ -164,10 +167,14 @@ class CameraFeedView(QWidget):
 
         sec1_layout.addWidget(control_bar)
 
-        # Core CameraView widget
+        # Core CameraView widget (keeps running headless/unattached-to-the-UI for metrics, benchmarks, and backpressure)
         self._camera_view = CameraView(section1_widget)
+        self._camera_view.hide()
         self._camera_view.frame_painted.connect(self.frame_painted.emit)
-        sec1_layout.addWidget(self._camera_view, stretch=1)
+
+        # Primary visual: First-person 3D Gimbal POV Camera View
+        self.gimbal_3d_view = GimbalCamView(section1_widget)
+        sec1_layout.addWidget(self.gimbal_3d_view, stretch=1)
 
         # --------------------------------------------------------------------
         # SECTION 2: Live Communications & Status Text Feed
@@ -197,7 +204,8 @@ class CameraFeedView(QWidget):
         # Link indicator
         self.lbl_link_indicator = QLabel("LINK CLEAR", header_bar)
         self.lbl_link_indicator.setStyleSheet(
-            f"background-color: #064E3B; color: #6EE7B7; border: 1px solid #10B981; "
+            f"background-color: {theme.STATE_TRACK_BG.name()}; color: {theme.STATE_TRACK_TEXT.name()}; "
+            f"border: 1px solid {theme.STATE_TRACK_PRIMARY.name()}; "
             f"border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
         )
         hdr_layout.addWidget(self.lbl_link_indicator)
@@ -246,6 +254,24 @@ class CameraFeedView(QWidget):
         return self._camera_view
 
     @property
+    def gimbal_cam(self) -> GimbalCamView:
+        """Gimbal 3D POV camera view widget."""
+        return self.gimbal_3d_view
+
+    def set_paused(self, paused: bool) -> None:
+        """Pause or resume the 3D gimbal camera POV."""
+        new_val = bool(paused)
+        if self._is_paused == new_val:
+            return
+        self._is_paused = new_val
+        self.gimbal_3d_view.set_paused(self._is_paused)
+        self.pause_toggled.emit(self._is_paused)
+
+    def set_fov(self, fov_deg: float) -> None:
+        """Set vertical FOV for the 3D gimbal camera POV."""
+        self.gimbal_3d_view.set_fov(fov_deg)
+
+    @property
     def selected_satellite(self) -> str:
         """Currently selected observer satellite ('s1' or 's2')."""
         return self._selected_sat
@@ -291,6 +317,7 @@ class CameraFeedView(QWidget):
     def clear(self) -> None:
         """Clear canvas and reset state tracking."""
         self._camera_view.clear()
+        self.gimbal_3d_view.reset_pose()
         self._s1_locked = False
         self._s2_locked = False
         self._handshake_active = False
@@ -321,6 +348,7 @@ class CameraFeedView(QWidget):
         # Update dynamic label for target focus button
         target_sat = "S-2" if sat_id == "s1" else "S-1"
         self.btn_focus_target.setText(f"Focus {target_sat}")
+        self.gimbal_3d_view.set_mount(sat_id)
 
         # Update worker active satellite
         if self._worker is not None:
@@ -353,6 +381,10 @@ class CameraFeedView(QWidget):
             latest_fv = self._worker.get_latest_frame_view(sat_id)
             if latest_fv is not None:
                 self._camera_view.update_frame(latest_fv)
+                self.gimbal_3d_view.set_pose(
+                    latest_fv.pointing_pan_deg, latest_fv.pointing_tilt_deg
+                )
+                self.gimbal_3d_view.set_time(latest_fv.timestamp_s)
 
     def _set_pointing_mode(self, mode: str) -> None:
         """Set pointing mode for the currently selected session."""
@@ -394,6 +426,9 @@ class CameraFeedView(QWidget):
         if sat_id == self._selected_sat:
             self._camera_view.update_frame(fv)
             self._update_selected_badge(fv.track_state)
+            self.gimbal_3d_view.set_pose(fv.pointing_pan_deg, fv.pointing_tilt_deg)
+            self.gimbal_3d_view.set_time(t_s)
+            self.frame_painted.emit()
 
         # 2. Lock state transitions
         if sat_id == "s1":
@@ -461,22 +496,22 @@ class CameraFeedView(QWidget):
 
         # Color mapping based on theme
         if tag == "lock":
-            color = "#34D399"  # Emerald
+            color = theme.COLOR_EMERALD.name()
             prefix = "✔ "
         elif tag == "lost":
-            color = "#F87171"  # Rose
+            color = theme.COLOR_ROSE.name()
             prefix = "✖ "
         elif tag == "handshake":
-            color = "#6EE7B7"  # Light emerald
+            color = theme.COLOR_LIGHT_EMERALD.name()
             prefix = "★ "
         elif tag == "occluded":
-            color = "#FBBF24"  # Amber
+            color = theme.COLOR_AMBER.name()
             prefix = "▲ "
         elif tag == "clear":
-            color = "#60A5FA"  # Blue
+            color = theme.COLOR_BLUE.name()
             prefix = "● "
         else:
-            color = "#9CA3AF"  # Grey
+            color = theme.COLOR_GREY.name()
             prefix = "▪ "
 
         # Format with timestamp muted
@@ -485,8 +520,8 @@ class CameraFeedView(QWidget):
             time_part, msg_part = parts
             html = (
                 f'<div style="margin: 2px 0;">'
-                f'<span style="color: #6B7280; font-weight: 600;">{time_part}</span>'
-                f'<span style="color: #4B5563;"> — </span>'
+                f'<span style="color: {theme.COLOR_TIME_MUTED.name()}; font-weight: 600;">{time_part}</span>'
+                f'<span style="color: {theme.COLOR_DOT_MUTED.name()};"> — </span>'
                 f'<span style="color: {color}; font-weight: 600;">{prefix}{msg_part}</span>'
                 f'</div>'
             )
@@ -499,21 +534,21 @@ class CameraFeedView(QWidget):
     def _update_selected_badge(self, state: TrackState) -> None:
         """Update the tracking state pill next to focus buttons."""
         name = state.name if hasattr(state, "name") else str(state)
-        bg = "#1E3A8A"
-        fg = "#93C5FD"
-        border = "#3B82F6"
+        bg = theme.STATE_SEARCH_BG.name()
+        fg = theme.STATE_SEARCH_TEXT.name()
+        border = theme.STATE_SEARCH_PRIMARY.name()
         if state == TrackState.TRACK:
-            bg = "#064E3B"
-            fg = "#6EE7B7"
-            border = "#10B981"
+            bg = theme.STATE_TRACK_BG.name()
+            fg = theme.STATE_TRACK_TEXT.name()
+            border = theme.STATE_TRACK_PRIMARY.name()
         elif state in (TrackState.LOST, TrackState.REACQUIRE):
-            bg = "#881337"
-            fg = "#FECDD3"
-            border = "#F43F5E"
+            bg = theme.STATE_LOST_BG.name()
+            fg = theme.STATE_LOST_TEXT.name()
+            border = theme.STATE_LOST_PRIMARY.name()
         elif state == TrackState.ACQUIRE:
-            bg = "#78350F"
-            fg = "#FDE68A"
-            border = "#F59E0B"
+            bg = theme.STATE_ACQUIRE_BG.name()
+            fg = theme.STATE_ACQUIRE_TEXT.name()
+            border = theme.STATE_ACQUIRE_PRIMARY.name()
 
         self.lbl_selected_status.setText(name)
         self.lbl_selected_status.setStyleSheet(
@@ -526,14 +561,16 @@ class CameraFeedView(QWidget):
         if is_clear:
             self.lbl_link_indicator.setText("LINK CLEAR")
             self.lbl_link_indicator.setStyleSheet(
-                "background-color: #064E3B; color: #6EE7B7; border: 1px solid #10B981; "
-                "border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
+                f"background-color: {theme.STATE_TRACK_BG.name()}; color: {theme.STATE_TRACK_TEXT.name()}; "
+                f"border: 1px solid {theme.STATE_TRACK_PRIMARY.name()}; "
+                f"border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
             )
         else:
             self.lbl_link_indicator.setText("LINK BLOCKED")
             self.lbl_link_indicator.setStyleSheet(
-                "background-color: #881337; color: #FECDD3; border: 1px solid #F43F5E; "
-                "border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
+                f"background-color: {theme.STATE_LOST_BG.name()}; color: {theme.STATE_LOST_TEXT.name()}; "
+                f"border: 1px solid {theme.STATE_LOST_PRIMARY.name()}; "
+                f"border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
             )
 
     def _update_handshake_badge(self, is_handshake: bool) -> None:
@@ -541,8 +578,9 @@ class CameraFeedView(QWidget):
         if is_handshake:
             self.lbl_handshake_indicator.setText("HANDSHAKE: ACTIVE")
             self.lbl_handshake_indicator.setStyleSheet(
-                "background-color: #064E3B; color: #6EE7B7; border: 1px solid #10B981; "
-                "border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
+                f"background-color: {theme.STATE_TRACK_BG.name()}; color: {theme.STATE_TRACK_TEXT.name()}; "
+                f"border: 1px solid {theme.STATE_TRACK_PRIMARY.name()}; "
+                f"border-radius: 3px; padding: 2px 6px; font-weight: 700; font-size: 10px;"
             )
         else:
             self.lbl_handshake_indicator.setText("HANDSHAKE: OFF")
