@@ -67,7 +67,7 @@ function initScene() {
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setSize(width, height);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(1);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
@@ -299,8 +299,9 @@ function setupTrackingBeam() {
     opacity: 0.9,
     linewidth: 2.0
   });
-  const pts = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)];
-  trackingBeamGeo = new THREE.BufferGeometry().setFromPoints(pts);
+  const positions = new Float32Array(6);
+  trackingBeamGeo = new THREE.BufferGeometry();
+  trackingBeamGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   trackingBeam = new THREE.Line(trackingBeamGeo, beamMat);
   trackingBeam.name = 'OpticalTrackingBeam';
   trackingBeam.visible = false;
@@ -341,11 +342,17 @@ function updateTrackingState() {
   // Tracking beam is ON only when:
   // 1. Direct line-of-sight between beacons is NOT blocked by Earth
   // 2. User has enabled tracking beam
-  if (trackingBeam) {
+  if (trackingBeam && trackingBeamGeo) {
     if (hasLineOfSight && showTrackingBeam) {
-      const pts = [_s1BeaconPos.clone(), _s2BeaconPos.clone()];
-      trackingBeam.geometry.dispose();
-      trackingBeam.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+      const posAttr = trackingBeamGeo.attributes.position;
+      const arr = posAttr.array;
+      arr[0] = _s1BeaconPos.x;
+      arr[1] = _s1BeaconPos.y;
+      arr[2] = _s1BeaconPos.z;
+      arr[3] = _s2BeaconPos.x;
+      arr[4] = _s2BeaconPos.y;
+      arr[5] = _s2BeaconPos.z;
+      posAttr.needsUpdate = true;
       trackingBeam.visible = true;
     } else {
       trackingBeam.visible = false;
@@ -374,8 +381,6 @@ function animate(now) {
     currentFps = Math.round((frameCount * 1000) / (now - lastFpsTime));
     frameCount = 0;
     lastFpsTime = now;
-    const hudFps = document.getElementById('hud-fps');
-    if (hudFps) hudFps.textContent = `${currentFps} FPS`;
   }
 
   const effectiveDt = isPaused ? 0 : dt * simulationSpeed;
@@ -413,35 +418,6 @@ function animate(now) {
 
   // 5. Render Main 3D View
   renderer.render(scene, mainCamera);
-}
-
-// ============================================================
-// UI CONTROLS & EVENT WIREUP
-// ============================================================
-
-function setupUIHandlers() {
-  const btnReset = document.getElementById('btn-reset-cam');
-  if (btnReset) {
-    btnReset.addEventListener('click', () => {
-      focusTarget = null;
-      if (controls) controls.target.set(0, 0, 0);
-      if (mainCamera) mainCamera.position.set(34, 22, 40);
-    });
-  }
-
-  const btnFocusS1 = document.getElementById('btn-focus-s1');
-  if (btnFocusS1) {
-    btnFocusS1.addEventListener('click', () => {
-      if (sat1Obj) focusTarget = sat1Obj;
-    });
-  }
-
-  const btnFocusS2 = document.getElementById('btn-focus-s2');
-  if (btnFocusS2) {
-    btnFocusS2.addEventListener('click', () => {
-      if (sat2Obj) focusTarget = sat2Obj;
-    });
-  }
 }
 
 // ============================================================
@@ -531,6 +507,8 @@ window.skylock3d = {
     }
   },
 
+  getFps: () => currentFps,
+
   setPaused: (paused) => {
     isPaused = Boolean(paused);
   },
@@ -560,6 +538,5 @@ window.skylock3d = {
 // ============================================================
 
 initScene();
-setupUIHandlers();
 loadGlbAssets().catch((err) => console.error('Asset load error:', err));
 requestAnimationFrame(animate);

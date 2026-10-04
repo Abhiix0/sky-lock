@@ -7,10 +7,10 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QUrl, Signal
+from PySide6.QtCore import QTimer, QUrl, Qt, Signal
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from skylock.ui.web3d.server import Embedded3DServer
 
@@ -85,7 +85,25 @@ class SpaceView3D(QWidget):
         tb_layout.addWidget(self.btn_focus_s2)
 
         tb_layout.addStretch(1)
+
+        # FPS readout (numeric count only, green at high fps, turning red at low fps)
+        self.lbl_fps = QLabel("60")
+        self.lbl_fps.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_fps.setToolTip("3D Space Simulation Rendering FPS (Target: 60)")
+        self.lbl_fps.setStyleSheet(
+            "QLabel { color: #22c55e; font-weight: bold; font-family: 'Consolas', 'Courier New', monospace; "
+            "font-size: 13px; padding: 2px 8px; background: #0f172a; border: 1px solid #22c55e55; "
+            "border-radius: 4px; min-width: 24px; }"
+        )
+        tb_layout.addWidget(self.lbl_fps)
+
         layout.addWidget(self.toolbar)
+
+        # FPS update timer (queries WebGL 3D simulation engine)
+        self._fps_timer = QTimer(self)
+        self._fps_timer.setInterval(400)
+        self._fps_timer.timeout.connect(self._query_fps)
+        self._fps_timer.start()
 
         self._web_view = QWebEngineView(self)
         layout.addWidget(self._web_view, stretch=1)
@@ -247,6 +265,39 @@ class SpaceView3D(QWidget):
 
         self._web_view.page().runJavaScript("window.skylock3d?.getState();", _handle_result)
 
+    def _query_fps(self) -> None:
+        """Poll current rendering FPS from WebGL simulation."""
+        if self._is_ready:
+            self._web_view.page().runJavaScript(
+                "window.skylock3d?.getFps ? window.skylock3d.getFps() : 60;",
+                self._update_fps_display,
+            )
+
+    def _update_fps_display(self, fps_val: Any) -> None:
+        """Update FPS numeric badge and color dynamically."""
+        if fps_val is None:
+            return
+        try:
+            fps = int(round(float(fps_val)))
+        except (ValueError, TypeError):
+            return
+
+        self.lbl_fps.setText(str(fps))
+        if fps >= 55:
+            color = "#22c55e"  # bright green
+        elif fps >= 40:
+            color = "#84cc16"  # lime green
+        elif fps >= 25:
+            color = "#eab308"  # amber / yellow
+        else:
+            color = "#ef4444"  # bright red
+
+        self.lbl_fps.setStyleSheet(
+            f"QLabel {{ color: {color}; font-weight: bold; font-family: 'Consolas', 'Courier New', monospace; "
+            f"font-size: 13px; padding: 2px 8px; background: #0f172a; border: 1px solid {color}55; "
+            f"border-radius: 4px; min-width: 24px; }}"
+        )
+
     def closeEvent(self, event: Any) -> None:
         """Clean up embedded HTTP server when widget is closed."""
         self.cleanup()
@@ -254,5 +305,12 @@ class SpaceView3D(QWidget):
 
     def cleanup(self) -> None:
         """Stop server and release resources."""
+        if hasattr(self, "_fps_timer") and self._fps_timer is not None:
+            self._fps_timer.stop()
+        if hasattr(self, "_web_view") and self._web_view is not None:
+            try:
+                self._web_view.stop()
+            except Exception:
+                pass
         if self._server is not None:
             self._server.stop()
