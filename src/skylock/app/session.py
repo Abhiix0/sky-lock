@@ -29,6 +29,7 @@ class Session:
         pipeline: TrackingPipeline | None = None,
         controller: PointingController | None = None,
         collector: Any | None = None,
+        sat_id: str = "s1",
     ) -> None:
         """Initialize Session.
 
@@ -38,13 +39,15 @@ class Session:
             pipeline: Vision and tracking pipeline. If None, built via factory.
             controller: Gimbal pointing controller. If None, built via factory.
             collector: Optional metrics collector receiving step results.
+            sat_id: Identifier of the satellite ('s1' or 's2').
         """
         self.config = config
+        self.sat_id = sat_id.lower().replace("-", "")
 
         if source is None or pipeline is None or controller is None:
             from skylock.app.factory import create_session_components
 
-            src, pip, ctrl = create_session_components(config)
+            src, pip, ctrl = create_session_components(config, sat_id=self.sat_id)
             source = source if source is not None else src
             pipeline = pipeline if pipeline is not None else pip
             controller = controller if controller is not None else ctrl
@@ -52,12 +55,29 @@ class Session:
         self.source = source
         self.pipeline = pipeline
         self.controller = controller
+        if hasattr(self.controller, "sat_id"):
+            self.controller.sat_id = self.sat_id
         self.collector: Any | None = collector
 
         self._latency_frames: int = config.control.latency_frames
         self._cmd_queue: collections.deque[ControlCommand] = collections.deque(
             [ControlCommand(0.0, 0.0) for _ in range(self._latency_frames)]
         )
+
+    @property
+    def mode(self) -> Any:
+        """Current operating mode of the session's controller."""
+        return getattr(self.controller, "mode", None)
+
+    def set_mode(self, mode: Any) -> None:
+        """Set controller operating mode (AUTO, MANUAL, or EARTH)."""
+        if hasattr(self.controller, "set_mode"):
+            self.controller.set_mode(mode)
+
+    def set_manual_rates(self, pan_rate: float, tilt_rate: float) -> None:
+        """Set manual slew rates on the session controller."""
+        if hasattr(self.controller, "set_manual_rate"):
+            self.controller.set_manual_rate(pan_rate, tilt_rate)
 
     @property
     def latency_frames(self) -> int:

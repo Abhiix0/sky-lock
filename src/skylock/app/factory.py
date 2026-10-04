@@ -30,24 +30,38 @@ def build_pipeline(config: SkyLockConfig) -> TrackingPipeline:
 
 def create_session_components(
     config: SkyLockConfig,
+    sat_id: str = "s1",
 ) -> tuple[FrameSource, TrackingPipeline, PointingController]:
     """Create concrete instances of source, pipeline, and controller for a Session.
 
     Args:
         config: Root SkyLock configuration.
+        sat_id: Satellite identifier ('s1' or 's2').
 
     Returns:
         Tuple of (source, pipeline, controller).
     """
+    sat_key = sat_id.lower().replace("-", "")
+
     if config.input.kind in (InputKind.SIMULATION, "simulation"):
-        pipeline = build_pipeline(config)
-        controller = PointingController(
-            config.control,
-            config.camera,
-            max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
+        from dataclasses import replace
+
+        # If s2, use distinct seed so disturbances and target instances don't collide
+        eff_config = (
+            replace(config, seed=config.seed + 100)
+            if (sat_key == "s2" and config.seed is not None)
+            else config
         )
-        gimbal = VirtualGimbal(config.gimbal)
-        source: FrameSource = SimulationSource(config, gimbal=gimbal)
+
+        pipeline = build_pipeline(eff_config)
+        controller = PointingController(
+            eff_config.control,
+            eff_config.camera,
+            max_slew_rate_deg_s=eff_config.gimbal.slew_rate_deg_s,
+            sat_id=sat_key,
+        )
+        gimbal = VirtualGimbal(eff_config.gimbal)
+        source: FrameSource = SimulationSource(eff_config, gimbal=gimbal)
     elif config.input.kind in (InputKind.MP4, "mp4"):
         from dataclasses import replace
 
@@ -76,6 +90,7 @@ def create_session_components(
             config.control,
             effective_camera,
             max_slew_rate_deg_s=config.gimbal.slew_rate_deg_s,
+            sat_id=sat_key,
         )
         source = mp4_source
     else:
@@ -84,23 +99,25 @@ def create_session_components(
     return source, pipeline, controller
 
 
-def build_session(config: SkyLockConfig) -> Session:
+def build_session(config: SkyLockConfig, sat_id: str = "s1") -> Session:
     """Build a complete tracking and control Session from configuration.
 
     Args:
         config: Root SkyLock configuration.
+        sat_id: Satellite identifier ('s1' or 's2').
 
     Returns:
         Fully initialized Session instance.
     """
     from skylock.app.session import Session
 
-    source, pipeline, controller = create_session_components(config)
+    source, pipeline, controller = create_session_components(config, sat_id=sat_id)
     return Session(
         config=config,
         source=source,
         pipeline=pipeline,
         controller=controller,
+        sat_id=sat_id,
     )
 
 

@@ -42,6 +42,8 @@ class ControlMode(StrEnum):
 
     AUTO = "AUTO"
     MANUAL = "MANUAL"
+    EARTH = "EARTH"
+    EARTH_BORESIGHT = "EARTH_BORESIGHT"
 
 
 class ControlIntentMode(StrEnum):

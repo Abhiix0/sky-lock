@@ -6,6 +6,7 @@ import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from typing import Any
 
 import numpy as np
 from PySide6.QtCore import QObject, Qt, QTimer, Signal, Slot
@@ -51,13 +52,16 @@ class FrameView:
     state_history_tail: tuple[tuple[float, str], ...] = ()
     live: dict = field(default_factory=dict)
     total_frames: int | None = None
-
+    sat_id: str = "s1"
 
 
 class SessionWorker(QObject):
-    """QObject executing the tracking Session loop inside a QThread."""
+    """QObject executing dual tracking Sessions loop inside a QThread."""
 
-    frame_ready = Signal(object)  # Emits FrameView
+    frame_ready = Signal(object)  # Emits FrameView for active satellite
+    frame_ready_s1 = Signal(object)  # Emits FrameView for S-1
+    frame_ready_s2 = Signal(object)  # Emits FrameView for S-2
+    dual_frame_ready = Signal(str, object)  # Emits (sat_id, FrameView)
     session_error = Signal(str)
     running_changed = Signal(bool)
     session_rebuilt = Signal(str)  # Emitted after successful config rebuild
@@ -71,7 +75,10 @@ class SessionWorker(QObject):
     ) -> None:
         super().__init__(parent)
         self._config = config
-        self._session: Session | None = None
+        self._session_s1: Session | None = None
+        self._session_s2: Session | None = None
+        self._session: Session | None = None  # Kept for direct access / backwards compatibility
+        self._active_sat: str = "s1"
         self._timer: QTimer | None = None
         self._is_running = False
         self._shutdown_requested = False
@@ -81,23 +88,122 @@ class SessionWorker(QObject):
         self._next_deadline: float = 0.0
         self._period_s: float = 1.0 / 30.0  # Will be set from config
 
-        # Live metric accumulators
-        self._live_metrics = LiveMetrics()
-        self._state_history: deque[tuple[float, str]] = deque(maxlen=120)
+        # S-1 Live metric accumulators
+        self._live_metrics_s1 = LiveMetrics()
+        self._state_history_s1: deque[tuple[float, str]] = deque(maxlen=120)
+        self._first_track_time_s1: float | None = None
+        self._first_obs_time_s1: float | None = None
+
+        # S-2 Live metric accumulators
+        self._live_metrics_s2 = LiveMetrics()
+        self._state_history_s2: deque[tuple[float, str]] = deque(maxlen=120)
+        self._first_track_time_s2: float | None = None
+        self._first_obs_time_s2: float | None = None
+
+        # Shared / legacy aliases
+        self._live_metrics = self._live_metrics_s1
+        self._state_history = self._state_history_s1
         self._first_track_time_s: float | None = None
         self._first_obs_time_s: float | None = None
+
         self._frame_counter = 0
         self._wall_frame_times: deque[float] = deque(maxlen=60)  # 2s window at 30fps
         self._latency_samples: deque[float] = deque(maxlen=30)
 
-        # Manual control state (survives rebuilds)
+        # Control state per session
+        self._manual_pan_rate_s1 = 0.0
+        self._manual_tilt_rate_s1 = 0.0
+        self._mode_str_s1 = "AUTO"
+
+        self._manual_pan_rate_s2 = 0.0
+        self._manual_tilt_rate_s2 = 0.0
+        self._mode_str_s2 = "AUTO"
+
+        # Legacy aliases
         self._manual_pan_rate = 0.0
         self._manual_tilt_rate = 0.0
-        self._mode_str = "AUTO"  # Current mode
+        self._mode_str = "AUTO"
+
+        # Latest views & results
+        self._latest_frame_view_s1: FrameView | None = None
+        self._latest_frame_view_s2: FrameView | None = None
+        self._latest_step_result_s1: StepResult | None = None
+        self._latest_step_result_s2: StepResult | None = None
 
         # Back-pressure
         self._pending_frames = 0
         self._dropped_ui_frames = 0
+
+    @property
+    def session(self) -> Session | None:
+        """Alias for S-1 session (backward compatibility)."""
+        return self._session_s1
+
+    @property
+    def session_s1(self) -> Session | None:
+        """S-1 session instance (observing S-2)."""
+        return self._session_s1
+
+    @property
+    def session_s2(self) -> Session | None:
+        """S-2 session instance (observing S-1)."""
+        return self._session_s2
+
+    @property
+    def active_satellite(self) -> str:
+        """ID of the currently active/displayed satellite ('s1' or 's2')."""
+        return self._active_sat
+
+    def set_active_satellite(self, sat_id: str) -> None:
+        """Set the active satellite ('s1' or 's2')."""
+        sat_id_norm = sat_id.lower()
+        if sat_id_norm in ("s1", "s2"):
+            self._active_sat = sat_id_norm
+            self._mode_str = (
+                self._mode_str_s1 if sat_id_norm == "s1" else self._mode_str_s2
+            )
+            self._live_metrics = (
+                self._live_metrics_s1 if sat_id_norm == "s1" else self._live_metrics_s2
+            )
+            self._state_history = (
+                self._state_history_s1 if sat_id_norm == "s1" else self._state_history_s2
+            )
+
+    def get_session(self, sat_id: str) -> Session | None:
+        """Return the Session instance for 's1' or 's2'."""
+        sat_id_norm = sat_id.lower()
+        if sat_id_norm == "s1":
+            return self._session_s1
+        elif sat_id_norm == "s2":
+            return self._session_s2
+        return None
+
+    def get_tracking_state(self, sat_id: str = "s1") -> TrackState:
+        """Get the current tracking state for the given satellite session."""
+        sat_id_norm = sat_id.lower()
+        sess = self._session_s1 if sat_id_norm == "s1" else self._session_s2
+        if sess is not None and hasattr(sess, "tracker") and hasattr(sess.tracker, "state"):
+            return sess.tracker.state
+        latest_fv = (
+            self._latest_frame_view_s1 if sat_id_norm == "s1" else self._latest_frame_view_s2
+        )
+        if latest_fv is not None:
+            return latest_fv.track_state
+        return TrackState.SEARCH
+
+    def is_locked(self, sat_id: str = "s1") -> bool:
+        """Return True if the specified satellite session is actively tracking."""
+        return self.get_tracking_state(sat_id) == TrackState.TRACK
+
+    def get_latest_frame_view(self, sat_id: str = "s1") -> FrameView | None:
+        """Return the latest FrameView for the specified satellite."""
+        sat_id_norm = sat_id.lower()
+        return self._latest_frame_view_s1 if sat_id_norm == "s1" else self._latest_frame_view_s2
+
+    def get_latest_step_result(self, sat_id: str = "s1") -> StepResult | None:
+        """Return the latest StepResult for the specified satellite."""
+        sat_id_norm = sat_id.lower()
+        return self._latest_step_result_s1 if sat_id_norm == "s1" else self._latest_step_result_s2
 
     @Slot()
     def initialize(self) -> None:
@@ -117,9 +223,11 @@ class SessionWorker(QObject):
         self._is_running = False
 
     def _build_new_session(self, cfg: SkyLockConfig) -> bool:
-        """Rebuild tracking session from a new configuration."""
+        """Rebuild tracking sessions from a new configuration."""
         try:
-            self._session = build_session(cfg)
+            self._session_s1 = build_session(cfg, sat_id="s1")
+            self._session_s2 = build_session(cfg, sat_id="s2")
+            self._session = self._session_s1
             self._config = cfg
 
             # Compute period for real-time pacing (no 0.9 factor)
@@ -128,10 +236,20 @@ class SessionWorker(QObject):
 
             # Reset timing and metrics
             self._next_deadline = 0.0
-            self._live_metrics.reset()
-            self._state_history.clear()
+            self._live_metrics_s1.reset()
+            self._live_metrics_s2.reset()
+            self._state_history_s1.clear()
+            self._state_history_s2.clear()
+            self._first_track_time_s1 = None
+            self._first_obs_time_s1 = None
+            self._first_track_time_s2 = None
+            self._first_obs_time_s2 = None
             self._first_track_time_s = None
             self._first_obs_time_s = None
+            self._latest_frame_view_s1 = None
+            self._latest_frame_view_s2 = None
+            self._latest_step_result_s1 = None
+            self._latest_step_result_s2 = None
             self._frame_counter = 0
             self._wall_frame_times.clear()
             self._latency_samples.clear()
@@ -139,8 +257,7 @@ class SessionWorker(QObject):
             self._pending_frames = 0
 
             # Restore control mode and manual rates
-            if self._session is not None:
-                self._apply_control_state()
+            self._apply_control_state()
 
             return True
         except Exception as e:
@@ -148,19 +265,16 @@ class SessionWorker(QObject):
             return False
 
     def _apply_control_state(self) -> None:
-        """Apply stored control mode and manual rates to the session."""
-        if self._session is None:
-            return
-
-        # Set control mode
-        if hasattr(self._session.controller, "set_mode"):
-            mode_enum = ControlMode.MANUAL if self._mode_str == "MANUAL" else ControlMode.AUTO
-            self._session.controller.set_mode(mode_enum)
-
-        # Set manual rates
-        if hasattr(self._session.controller, "set_manual_rate"):
-            self._session.controller.set_manual_rate(
-                self._manual_pan_rate, self._manual_tilt_rate
+        """Apply stored control mode and manual rates to both sessions."""
+        if self._session_s1 is not None:
+            self._session_s1.set_mode(self._mode_str_s1)
+            self._session_s1.set_manual_rates(
+                self._manual_pan_rate_s1, self._manual_tilt_rate_s1
+            )
+        if self._session_s2 is not None:
+            self._session_s2.set_mode(self._mode_str_s2)
+            self._session_s2.set_manual_rates(
+                self._manual_pan_rate_s2, self._manual_tilt_rate_s2
             )
 
     @Slot()
@@ -168,7 +282,7 @@ class SessionWorker(QObject):
         """Start the single-shot step timer with deadline-based pacing."""
         if self._is_running or self._shutdown_requested:
             return
-        if self._session is None and not self._build_new_session(self._config):
+        if self._session_s1 is None and not self._build_new_session(self._config):
             return
         if self._timer is None:
             self.initialize()
@@ -193,15 +307,27 @@ class SessionWorker(QObject):
 
     @Slot()
     def reset_session(self) -> None:
-        """Reset the current session to initial conditions."""
+        """Reset both sessions to initial conditions."""
         was_running = self._is_running
         self.stop_running()
-        if self._session is not None:
-            self._session.reset()
-        self._live_metrics.reset()
-        self._state_history.clear()
+        if self._session_s1 is not None:
+            self._session_s1.reset()
+        if self._session_s2 is not None:
+            self._session_s2.reset()
+        self._live_metrics_s1.reset()
+        self._live_metrics_s2.reset()
+        self._state_history_s1.clear()
+        self._state_history_s2.clear()
+        self._first_track_time_s1 = None
+        self._first_obs_time_s1 = None
+        self._first_track_time_s2 = None
+        self._first_obs_time_s2 = None
         self._first_track_time_s = None
         self._first_obs_time_s = None
+        self._latest_frame_view_s1 = None
+        self._latest_frame_view_s2 = None
+        self._latest_step_result_s1 = None
+        self._latest_step_result_s2 = None
         self._frame_counter = 0
         self._wall_frame_times.clear()
         self._latency_samples.clear()
@@ -211,24 +337,77 @@ class SessionWorker(QObject):
         if was_running:
             self.start_running()
 
+    def set_mode(self, sat_id_or_mode: str, mode: str | None = None) -> None:
+        """Change control mode for a session without rebuilding.
+
+        Supports:
+          set_mode("s1", "EARTH")
+          set_mode("s2", "AUTO")
+          set_mode("MANUAL")  # applies to active satellite
+        """
+        if mode is None:
+            sat_id = self._active_sat
+            mode_str = sat_id_or_mode
+        else:
+            sat_id = sat_id_or_mode.lower()
+            mode_str = mode
+
+        mode_str_clean = mode_str.upper()
+        if mode_str_clean == "EARTH_BORESIGHT":
+            mode_str_clean = "EARTH"
+
+        if sat_id == "s1":
+            self._mode_str_s1 = mode_str_clean
+            if self._active_sat == "s1":
+                self._mode_str = mode_str_clean
+            if self._session_s1 is not None:
+                self._session_s1.set_mode(mode_str_clean)
+        elif sat_id == "s2":
+            self._mode_str_s2 = mode_str_clean
+            if self._active_sat == "s2":
+                self._mode_str = mode_str_clean
+            if self._session_s2 is not None:
+                self._session_s2.set_mode(mode_str_clean)
+
     @Slot(str)
     def set_control_mode(self, mode: str) -> None:
-        """Change control mode without rebuilding the session."""
-        self._mode_str = mode
-        if self._session is None:
-            return
+        """Change control mode for active satellite without rebuilding session."""
+        self.set_mode(self._active_sat, mode)
 
-        if hasattr(self._session.controller, "set_mode"):
-            mode_enum = ControlMode.MANUAL if mode == "MANUAL" else ControlMode.AUTO
-            self._session.controller.set_mode(mode_enum)
+    def set_manual_rates(self, *args: Any) -> None:
+        """Set manual slew rates (deg/s) applied when in MANUAL mode.
 
-    @Slot(float, float)
-    def set_manual_rates(self, pan_rate: float, tilt_rate: float) -> None:
-        """Set manual slew rates (deg/s) applied when in MANUAL mode."""
-        self._manual_pan_rate = pan_rate
-        self._manual_tilt_rate = tilt_rate
-        if self._session is not None and hasattr(self._session.controller, "set_manual_rate"):
-            self._session.controller.set_manual_rate(pan_rate, tilt_rate)
+        Supports:
+          set_manual_rates(pan_rate: float, tilt_rate: float) -> active satellite
+          set_manual_rates(sat_id: str, pan_rate: float, tilt_rate: float) -> target satellite
+        """
+        if len(args) == 2:
+            sat_id = self._active_sat
+            pan_rate = float(args[0])
+            tilt_rate = float(args[1])
+        elif len(args) == 3:
+            sat_id = str(args[0]).lower()
+            pan_rate = float(args[1])
+            tilt_rate = float(args[2])
+        else:
+            raise TypeError(f"set_manual_rates expects 2 or 3 arguments, got {len(args)}")
+
+        if sat_id == "s1":
+            self._manual_pan_rate_s1 = pan_rate
+            self._manual_tilt_rate_s1 = tilt_rate
+            if self._active_sat == "s1":
+                self._manual_pan_rate = pan_rate
+                self._manual_tilt_rate = tilt_rate
+            if self._session_s1 is not None:
+                self._session_s1.set_manual_rates(pan_rate, tilt_rate)
+        elif sat_id == "s2":
+            self._manual_pan_rate_s2 = pan_rate
+            self._manual_tilt_rate_s2 = tilt_rate
+            if self._active_sat == "s2":
+                self._manual_pan_rate = pan_rate
+                self._manual_tilt_rate = tilt_rate
+            if self._session_s2 is not None:
+                self._session_s2.set_manual_rates(pan_rate, tilt_rate)
 
     @Slot()
     def ack_frame(self) -> None:
@@ -238,7 +417,7 @@ class SessionWorker(QObject):
 
     @Slot(object)
     def apply_config(self, new_config: SkyLockConfig) -> None:
-        """Apply a new SkyLockConfig by rebuilding the session."""
+        """Apply a new SkyLockConfig by rebuilding both sessions."""
         was_running = self._is_running
         self.stop_running()
         success = self._build_new_session(new_config)
@@ -248,19 +427,27 @@ class SessionWorker(QObject):
                 self.start_running()
 
     def _step(self) -> None:
-        """Execute a single session step with deadline-based pacing."""
-        if self._session is None or self._shutdown_requested:
+        """Execute a single session step for both sessions with deadline-based pacing."""
+        if (
+            self._session_s1 is None and self._session_s2 is None
+        ) or self._shutdown_requested:
             return
 
+        res_s1: StepResult | None = None
+        res_s2: StepResult | None = None
+
         try:
-            res: StepResult | None = self._session.step()
+            if self._session_s1 is not None:
+                res_s1 = self._session_s1.step()
+            if self._session_s2 is not None:
+                res_s2 = self._session_s2.step()
         except Exception as e:
             self.stop_running()
             self.session_error.emit(f"Step failed: {e}")
             return
 
-        if res is None:
-            # End of stream reached
+        if res_s1 is None and res_s2 is None:
+            # End of stream reached on both sessions
             self.stop_running()
             is_mp4 = self._config.input.kind in (InputKind.MP4, "mp4")
             msg = (
@@ -277,18 +464,34 @@ class SessionWorker(QObject):
         # Update wall FPS window
         self._wall_frame_times.append(now)
 
-        # Update latency samples for smoothing
-        if res.output.latency_ms > 0:
-            self._latency_samples.append(res.output.latency_ms)
+        fv_s1: FrameView | None = None
+        fv_s2: FrameView | None = None
 
-        # Check back-pressure: skip emitting if UI is behind
+        if res_s1 is not None:
+            self._latest_step_result_s1 = res_s1
+            if res_s1.output.latency_ms > 0:
+                self._latency_samples.append(res_s1.output.latency_ms)
+            fv_s1 = self._make_frame_view(res_s1, "s1")
+            self._latest_frame_view_s1 = fv_s1
+            self.frame_ready_s1.emit(fv_s1)
+            self.dual_frame_ready.emit("s1", fv_s1)
+
+        if res_s2 is not None:
+            self._latest_step_result_s2 = res_s2
+            fv_s2 = self._make_frame_view(res_s2, "s2")
+            self._latest_frame_view_s2 = fv_s2
+            self.frame_ready_s2.emit(fv_s2)
+            self.dual_frame_ready.emit("s2", fv_s2)
+
+        # Back-pressure: skip emitting active frame_ready if UI is behind
         skip_emit = self._pending_frames >= 2
         if skip_emit:
             self._dropped_ui_frames += 1
         else:
-            frame_view = self._make_frame_view(res)
-            self._pending_frames += 1
-            self.frame_ready.emit(frame_view)
+            active_fv = fv_s1 if self._active_sat == "s1" else fv_s2
+            if active_fv is not None:
+                self._pending_frames += 1
+                self.frame_ready.emit(active_fv)
 
         # Schedule next step with deadline-based pacing
         if self._is_running and not self._shutdown_requested:
@@ -298,28 +501,43 @@ class SessionWorker(QObject):
             if self._timer is not None:
                 self._timer.start(delay_ms)
 
-    def _make_frame_view(self, res: StepResult) -> FrameView:
+    def _make_frame_view(self, res: StepResult, sat_id: str = "s1") -> FrameView:
         """Convert a StepResult into an immutable UI FrameView."""
         out = res.output
         frame = res.frame
         is_sim = self._config.input.kind in (InputKind.SIMULATION, "simulation")
 
+        is_s1 = sat_id == "s1"
+        first_obs = self._first_obs_time_s1 if is_s1 else self._first_obs_time_s2
+        first_track = self._first_track_time_s1 if is_s1 else self._first_track_time_s2
+        live_metrics = self._live_metrics_s1 if is_s1 else self._live_metrics_s2
+        state_history = self._state_history_s1 if is_s1 else self._state_history_s2
+        mode_str = self._mode_str_s1 if is_s1 else self._mode_str_s2
+
         # Track first observable and acquisition times
         has_visible_truth = (
             is_sim and res.truth is not None and res.truth.primary_visible
         )
-        if has_visible_truth and self._first_obs_time_s is None:
-            self._first_obs_time_s = frame.timestamp_s
+        if has_visible_truth and first_obs is None:
+            first_obs = frame.timestamp_s
+            if is_s1:
+                self._first_obs_time_s1 = first_obs
+                self._first_obs_time_s = first_obs
+            else:
+                self._first_obs_time_s2 = first_obs
 
-        if out.state == TrackState.TRACK and self._first_track_time_s is None:
-            self._first_track_time_s = frame.timestamp_s
+        if out.state == TrackState.TRACK and first_track is None:
+            first_track = frame.timestamp_s
+            if is_s1:
+                self._first_track_time_s1 = first_track
+                self._first_track_time_s = first_track
+            else:
+                self._first_track_time_s2 = first_track
 
         acq_time_s: float | None = None
-        if self._first_track_time_s is not None:
-            ref_t = (
-                self._first_obs_time_s if self._first_obs_time_s is not None else 0.0
-            )
-            acq_time_s = max(0.0, self._first_track_time_s - ref_t)
+        if first_track is not None:
+            ref_t = first_obs if first_obs is not None else 0.0
+            acq_time_s = max(0.0, first_track - ref_t)
 
         # Tracking error px
         tracking_err: float | None = None
@@ -376,13 +594,13 @@ class SessionWorker(QObject):
         )
 
         # Update LiveMetrics and state history
-        self._live_metrics.update(
+        live_metrics.update(
             state=out.state,
             timestamp_s=frame.timestamp_s,
             n_detections=n_detections,
             tracking_error_px=tracking_err,
         )
-        self._state_history.append((frame.timestamp_s, out.state.name))
+        state_history.append((frame.timestamp_s, out.state.name))
 
         # Pointing telemetry
         p_pan = frame.pointing.pan_deg if frame.pointing else 0.0
@@ -390,8 +608,9 @@ class SessionWorker(QObject):
 
         # Total frames from source if available
         total_frames: int | None = None
-        if self._session is not None and hasattr(self._session, "source"):
-            source = self._session.source
+        sess = self._session_s1 if is_s1 else self._session_s2
+        if sess is not None and hasattr(sess, "source"):
+            source = sess.source
             if hasattr(source, "frames_expected"):
                 total_frames = source.frames_expected
 
@@ -414,15 +633,16 @@ class SessionWorker(QObject):
             acquisition_time_s=acq_time_s,
             tracking_error_px=tracking_err,
             is_locked=(out.state == TrackState.TRACK),
-            control_mode=self._mode_str,
+            control_mode=mode_str,
             command_pan_rate=float(res.command.pan_rate_deg_s),
             command_tilt_rate=float(res.command.tilt_rate_deg_s),
             dropped_ui_frames=self._dropped_ui_frames,
             n_detections=n_detections,
             best_detection_px=best_detection_px,
-            state_history_tail=tuple(self._state_history),
-            live=self._live_metrics.snapshot(),
+            state_history_tail=tuple(state_history),
+            live=live_metrics.snapshot(),
             total_frames=total_frames,
+            sat_id=sat_id,
         )
 
 

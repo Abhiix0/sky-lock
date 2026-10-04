@@ -31,6 +31,22 @@ def orbit_position_at_time(params: OrbitParams, t_s: float) -> tuple[float, floa
     return (x, y, z)
 
 
+def get_satellite_position(
+    sat_id: str,
+    t_s: float = 0.0,
+    orbit: OrbitParams | None = None,
+) -> tuple[float, float, float]:
+    """Calculate 3D position (x, y, z) of a satellite relative to Earth at time t_s."""
+    if orbit is not None:
+        return orbit_position_at_time(orbit, t_s)
+    sat_key = sat_id.lower().replace("-", "")
+    if sat_key in ("s2", "sat2"):
+        params = OrbitParams(radius=26.0, speed=0.2, inclination_deg=65.0, phase_deg=45.0)
+    else:
+        params = OrbitParams(radius=20.0, speed=0.3, inclination_deg=25.0, phase_deg=0.0)
+    return orbit_position_at_time(params, t_s)
+
+
 def check_line_of_sight(
     p1: tuple[float, float, float],
     p2: tuple[float, float, float],

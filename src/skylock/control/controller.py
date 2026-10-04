@@ -6,6 +6,7 @@ from skylock.config.models import CameraConfig, ControlConfig
 from skylock.control.pid import PID
 from skylock.core.enums import ControlIntentMode, ControlMode
 from skylock.core.geometry import angular_diff_deg
+from skylock.core.los import OrbitParams, calculate_look_angles, get_satellite_position
 from skylock.core.types import ControlCommand, ControlIntent, Pointing, TargetEstimate
 
 
@@ -22,6 +23,9 @@ class PointingController:
         control_cfg: ControlConfig | None = None,
         camera_cfg: CameraConfig | None = None,
         max_slew_rate_deg_s: float = 10.0,
+        sat_id: str = "s1",
+        orbit_params: OrbitParams | None = None,
+        mode: ControlMode | str | None = None,
     ) -> None:
         """Initialize PointingController.
 
@@ -29,10 +33,15 @@ class PointingController:
             control_cfg: PID gains and controller settings.
             camera_cfg: Camera parameters for IFOV and slew calculation.
             max_slew_rate_deg_s: Upper velocity cap in deg/s (hard ceiling <= 10.0).
+            sat_id: Identifier of the satellite hosting this gimbal ('s1' or 's2').
+            orbit_params: Optional orbital parameters for Earth boresight calculation.
+            mode: Initial control mode (AUTO, MANUAL, or EARTH/EARTH_BORESIGHT).
         """
         self.control_cfg = control_cfg if control_cfg is not None else ControlConfig()
         self.camera_cfg = camera_cfg if camera_cfg is not None else CameraConfig()
         self.max_slew_rate_deg_s = min(10.0, float(max_slew_rate_deg_s))
+        self._sat_id = sat_id.lower().replace("-", "")
+        self._orbit_params = orbit_params
 
         self.pid_pan = PID(
             kp=self.control_cfg.kp,
@@ -49,23 +58,82 @@ class PointingController:
             i_clamp=self.control_cfg.integral_clamp,
         )
 
-        self._mode: ControlMode = (
-            ControlMode.MANUAL if self.control_cfg.mode == "MANUAL" else ControlMode.AUTO
-        )
+        if mode is not None:
+            self.set_mode(mode)
+        else:
+            self._mode = (
+                ControlMode.MANUAL if self.control_cfg.mode == "MANUAL" else ControlMode.AUTO
+            )
         self._manual_pan_rate: float = 0.0
         self._manual_tilt_rate: float = 0.0
+        self._current_time_s: float = 0.0
+        self._custom_sat_pos: tuple[float, float, float] | None = None
+
+    @property
+    def sat_id(self) -> str:
+        """Satellite hosting this gimbal ('s1' or 's2')."""
+        return self._sat_id
+
+    @sat_id.setter
+    def sat_id(self, value: str) -> None:
+        self._sat_id = str(value).lower().replace("-", "")
+
+    @property
+    def orbit_params(self) -> OrbitParams | None:
+        """Orbital parameters used for Earth boresight geometric calculations."""
+        return self._orbit_params
+
+    @orbit_params.setter
+    def orbit_params(self, params: OrbitParams | None) -> None:
+        self._orbit_params = params
+
+    @property
+    def current_time_s(self) -> float:
+        """Current internal simulation time in seconds."""
+        return self._current_time_s
+
+    @current_time_s.setter
+    def current_time_s(self, value: float) -> None:
+        self._current_time_s = float(value)
+
+    def set_sim_time(self, t_s: float) -> None:
+        """Set the simulation time for orbital tracking calculations."""
+        self._current_time_s = float(t_s)
+
+    def set_satellite_pos(self, pos: tuple[float, float, float] | None) -> None:
+        """Explicitly override the satellite's position relative to Earth (optional)."""
+        self._custom_sat_pos = pos
 
     @property
     def mode(self) -> ControlMode:
-        """Current operating mode (AUTO or MANUAL)."""
+        """Current operating mode (AUTO, MANUAL, or EARTH)."""
         return self._mode
 
     def set_mode(self, mode: ControlMode | str) -> None:
-        """Set operating mode (AUTO or MANUAL)."""
+        """Set operating mode (AUTO, MANUAL, or EARTH)."""
         if isinstance(mode, str):
-            self._mode = ControlMode.MANUAL if mode.upper() == "MANUAL" else ControlMode.AUTO
+            m = mode.upper()
+            if m == "MANUAL":
+                self._mode = ControlMode.MANUAL
+            elif m in ("EARTH", "EARTH_BORESIGHT"):
+                self._mode = ControlMode.EARTH
+            else:
+                self._mode = ControlMode.AUTO
         else:
-            self._mode = mode
+            if mode in (ControlMode.EARTH, ControlMode.EARTH_BORESIGHT):
+                self._mode = ControlMode.EARTH
+            else:
+                self._mode = mode
+
+    @property
+    def manual_pan_rate_deg_s(self) -> float:
+        """Manual pan slew rate in deg/s."""
+        return self._manual_pan_rate
+
+    @property
+    def manual_tilt_rate_deg_s(self) -> float:
+        """Manual tilt slew rate in deg/s."""
+        return self._manual_tilt_rate
 
     def set_manual_rate(self, pan_rate_deg_s: float, tilt_rate_deg_s: float) -> None:
         """Set manual angular rates to be executed when mode is MANUAL."""
@@ -73,11 +141,13 @@ class PointingController:
         self._manual_tilt_rate = float(tilt_rate_deg_s)
 
     def reset(self) -> None:
-        """Reset internal PID controllers and manual rates."""
+        """Reset internal PID controllers, time, and manual rates."""
         self.pid_pan.reset()
         self.pid_tilt.reset()
         self._manual_pan_rate = 0.0
         self._manual_tilt_rate = 0.0
+        self._current_time_s = 0.0
+        self._custom_sat_pos = None
         self._mode = (
             ControlMode.MANUAL if self.control_cfg.mode == "MANUAL" else ControlMode.AUTO
         )
@@ -105,6 +175,29 @@ class PointingController:
         if self._mode == ControlMode.MANUAL:
             pan_cmd = max(-max_slew, min(max_slew, self._manual_pan_rate))
             tilt_cmd = max(-max_slew, min(max_slew, self._manual_tilt_rate))
+            return ControlCommand(pan_rate_deg_s=pan_cmd, tilt_rate_deg_s=tilt_cmd)
+
+        if self._mode in (ControlMode.EARTH, ControlMode.EARTH_BORESIGHT):
+            self.pid_pan.reset()
+            self.pid_tilt.reset()
+            self._current_time_s += max(0.0, dt)
+
+            if self._custom_sat_pos is not None:
+                obs_pos = self._custom_sat_pos
+            else:
+                obs_pos = get_satellite_position(
+                    self._sat_id, self._current_time_s, self._orbit_params
+                )
+
+            # Continuous Earth-center look angles
+            target_pan, target_tilt, _ = calculate_look_angles(obs_pos, (0.0, 0.0, 0.0))
+            pt = pointing if pointing is not None else Pointing(0.0, 0.0)
+            err_pan = angular_diff_deg(target_pan, pt.pan_deg)
+            err_tilt = target_tilt - pt.tilt_deg
+
+            k_goto = self.control_cfg.kp if self.control_cfg.kp > 0 else 5.0
+            pan_cmd = max(-max_slew, min(max_slew, k_goto * err_pan))
+            tilt_cmd = max(-max_slew, min(max_slew, k_goto * err_tilt))
             return ControlCommand(pan_rate_deg_s=pan_cmd, tilt_rate_deg_s=tilt_cmd)
 
         if intent.mode == ControlIntentMode.HOLD or dt <= 0.0:

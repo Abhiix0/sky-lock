@@ -12,6 +12,8 @@ from skylock.ui import theme
 from skylock.ui.main_window import MainWindow
 from skylock.ui.settings import AppSettings
 
+pytestmark = pytest.mark.gui
+
 
 def test_theme_applied_without_exceptions(qapp: QApplication) -> None:
     """Theme application should succeed without raising exceptions."""
