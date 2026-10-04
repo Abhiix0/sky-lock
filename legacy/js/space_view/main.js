@@ -67,7 +67,7 @@ function initScene() {
   // Renderer
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setSize(width, height);
-  renderer.setPixelRatio(1);
+  renderer.setPixelRatio(window.devicePixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
@@ -94,9 +94,9 @@ function initScene() {
   const ambientLight = new THREE.AmbientLight(0xffffff, 0.35);
   scene.add(ambientLight);
 
-  // Initial Orbits: S-1 (radius 20, inc 25°), S-2 (radius 26, inc 65°)
+  // Initial Orbits: S-1 (radius 20, inc 25°, phase 0°), S-2 (radius 26, inc 65°, phase 45°)
   orbit1 = new OrbitState(20, 0.3, 25, 0);
-  orbit2 = new OrbitState(26, 0.2, 65, 180);
+  orbit2 = new OrbitState(26, 0.2, 65, 45);
   orbitLines = setupOrbitLines(scene);
 
   // Optical Tracking Beam Line
@@ -146,6 +146,7 @@ function onWindowResize() {
   const height = window.innerHeight;
   mainCamera.aspect = width / height;
   mainCamera.updateProjectionMatrix();
+  renderer.setPixelRatio(window.devicePixelRatio);
   renderer.setSize(width, height);
 }
 
@@ -199,8 +200,21 @@ async function loadGlbAssets() {
     loadOne(`${cleanBase}assets/satellite.glb`, 'S-2')
   ]);
 
-  // 1. Earth
+  // 1. Earth (ensure maximum sharpness and anisotropic texture filtering)
   if (earthGltf && earthGltf.scene) {
+    const maxAnisotropy = renderer ? renderer.capabilities.getMaxAnisotropy() : 1;
+    earthGltf.scene.traverse((child) => {
+      if (child.isMesh && child.material) {
+        const mat = child.material;
+        if (mat.map) {
+          mat.map.anisotropy = maxAnisotropy;
+          mat.map.minFilter = THREE.LinearMipmapLinearFilter;
+          mat.map.magFilter = THREE.LinearFilter;
+          mat.map.generateMipmaps = true;
+          mat.map.needsUpdate = true;
+        }
+      }
+    });
     earthMesh = normalizeModel(earthGltf.scene, EARTH_RADIUS * 2, 'Earth');
   } else {
     const geo = new THREE.SphereGeometry(EARTH_RADIUS, 64, 64);
@@ -234,6 +248,25 @@ async function loadGlbAssets() {
   // Fix 2: Attach identical optical beacons to both S-1 and S-2
   beacon1Mesh = attachBeacon(sat1Obj, 'S-1 Beacon');
   beacon2Mesh = attachBeacon(sat2Obj, 'S-2 Beacon');
+
+  // Immediately initialize satellites at their orbital coordinates
+  if (orbit1 && sat1Obj) {
+    orbit1.getPosition(_position);
+    sat1Obj.position.copy(_position);
+    orbit1.getOrientation(_targetQuat);
+    sat1Obj.quaternion.copy(_targetQuat);
+    sat1Obj.updateMatrixWorld(true);
+  }
+  if (orbit2 && sat2Obj) {
+    orbit2.getPosition(_position);
+    sat2Obj.position.copy(_position);
+    orbit2.getOrientation(_targetQuat);
+    sat2Obj.quaternion.copy(_targetQuat);
+    sat2Obj.updateMatrixWorld(true);
+  }
+
+  // Update tracking state and beam immediately upon load
+  updateTrackingState();
 
   // Hide loading overlay
   const overlay = document.getElementById('loading-overlay');
@@ -296,7 +329,7 @@ function setupTrackingBeam() {
   const beamMat = new THREE.LineBasicMaterial({
     color: 0x00ffff,
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.95,
     linewidth: 2.0
   });
   const positions = new Float32Array(6);
@@ -305,6 +338,7 @@ function setupTrackingBeam() {
   trackingBeam = new THREE.Line(trackingBeamGeo, beamMat);
   trackingBeam.name = 'OpticalTrackingBeam';
   trackingBeam.visible = false;
+  trackingBeam.frustumCulled = false;
   scene.add(trackingBeam);
 }
 
@@ -353,6 +387,7 @@ function updateTrackingState() {
       arr[4] = _s2BeaconPos.y;
       arr[5] = _s2BeaconPos.z;
       posAttr.needsUpdate = true;
+      trackingBeamGeo.computeBoundingSphere();
       trackingBeam.visible = true;
     } else {
       trackingBeam.visible = false;
@@ -407,7 +442,10 @@ function animate(now) {
     sat2Obj.quaternion.copy(_targetQuat);
   }
 
-  // 3. Update Optical Line-of-sight & Laser Link between beacons
+  if (sat1Obj) sat1Obj.updateMatrixWorld(true);
+  if (sat2Obj) sat2Obj.updateMatrixWorld(true);
+
+  // 3. Continuous per-frame LOS check & laser beam update
   updateTrackingState();
 
   // 4. Update OrbitControls & Focus
@@ -440,7 +478,7 @@ window.skylock3d = {
 
   setShowTrackingBeam: (show) => {
     showTrackingBeam = Boolean(show);
-    if (trackingBeam) trackingBeam.visible = showTrackingBeam && hasLineOfSight;
+    updateTrackingState();
   },
 
   setSatelliteOrbit: (satId, radius, incDeg, speed, phaseDeg) => {
@@ -497,7 +535,7 @@ window.skylock3d = {
     }
     if (state.showTrackingBeam !== undefined) {
       showTrackingBeam = Boolean(state.showTrackingBeam);
-      if (trackingBeam) trackingBeam.visible = showTrackingBeam && hasLineOfSight;
+      updateTrackingState();
     }
     if (state.paused !== undefined) {
       isPaused = Boolean(state.paused);

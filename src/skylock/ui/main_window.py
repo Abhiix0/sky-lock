@@ -212,7 +212,7 @@ class MainWindow(QMainWindow):
 
         # Phase 4 Authoritative orbital & gimbal state
         self._s1_orbit = OrbitParams(radius=20.0, speed=0.3, inclination_deg=25.0, phase_deg=0.0)
-        self._s2_orbit = OrbitParams(radius=26.0, speed=0.2, inclination_deg=65.0, phase_deg=180.0)
+        self._s2_orbit = OrbitParams(radius=26.0, speed=0.2, inclination_deg=65.0, phase_deg=45.0)
         self._sim_time_s = 0.0
         self._current_pan = 0.0
         self._current_tilt = 0.0
