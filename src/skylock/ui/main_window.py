@@ -251,6 +251,8 @@ class MainWindow(QMainWindow):
 
         self.view_tabs = QTabWidget(top_widget)
         self.space_view_3d = SpaceView3D(self.view_tabs)
+        self.toolbar_3d = self.space_view_3d.toolbar
+        self.btn_pause_3d = self.space_view_3d.btn_pause
         self.camera_view = CameraView(self.view_tabs)
         self.configuration_view = ConfigurationView(self.view_tabs)
         self.view_tabs.addTab(self.space_view_3d, "3D Space Simulation")
@@ -545,8 +547,6 @@ class MainWindow(QMainWindow):
 
         # Configuration View -> 3D Space View & MainWindow
         self.configuration_view.orbit_lines_toggled.connect(self.space_view_3d.set_show_orbit_lines)
-        self.configuration_view.camera_fov_toggled.connect(self.space_view_3d.set_show_camera_fov)
-        self.configuration_view.optical_axis_toggled.connect(self.space_view_3d.set_show_optical_axis)
         self.configuration_view.tracking_beam_toggled.connect(self.space_view_3d.set_show_tracking_beam)
         self.configuration_view.orbits_changed.connect(self._on_orbits_changed)
 
@@ -565,9 +565,10 @@ class MainWindow(QMainWindow):
 
         # Back-pressure: camera view acknowledges frames
         self.camera_view.frame_painted.connect(self._worker.ack_frame)
+        self.view_tabs.currentChanged.connect(lambda _: self._worker.ack_frame())
 
     def _on_frame_ready(self, fv: Any) -> None:  # noqa: ANN401
-        """Update timeline, status bar, telemetry, and 3D simulation with latest state."""
+        """Update timeline, status bar, and 3D simulation with latest state."""
         if hasattr(fv, "state_history_tail"):
             self.state_timeline.set_history(fv.state_history_tail)
 
@@ -579,59 +580,22 @@ class MainWindow(QMainWindow):
         if hasattr(fv, "input_kind"):
             self.lbl_status_source.setText(fv.input_kind)
 
-        # Authoritative Orbital Physics & Tracking Loop
-        self._sim_time_s += 0.033
-        p1 = orbit_position_at_time(self._s1_orbit, self._sim_time_s)
-        p2 = orbit_position_at_time(self._s2_orbit, self._sim_time_s)
+        # Forward gimbal angles to 3D Space View
+        if (
+            hasattr(self, "space_view_3d")
+            and hasattr(fv, "pointing_pan_deg")
+            and hasattr(fv, "pointing_tilt_deg")
+            and fv.pointing_pan_deg is not None
+            and fv.pointing_tilt_deg is not None
+        ):
+            self._current_pan = float(fv.pointing_pan_deg)
+            self._current_tilt = float(fv.pointing_tilt_deg)
+            self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
 
-        has_los = check_line_of_sight(p1, p2, body_radius=10.0)
-        target_pan, target_tilt, _ = calculate_look_angles(p1, p2)
-
-        # In AUTO mode, slew toward target respecting max slew rate limit
-        if self._is_auto_tracking:
-            max_slew = self.editor.config.gimbal.slew_rate_deg_s
-            new_pan, new_tilt, _ = slew_toward_target(
-                self._current_pan, self._current_tilt, target_pan, target_tilt, max_slew, 0.033
-            )
-            self._current_pan = new_pan
-            self._current_tilt = new_tilt
-            self.gimbal_control_panel.set_values(new_pan, new_tilt, emit_signals=False)
-            self.space_view_3d.set_gimbal_pose(new_pan, new_tilt)
-        elif hasattr(fv, "pointing_pan_deg") and hasattr(fv, "pointing_tilt_deg"):
-            if fv.pointing_pan_deg is not None and fv.pointing_tilt_deg is not None:
-                self._current_pan = float(fv.pointing_pan_deg)
-                self._current_tilt = float(fv.pointing_tilt_deg)
-                self.gimbal_control_panel.set_values(
-                    self._current_pan, self._current_tilt, emit_signals=False
-                )
-                self.space_view_3d.set_gimbal_pose(self._current_pan, self._current_tilt)
-
-        in_fov = is_target_in_fov(
-            self._current_pan, self._current_tilt, target_pan, target_tilt, self._current_fov
-        )
-
-        # Deterministic optical tracking state machine
-        if not has_los:
-            state_str = "LOST"
-            lock_str = "UNLOCKED"
-        elif in_fov:
-            d_pan = abs(angular_diff_deg(target_pan, self._current_pan))
-            d_tilt = abs(angular_diff_deg(target_tilt, self._current_tilt))
-            if d_pan < 2.0 and d_tilt < 2.0:
-                state_str = "TRACK"
-                lock_str = "ENGAGED"
-            else:
-                state_str = "ACQUIRE"
-                lock_str = "ACQUIRING"
-        else:
-            state_str = "SEARCH"
-            lock_str = "SEARCHING"
-
-        # Update telemetry
-        self.telemetry_panel.update_gimbal(self._current_pan, self._current_tilt)
-        self.telemetry_panel.lbl_lock.setText(lock_str)
-        self.telemetry_panel.badge.set_state(state_str)
-        self.lbl_status_state.setText(state_str)
+        # If camera_view is not the current active tab (e.g. 3D Space Simulation is active),
+        # acknowledge the frame directly because camera_view.paintEvent will not trigger.
+        if hasattr(self, "view_tabs") and self.view_tabs.currentWidget() != self.camera_view:
+            self._worker.ack_frame()
 
     def _on_gimbal_manual_pan(self, pan: float) -> None:
         self._current_pan = float(pan)
@@ -662,26 +626,30 @@ class MainWindow(QMainWindow):
     def _on_orbits_changed(self, data: dict[str, Any]) -> None:
         if "s1" in data:
             s1 = data["s1"]
+            r = float(s1.get("radius", self._s1_orbit.radius))
+            inc = float(s1.get("inclination", self._s1_orbit.inclination_deg))
+            spd = float(s1.get("speed", self._s1_orbit.speed))
+            ph = float(s1.get("phase", self._s1_orbit.phase_deg))
             self._s1_orbit = OrbitParams(
-                radius=float(s1["radius"]),
-                speed=float(s1["speed"]),
-                inclination_deg=float(s1["inclination"]),
-                phase_deg=float(s1["phase"]),
+                radius=r,
+                speed=spd,
+                inclination_deg=inc,
+                phase_deg=ph,
             )
-            self.space_view_3d.set_satellite_orbit(
-                "s1", s1["radius"], s1["inclination"], s1["speed"], s1["phase"]
-            )
+            self.space_view_3d.set_satellite_orbit("s1", r, inc, spd, ph)
         if "s2" in data:
             s2 = data["s2"]
+            r = float(s2.get("radius", self._s2_orbit.radius))
+            inc = float(s2.get("inclination", self._s2_orbit.inclination_deg))
+            spd = float(s2.get("speed", self._s2_orbit.speed))
+            ph = float(s2.get("phase", self._s2_orbit.phase_deg))
             self._s2_orbit = OrbitParams(
-                radius=float(s2["radius"]),
-                speed=float(s2["speed"]),
-                inclination_deg=float(s2["inclination"]),
-                phase_deg=float(s2["phase"]),
+                radius=r,
+                speed=spd,
+                inclination_deg=inc,
+                phase_deg=ph,
             )
-            self.space_view_3d.set_satellite_orbit(
-                "s2", s2["radius"], s2["inclination"], s2["speed"], s2["phase"]
-            )
+            self.space_view_3d.set_satellite_orbit("s2", r, inc, spd, ph)
 
     def _on_mode_changed(self, mode: str) -> None:
         """Handle mode change: update worker and steering filter."""

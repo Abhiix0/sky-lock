@@ -84,6 +84,7 @@ class TelemetryPanel(QWidget):
         g_layout.setHorizontalSpacing(8)
         self.lbl_pan = QLabel("+0.00°")
         self.lbl_tilt = QLabel("+0.00°")
+        self.lbl_pointing = self.lbl_pan  # Backward compatibility alias
         g_layout.addRow("Pan:", self.lbl_pan)
         g_layout.addRow("Tilt:", self.lbl_tilt)
         layout.addWidget(gimbal_box)

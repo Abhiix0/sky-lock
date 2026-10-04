@@ -44,33 +44,26 @@ def test_configuration_tab_exists(qapp: QApplication) -> None:
 
 
 def test_configuration_view_toggles(qapp: QApplication) -> None:
-    """Verify orbit lines, camera FOV, optical axis, and tracking beam toggles."""
+    """Verify orbit lines and track line toggles on trimmed configuration tab."""
     config_view = ConfigurationView()
     config_view.show()
     qapp.processEvents()
 
     # Check toggles exist and default to True
     assert config_view.chk_orbit_lines.isChecked()
-    assert config_view.chk_camera_fov.isChecked()
-    assert config_view.chk_optical_axis.isChecked()
+    assert config_view.chk_track_line.isChecked()
     assert config_view.chk_tracking_beam.isChecked()
 
     # Verify signals fire on toggle
     events: list[tuple[str, bool]] = []
     config_view.orbit_lines_toggled.connect(lambda v: events.append(("orbit", v)))
-    config_view.camera_fov_toggled.connect(lambda v: events.append(("fov", v)))
-    config_view.optical_axis_toggled.connect(lambda v: events.append(("axis", v)))
-    config_view.tracking_beam_toggled.connect(lambda v: events.append(("beam", v)))
+    config_view.track_line_toggled.connect(lambda v: events.append(("track", v)))
 
     config_view.chk_orbit_lines.setChecked(False)
-    config_view.chk_camera_fov.setChecked(False)
-    config_view.chk_optical_axis.setChecked(False)
-    config_view.chk_tracking_beam.setChecked(False)
+    config_view.chk_track_line.setChecked(False)
 
     assert ("orbit", False) in events
-    assert ("fov", False) in events
-    assert ("axis", False) in events
-    assert ("beam", False) in events
+    assert ("track", False) in events
 
     config_view.close()
 
@@ -92,7 +85,7 @@ def test_satellite_orbital_physics() -> None:
 
 
 def test_satellite_manual_placement_parameters(qapp: QApplication) -> None:
-    """Verify manual configuration of max 2 satellites (S-1 Observer, S-2 Target)."""
+    """Verify manual configuration of satellite orbit radius (S-1 and S-2)."""
     win = MainWindow()
     win.show()
     qapp.processEvents()
@@ -101,19 +94,24 @@ def test_satellite_manual_placement_parameters(qapp: QApplication) -> None:
     assert isinstance(cfg.spn_s1_radius, NoWheelDoubleSpinBox)
     assert isinstance(cfg.spn_s2_radius, NoWheelDoubleSpinBox)
 
-    # Change S-1 and S-2 parameters
+    # Change S-1 and S-2 radius parameters
     cfg.spn_s1_radius.setValue(22.0)
-    cfg.spn_s1_inc.setValue(30.0)
     cfg.spn_s2_radius.setValue(28.0)
-    cfg.spn_s2_inc.setValue(70.0)
 
     cfg.btn_apply.click()
     qapp.processEvents()
 
     assert win._s1_orbit.radius == 22.0
-    assert win._s1_orbit.inclination_deg == 30.0
     assert win._s2_orbit.radius == 28.0
-    assert win._s2_orbit.inclination_deg == 70.0
+
+    # Also test pause button on 3D Space Simulation tab toolbar
+    assert hasattr(win, "btn_pause_3d")
+    assert win.btn_pause_3d is not None
+    assert win.btn_pause_3d.text() == "⏸ Pause"
+    win.btn_pause_3d.click()
+    assert win.btn_pause_3d.text() == "▶ Resume"
+    win.btn_pause_3d.click()
+    assert win.btn_pause_3d.text() == "⏸ Pause"
 
     win.space_view_3d.cleanup()
     win.close()

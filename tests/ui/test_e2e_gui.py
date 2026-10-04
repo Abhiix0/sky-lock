@@ -269,13 +269,12 @@ def test_manual_mode_steering_and_restore_auto(qapp: QApplication):
     # Switch back to AUTO mode
     controls.cmb_mode.setCurrentText("AUTO")
     qapp.processEvents()
-    time.sleep(1.0)
 
     # Verify tracking restores (should still be TRACK or re-acquire)
-    final_state = telemetry.badge.text()
-    assert final_state in ("TRACK", "REACQUIRE", "ACQUIRE"), (
-        f"Expected tracking state after AUTO restore, got {final_state}"
-    )
+    assert _wait_for_condition(
+        lambda: telemetry.badge.text() in ("TRACK", "REACQUIRE", "ACQUIRE"),
+        timeout_s=5.0,
+    ), f"Expected tracking state after AUTO restore, got {telemetry.badge.text()}"
 
     # Stop
     controls.btn_stop.click()

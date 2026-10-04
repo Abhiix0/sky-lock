@@ -10,7 +10,7 @@ from typing import Any
 from PySide6.QtCore import QUrl, Signal
 from PySide6.QtWebEngineCore import QWebEngineSettings
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QPushButton, QVBoxLayout, QWidget
 
 from skylock.ui.web3d.server import Embedded3DServer
 
@@ -31,6 +31,7 @@ class SpaceView3D(QWidget):
         self._server.start()
 
         self._is_ready = False
+        self._is_paused = False
         self._last_pan = 90.0
         self._last_tilt = 0.0
         self._last_fov = 20.0
@@ -39,8 +40,55 @@ class SpaceView3D(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
+        # 3D Space Simulation Toolbar
+        self.toolbar = QWidget(self)
+        tb_layout = QHBoxLayout(self.toolbar)
+        tb_layout.setContentsMargins(8, 4, 8, 4)
+        tb_layout.setSpacing(8)
+
+        self.btn_pause = QPushButton("⏸ Pause")
+        self.btn_pause.setCheckable(True)
+        self.btn_pause.setToolTip("Pause or resume 3D orbital motion")
+        self.btn_pause.setStyleSheet(
+            "QPushButton { font-weight: bold; padding: 4px 14px; background: #1e293b; color: #f1f5f9; border: 1px solid #38bdf8; border-radius: 4px; }"
+            "QPushButton:checked { background: #b91c1c; border-color: #ef4444; }"
+            "QPushButton:hover { background: #334155; }"
+        )
+        self.btn_pause.toggled.connect(self._on_pause_toggled)
+        tb_layout.addWidget(self.btn_pause)
+
+        self.btn_reset_cam = QPushButton("⟲ Reset Camera")
+        self.btn_reset_cam.setToolTip("Reset camera to Earth overview")
+        self.btn_reset_cam.setStyleSheet(
+            "QPushButton { padding: 4px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; }"
+            "QPushButton:hover { background: #334155; border-color: #38bdf8; }"
+        )
+        self.btn_reset_cam.clicked.connect(self.reset_view)
+        tb_layout.addWidget(self.btn_reset_cam)
+
+        self.btn_focus_s1 = QPushButton("Focus S-1")
+        self.btn_focus_s1.setToolTip("Focus camera on Satellite 1")
+        self.btn_focus_s1.setStyleSheet(
+            "QPushButton { padding: 4px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; }"
+            "QPushButton:hover { background: #334155; border-color: #38bdf8; }"
+        )
+        self.btn_focus_s1.clicked.connect(self.focus_s1)
+        tb_layout.addWidget(self.btn_focus_s1)
+
+        self.btn_focus_s2 = QPushButton("Focus S-2")
+        self.btn_focus_s2.setToolTip("Focus camera on Satellite 2")
+        self.btn_focus_s2.setStyleSheet(
+            "QPushButton { padding: 4px 10px; background: #1e293b; color: #cbd5e1; border: 1px solid #475569; border-radius: 4px; }"
+            "QPushButton:hover { background: #334155; border-color: #38bdf8; }"
+        )
+        self.btn_focus_s2.clicked.connect(self.focus_s2)
+        tb_layout.addWidget(self.btn_focus_s2)
+
+        tb_layout.addStretch(1)
+        layout.addWidget(self.toolbar)
+
         self._web_view = QWebEngineView(self)
-        layout.addWidget(self._web_view)
+        layout.addWidget(self._web_view, stretch=1)
 
         # Configure WebEngine settings for hardware acceleration
         settings = self._web_view.settings()
@@ -115,9 +163,19 @@ class SpaceView3D(QWidget):
 
     def set_paused(self, paused: bool) -> None:
         """Pause or resume the 3D orbit simulation."""
-        js_val = "true" if paused else "false"
+        self._is_paused = bool(paused)
+        if hasattr(self, "btn_pause"):
+            self.btn_pause.blockSignals(True)
+            self.btn_pause.setChecked(self._is_paused)
+            self.btn_pause.setText("▶ Resume" if self._is_paused else "⏸ Pause")
+            self.btn_pause.blockSignals(False)
+        js_val = "true" if self._is_paused else "false"
         js = f"window.skylock3d?.setPaused({js_val});"
         self._web_view.page().runJavaScript(js)
+
+    def _on_pause_toggled(self, checked: bool) -> None:
+        """Handle toolbar pause button toggle."""
+        self.set_paused(checked)
 
     def set_simulation_speed(self, speed: float) -> None:
         """Set simulation speed multiplier."""
