@@ -366,14 +366,17 @@ class CameraFeedView(QWidget):
             mode_str = str(current_mode).upper()
             if mode_str in ("EARTH", "EARTH_BORESIGHT"):
                 self.btn_focus_earth.setChecked(True)
+                self.gimbal_3d_view.set_focus_mode("EARTH")
                 if self._steering_filter is not None:
                     self._steering_filter.set_manual_mode(False)
             elif mode_str == "MANUAL":
                 self.btn_manual.setChecked(True)
+                self.gimbal_3d_view.set_focus_mode("TARGET")
                 if self._steering_filter is not None:
                     self._steering_filter.set_manual_mode(True)
             else:
                 self.btn_focus_target.setChecked(True)
+                self.gimbal_3d_view.set_focus_mode("TARGET")
                 if self._steering_filter is not None:
                     self._steering_filter.set_manual_mode(False)
 
@@ -388,6 +391,7 @@ class CameraFeedView(QWidget):
 
     def _set_pointing_mode(self, mode: str) -> None:
         """Set pointing mode for the currently selected session."""
+        self.gimbal_3d_view.set_focus_mode(mode)
         if self._worker is not None:
             self._worker.set_mode(self._selected_sat, mode)
 
@@ -397,6 +401,7 @@ class CameraFeedView(QWidget):
     def sync_mode_from_external(self, mode: str) -> None:
         """Synchronize UI buttons when mode is changed externally (e.g. controls panel)."""
         m = mode.upper()
+        self.gimbal_3d_view.set_focus_mode(m)
         if m in ("EARTH", "EARTH_BORESIGHT"):
             self.btn_focus_earth.setChecked(True)
         elif m == "MANUAL":
@@ -428,6 +433,14 @@ class CameraFeedView(QWidget):
             self._update_selected_badge(fv.track_state)
             self.gimbal_3d_view.set_pose(fv.pointing_pan_deg, fv.pointing_tilt_deg)
             self.gimbal_3d_view.set_time(t_s)
+            # Push real pipeline symbology to the 3D gimbal overlay
+            is_predicting = fv.track_state in (TrackState.LOST, TrackState.REACQUIRE)
+            self.gimbal_3d_view.update_overlay(
+                fv.detections,
+                fv.estimate,
+                fv.gate_px,
+                is_predicting,
+            )
             self.frame_painted.emit()
 
         # 2. Lock state transitions

@@ -9,7 +9,7 @@ import { OrbitState } from '../orbit.js';
 
 const EARTH_RADIUS = 10.0;
 const EARTH_ROTATION_SPEED = 0.08; // rad/s
-const SATELLITE_SCALE = 2.0;
+const SATELLITE_SCALE = 0.3;
 
 // Math helpers
 const _position = new THREE.Vector3();
@@ -23,11 +23,12 @@ let simulationSpeed = 1.0;
 let isReady = false;
 let hasLineOfSight = false;
 let mountSatId = 's1'; // 's1' or 's2'
+let focusMode = 'TARGET'; // 'TARGET' or 'EARTH'
 
 // Gimbal & FOV state
 let currentPanDeg = 0.0;
 let currentTiltDeg = 0.0;
-let currentFovDeg = 20.0;
+let currentFovDeg = 3.0;
 let hasCustomPose = false;
 let currentTime = 0.0;
 
@@ -67,7 +68,11 @@ function initScene() {
   scene.add(camera);
 
   // Renderer
-  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+    preserveDrawingBuffer: true
+  });
   renderer.setSize(width, height);
   renderer.setPixelRatio(window.devicePixelRatio);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -297,14 +302,14 @@ function attachBeacon(satObj, name) {
   const beaconGroup = new THREE.Group();
   beaconGroup.name = name || 'OpticalBeacon';
 
-  const beaconLight = new THREE.PointLight(0x38bdf8, 1.4, 30, 2);
-  beaconLight.position.set(0, 0.5, 0);
+  const beaconLight = new THREE.PointLight(0x38bdf8, 2.5, 40, 1.5);
+  beaconLight.position.set(0, 0, 0);
   beaconGroup.add(beaconLight);
 
-  const beaconGeo = new THREE.SphereGeometry(0.12, 16, 16);
+  const beaconGeo = new THREE.SphereGeometry(0.04, 16, 16);
   const beaconMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
   const beaconMesh = new THREE.Mesh(beaconGeo, beaconMat);
-  beaconMesh.position.set(0, 0.5, 0);
+  beaconMesh.position.set(0, 0, 0);
   beaconGroup.add(beaconMesh);
 
   satObj.add(beaconGroup);
@@ -399,20 +404,21 @@ function animate(now) {
 
   if (mountObj) {
     camera.position.copy(mountObj.position);
-  }
 
-  if (hasCustomPose) {
-    // Standard SkyLock gimbal convention:
-    // pan rotates azimuth around Y axis (-deg rotates right in Three.js)
-    // tilt rotates elevation above horizontal (+deg raises up)
-    const panRad = THREE.MathUtils.degToRad(currentPanDeg);
-    const tiltRad = THREE.MathUtils.degToRad(currentTiltDeg);
-    camera.rotation.order = 'YXZ';
-    camera.rotation.y = -panRad;
-    camera.rotation.x = tiltRad;
-    camera.rotation.z = 0;
-  } else if (targetObj) {
-    camera.lookAt(targetObj.position);
+    // Aim point based on active focus mode:
+    // EARTH mode continuously locks on Earth center (0, 0, 0).
+    // AUTO/TARGET mode continuously locks on opposing satellite.
+    const aimPoint = (focusMode === 'EARTH')
+      ? new THREE.Vector3(0, 0, 0)
+      : (targetObj ? targetObj.position : new THREE.Vector3(0, 0, 0));
+
+    camera.lookAt(aimPoint);
+
+    // Apply real gimbal pan and tilt offsets relative to this boresight
+    if (currentPanDeg !== 0 || currentTiltDeg !== 0) {
+      camera.rotateY(-THREE.MathUtils.degToRad(currentPanDeg));
+      camera.rotateX(THREE.MathUtils.degToRad(currentTiltDeg));
+    }
   }
 
   // 4. Update Optical Tracking Beam
@@ -454,6 +460,24 @@ window.gimbalcam = {
     currentPanDeg = Number(panDeg);
     currentTiltDeg = Number(tiltDeg);
     hasCustomPose = true;
+  },
+
+  setFocusMode: (mode) => {
+    const m = String(mode).toUpperCase();
+    if (m === 'EARTH' || m === 'EARTH_BORESIGHT') {
+      focusMode = 'EARTH';
+    } else {
+      focusMode = 'TARGET';
+    }
+  },
+
+  setMode: (mode) => {
+    const m = String(mode).toUpperCase();
+    if (m === 'EARTH' || m === 'EARTH_BORESIGHT') {
+      focusMode = 'EARTH';
+    } else {
+      focusMode = 'TARGET';
+    }
   },
 
   setFov: (fovDeg) => {
@@ -511,8 +535,16 @@ window.gimbalcam = {
       orbit2.getOrientation(_targetQuat);
       sat2Obj.quaternion.copy(_targetQuat);
     }
+    if (earthMesh) {
+      earthMesh.rotation.y = EARTH_ROTATION_SPEED * t;
+    }
     if (sat1Obj) sat1Obj.updateMatrixWorld(true);
     if (sat2Obj) sat2Obj.updateMatrixWorld(true);
+  },
+
+  captureDataUrl: () => {
+    if (!renderer || !renderer.domElement) return null;
+    return renderer.domElement.toDataURL('image/png');
   },
 
   getState: () => {
@@ -521,6 +553,7 @@ window.gimbalcam = {
     return {
       ready: isReady,
       mount: mountSatId,
+      focusMode: focusMode,
       paused: isPaused,
       pan: currentPanDeg,
       tilt: currentTiltDeg,

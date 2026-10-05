@@ -130,6 +130,8 @@ class Session:
         # 3. Step controller (image-space error, estimate, and gimbal pointing)
         fps = self.source.fps if getattr(self.source, "fps", 0.0) > 0.0 else self.config.camera.fps
         dt = 1.0 / fps
+        if hasattr(self.controller, "set_sim_time"):
+            self.controller.set_sim_time(frame.timestamp_s)
         cmd = self.controller.step(
             intent=output.intent,
             estimate=output.estimate,

@@ -6,7 +6,12 @@ from skylock.config.models import CameraConfig, ControlConfig
 from skylock.control.pid import PID
 from skylock.core.enums import ControlIntentMode, ControlMode
 from skylock.core.geometry import angular_diff_deg
-from skylock.core.los import OrbitParams, calculate_look_angles, get_satellite_position
+from skylock.core.los import (
+    OrbitParams,
+    calculate_look_angles,
+    check_line_of_sight,
+    get_satellite_position,
+)
 from skylock.core.types import ControlCommand, ControlIntent, Pointing, TargetEstimate
 
 
@@ -171,6 +176,7 @@ class PointingController:
             ControlCommand containing pan and tilt rates in deg/s.
         """
         max_slew = self.max_slew_rate_deg_s
+        self._current_time_s += max(0.0, dt)
 
         if self._mode == ControlMode.MANUAL:
             pan_cmd = max(-max_slew, min(max_slew, self._manual_pan_rate))
@@ -180,7 +186,6 @@ class PointingController:
         if self._mode in (ControlMode.EARTH, ControlMode.EARTH_BORESIGHT):
             self.pid_pan.reset()
             self.pid_tilt.reset()
-            self._current_time_s += max(0.0, dt)
 
             if self._custom_sat_pos is not None:
                 obs_pos = self._custom_sat_pos
@@ -199,6 +204,21 @@ class PointingController:
             pan_cmd = max(-max_slew, min(max_slew, k_goto * err_pan))
             tilt_cmd = max(-max_slew, min(max_slew, k_goto * err_tilt))
             return ControlCommand(pan_rate_deg_s=pan_cmd, tilt_rate_deg_s=tilt_cmd)
+
+        # In AUTO mode, check geometric line-of-sight between observer and target
+        if self._mode == ControlMode.AUTO:
+            target_sat = "s2" if self._sat_id in ("s1", "1") else "s1"
+            obs_pos = (
+                self._custom_sat_pos
+                if self._custom_sat_pos is not None
+                else get_satellite_position(self._sat_id, self._current_time_s, self._orbit_params)
+            )
+            target_pos = get_satellite_position(target_sat, self._current_time_s)
+            if not check_line_of_sight(obs_pos, target_pos):
+                # While LOS is blocked by Earth: stop actively searching or slewing; hold pointing direction
+                self.pid_pan.reset()
+                self.pid_tilt.reset()
+                return ControlCommand(pan_rate_deg_s=0.0, tilt_rate_deg_s=0.0)
 
         if intent.mode == ControlIntentMode.HOLD or dt <= 0.0:
             self.pid_pan.reset()
