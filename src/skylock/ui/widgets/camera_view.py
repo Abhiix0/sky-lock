@@ -29,7 +29,31 @@ class CameraView(QWidget):
         self._image_ref: np.ndarray | None = None
         self._show_ground_truth: bool = False
         self._show_legend: bool = False
+        self._show_annotations: bool = True
+        self._show_reticle: bool = True
         self._mouse_image_pos: tuple[int, int] | None = None
+
+    @property
+    def show_annotations(self) -> bool:
+        """Whether detection and tracking annotations are drawn."""
+        return self._show_annotations
+
+    @show_annotations.setter
+    def show_annotations(self, value: bool) -> None:
+        if self._show_annotations != value:
+            self._show_annotations = value
+            self.update()
+
+    @property
+    def show_reticle(self) -> bool:
+        """Whether optical boresight reticle is drawn."""
+        return self._show_reticle
+
+    @show_reticle.setter
+    def show_reticle(self, value: bool) -> None:
+        if self._show_reticle != value:
+            self._show_reticle = value
+            self.update()
 
     @property
     def show_ground_truth(self) -> bool:
@@ -160,45 +184,47 @@ class CameraView(QWidget):
             return ox + x * scale, oy + y * scale
 
         # 1. Boresight crosshair (optical center)
-        bx, by = to_screen(fv.boresight_px[0], fv.boresight_px[1])
-        painter.setPen(QPen(theme.OVERLAY_BORESIGHT, 1, Qt.PenStyle.SolidLine))
-        arm = 12.0
-        gap = 3.0
-        painter.drawLine(QPointF(bx - arm, by), QPointF(bx - gap, by))
-        painter.drawLine(QPointF(bx + gap, by), QPointF(bx + arm, by))
-        painter.drawLine(QPointF(bx, by - arm), QPointF(bx, by - gap))
-        painter.drawLine(QPointF(bx, by + gap), QPointF(bx, by + arm))
+        if self._show_reticle:
+            bx, by = to_screen(fv.boresight_px[0], fv.boresight_px[1])
+            painter.setPen(QPen(theme.OVERLAY_BORESIGHT, 1, Qt.PenStyle.SolidLine))
+            arm = 12.0
+            gap = 3.0
+            painter.drawLine(QPointF(bx - arm, by), QPointF(bx - gap, by))
+            painter.drawLine(QPointF(bx + gap, by), QPointF(bx + arm, by))
+            painter.drawLine(QPointF(bx, by - arm), QPointF(bx, by - gap))
+            painter.drawLine(QPointF(bx, by + gap), QPointF(bx, by + arm))
 
-        # 2. Detections (yellow centroid rings)
-        painter.setPen(QPen(theme.OVERLAY_DETECTION, 1.5, Qt.PenStyle.SolidLine))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        for cx, cy, dw, dh in fv.detections:
-            scx, scy = to_screen(cx, cy)
-            r = max(4.0, (dw + dh) * 0.25 * scale)
-            painter.drawEllipse(QPointF(scx, scy), r, r)
+        if self._show_annotations:
+            # 2. Detections (yellow centroid rings)
+            painter.setPen(QPen(theme.OVERLAY_DETECTION, 1.5, Qt.PenStyle.SolidLine))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for cx, cy, dw, dh in fv.detections:
+                scx, scy = to_screen(cx, cy)
+                r = max(4.0, (dw + dh) * 0.25 * scale)
+                painter.drawEllipse(QPointF(scx, scy), r, r)
 
-        # 3. Association gate box & Target estimate cross
-        if fv.estimate is not None:
-            ex, ey = to_screen(fv.estimate[0], fv.estimate[1])
+            # 3. Association gate box & Target estimate cross
+            if fv.estimate is not None:
+                ex, ey = to_screen(fv.estimate[0], fv.estimate[1])
 
-            # Gate box
-            if fv.gate_px > 0:
-                g_size = fv.gate_px * 2.0 * scale
-                gate_rect = QRectF(ex - g_size / 2.0, ey - g_size / 2.0, g_size, g_size)
-                gate_pen = QPen(theme.OVERLAY_GATE, 1.0, Qt.PenStyle.DashLine)
-                painter.setPen(gate_pen)
-                painter.drawRect(gate_rect)
+                # Gate box
+                if fv.gate_px > 0:
+                    g_size = fv.gate_px * 2.0 * scale
+                    gate_rect = QRectF(ex - g_size / 2.0, ey - g_size / 2.0, g_size, g_size)
+                    gate_pen = QPen(theme.OVERLAY_GATE, 1.0, Qt.PenStyle.DashLine)
+                    painter.setPen(gate_pen)
+                    painter.drawRect(gate_rect)
 
-            # Target estimate crosshair (+)
-            # When state is LOST or REACQUIRE, draw dashed to signal prediction
-            is_predicting = fv.track_state in (TrackState.LOST, TrackState.REACQUIRE)
-            pen_style = Qt.PenStyle.DashLine if is_predicting else Qt.PenStyle.SolidLine
-            cross_color = theme.OVERLAY_ESTIMATE
-            cross_pen = QPen(cross_color, 2.0, pen_style)
-            painter.setPen(cross_pen)
-            c_arm = 8.0
-            painter.drawLine(QPointF(ex - c_arm, ey), QPointF(ex + c_arm, ey))
-            painter.drawLine(QPointF(ex, ey - c_arm), QPointF(ex, ey + c_arm))
+                # Target estimate crosshair (+)
+                # When state is LOST or REACQUIRE, draw dashed to signal prediction
+                is_predicting = fv.track_state in (TrackState.LOST, TrackState.REACQUIRE)
+                pen_style = Qt.PenStyle.DashLine if is_predicting else Qt.PenStyle.SolidLine
+                cross_color = theme.OVERLAY_ESTIMATE
+                cross_pen = QPen(cross_color, 2.0, pen_style)
+                painter.setPen(cross_pen)
+                c_arm = 8.0
+                painter.drawLine(QPointF(ex - c_arm, ey), QPointF(ex + c_arm, ey))
+                painter.drawLine(QPointF(ex, ey - c_arm), QPointF(ex, ey + c_arm))
 
         # 4. Ground-truth marker (ONLY if enabled, simulation, and present)
         if self._show_ground_truth and fv.is_simulation and fv.ground_truth_px is not None:

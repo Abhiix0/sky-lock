@@ -1,29 +1,29 @@
 """Integration tests for camera rendering pipeline: JavaScript bundle, coordinate transforms, LOS."""
 
 import math
+from pathlib import Path
 import numpy as np
 import pytest
 
-from skylock.core.los import check_line_of_sight, get_satellite_position, calculate_look_angles
+from skylock.config.models import SkyLockConfig
+from skylock.core.los import calculate_look_angles, check_line_of_sight, get_satellite_position
 from skylock.core.orbital_world import (
-    pan_tilt_to_world_aim,
-    get_satellite_basis,
     S1_DEFAULT_ORBIT,
     S2_DEFAULT_ORBIT,
+    get_satellite_basis,
+    pan_tilt_to_world_aim,
 )
 
 
 class TestJavaScriptBundleValidity:
     """Verify JavaScript bundles are syntactically valid to prevent rendering failures."""
 
-    def test_gimbal_camera_bundle_exists(self):
-        """Gimbal camera HTML references a JavaScript bundle that exists."""
-        import os
-        html_path = "src/skylock/ui/web3d/static_gimbal/index.html"
-        assert os.path.exists(html_path), "Gimbal camera HTML not found"
+    def test_space_simulation_bundle_exists(self):
+        """3D space simulation HTML references a JavaScript bundle that exists."""
+        html_path = Path("src/skylock/ui/web3d/static/index.html")
+        assert html_path.exists(), "3D space simulation HTML not found"
 
-        with open(html_path, "r", encoding="utf-8") as f:
-            content = f.read()
+        content = html_path.read_text(encoding="utf-8")
 
         # Extract script src
         import re
@@ -31,17 +31,15 @@ class TestJavaScriptBundleValidity:
         assert match is not None, "No JavaScript bundle reference found in HTML"
 
         bundle_name = match.group(1)
-        bundle_path = f"src/skylock/ui/web3d/static_gimbal/assets/{bundle_name}"
-        assert os.path.exists(bundle_path), f"Referenced bundle {bundle_name} does not exist"
+        bundle_path = Path("src/skylock/ui/web3d/static/assets") / bundle_name
+        assert bundle_path.exists(), f"Referenced bundle {bundle_name} does not exist"
 
-    def test_gimbal_camera_bundle_no_syntax_errors(self):
-        """Referenced JavaScript bundle has no syntax errors."""
-        import os
+    def test_space_simulation_bundle_no_syntax_errors(self):
+        """Referenced 3D space simulation bundle has no syntax errors."""
         import subprocess
-        
-        html_path = "src/skylock/ui/web3d/static_gimbal/index.html"
-        with open(html_path, "r", encoding="utf-8") as f:
-            content = f.read()
+
+        html_path = Path("src/skylock/ui/web3d/static/index.html")
+        content = html_path.read_text(encoding="utf-8")
 
         import re
         match = re.search(r'src="\.\/assets\/(index-[^"]+\.js)"', content)
@@ -49,15 +47,15 @@ class TestJavaScriptBundleValidity:
             pytest.skip("Could not find JavaScript bundle reference")
 
         bundle_name = match.group(1)
-        bundle_path = f"src/skylock/ui/web3d/static_gimbal/assets/{bundle_name}"
+        bundle_path = Path("src/skylock/ui/web3d/static/assets") / bundle_name
 
-        if not os.path.exists(bundle_path):
+        if not bundle_path.exists():
             pytest.skip(f"Bundle {bundle_name} not found")
 
         # Use node to check syntax
         try:
             result = subprocess.run(
-                ["node", "--check", bundle_path],
+                ["node", "--check", str(bundle_path)],
                 capture_output=True,
                 text=True,
                 timeout=5,
@@ -143,10 +141,10 @@ class TestLineOfSight:
     """Verify Earth occlusion geometry and LOS state transitions."""
 
     def test_check_line_of_sight_clear(self):
-        """LOS is clear when no Earth obstruction."""
-        # Two points on opposite sides of Earth but high enough to see each other
-        p1 = (15.0, 0.0, 0.0)  # Beyond Earth radius (10.0)
-        p2 = (-15.0, 0.0, 0.0)
+        """LOS is clear when line segment stays outside the Earth sphere."""
+        # Two points above Earth that have clear line of sight
+        p1 = (15.0, 15.0, 0.0)
+        p2 = (-15.0, 15.0, 0.0)
 
         assert check_line_of_sight(p1, p2, body_radius=10.0), "LOS should be clear"
 
@@ -193,7 +191,7 @@ class TestLineOfSight:
     def test_default_orbits_produce_los_variations(self):
         """Default S-1 and S-2 orbits produce both clear and blocked LOS over time."""
         los_states = []
-        for t_s in np.linspace(0, 100, 100):
+        for t_s in np.linspace(0, 300, 300):
             p1 = get_satellite_position("s1", t_s)
             p2 = get_satellite_position("s2", t_s)
             los_clear = check_line_of_sight(p1, p2, body_radius=10.0)
@@ -227,16 +225,15 @@ class TestControllerModesSeparation:
 
     def test_manual_mode_bypasses_tracking(self):
         """MANUAL mode returns manual rates without processing tracking intent."""
-        from skylock.control.controller import PointingController, ControlMode
+        from skylock.control.controller import ControlMode, PointingController
         from skylock.core.types import ControlIntent, ControlIntentMode, Pointing
-        from skylock.app.factory import default_config
 
-        config = default_config()
+        config = SkyLockConfig()
         controller = PointingController(
             sat_id="s1",
             mode=ControlMode.MANUAL,
-            camera_config=config.camera,
-            control_config=config.control,
+            camera_cfg=config.camera,
+            control_cfg=config.control,
         )
 
         # Set manual rates
@@ -259,16 +256,15 @@ class TestControllerModesSeparation:
 
     def test_auto_mode_processes_tracking_intent(self):
         """AUTO mode processes tracking intent and generates commands."""
-        from skylock.control.controller import PointingController, ControlMode
+        from skylock.control.controller import ControlMode, PointingController
         from skylock.core.types import ControlIntent, ControlIntentMode, Pointing
-        from skylock.app.factory import default_config
 
-        config = default_config()
+        config = SkyLockConfig()
         controller = PointingController(
             sat_id="s1",
             mode=ControlMode.AUTO,
-            camera_config=config.camera,
-            control_config=config.control,
+            camera_cfg=config.camera,
+            control_cfg=config.control,
         )
 
         # GOTO intent
@@ -293,24 +289,23 @@ class TestDisturbanceApplication:
     def test_disturbance_stack_exists(self):
         """DisturbanceStack is importable and initializable."""
         from skylock.simulation.disturbances.stack import DisturbanceStack
-        from skylock.app.factory import default_config
 
-        config = default_config()
+        config = SkyLockConfig()
         stack = DisturbanceStack(config=config.disturbances, seed=42)
 
         assert stack is not None, "DisturbanceStack should initialize"
 
     def test_apply_photometric_modifies_image(self):
         """apply_photometric modifies image when disturbances enabled."""
-        from skylock.simulation.disturbances.stack import DisturbanceStack
+        from skylock.config.io import override
         from skylock.simulation.disturbances.base import DisturbanceContext
-        from skylock.app.factory import default_config
+        from skylock.simulation.disturbances.stack import DisturbanceStack
 
-        config = default_config()
-        
-        # Enable Gaussian noise
-        config.disturbances.gaussian_noise.enabled = True
-        config.disturbances.gaussian_noise.sigma = 0.05
+        base_config = SkyLockConfig()
+        config = override(base_config, {
+            "disturbances.gaussian.enabled": True,
+            "disturbances.gaussian.sigma_levels": 15.0,
+        })
 
         stack = DisturbanceStack(config=config.disturbances, seed=42)
 
@@ -325,17 +320,11 @@ class TestDisturbanceApplication:
 
     def test_disabled_disturbances_no_effect(self):
         """Disabled disturbances do not modify image."""
-        from skylock.simulation.disturbances.stack import DisturbanceStack
         from skylock.simulation.disturbances.base import DisturbanceContext
-        from skylock.app.factory import default_config
+        from skylock.simulation.disturbances.stack import DisturbanceStack
 
-        config = default_config()
-        
-        # Disable all disturbances
-        config.disturbances.gaussian_noise.enabled = False
-        config.disturbances.salt_pepper.enabled = False
-        config.disturbances.poisson_noise.enabled = False
-        config.disturbances.optical_blur.enabled = False
+        # Default configuration has all disturbances disabled
+        config = SkyLockConfig()
 
         stack = DisturbanceStack(config=config.disturbances, seed=42)
 

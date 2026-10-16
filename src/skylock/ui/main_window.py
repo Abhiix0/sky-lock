@@ -26,30 +26,23 @@ from PySide6.QtWidgets import (
 )
 
 import skylock
+from skylock.benchmark.runner import BenchmarkRunner
 from skylock.config.models import InputConfig, SkyLockConfig
-from skylock.core.geometry import angular_diff_deg
 from skylock.core.los import (
     OrbitParams,
-    calculate_look_angles,
-    check_line_of_sight,
-    is_target_in_fov,
-    orbit_position_at_time,
-    slew_toward_target,
 )
 from skylock.core.orbital_world import ORBIT_SPEED_SCALE
 from skylock.core.sim_clock import get_shared_clock
 from skylock.ui import theme
-from skylock.benchmark.runner import BenchmarkRunner
 from skylock.ui.config_editor import ConfigEditor
 from skylock.ui.panels.benchmark import BenchmarkPanel
+from skylock.ui.panels.camera_feed_view import CameraFeedView
 from skylock.ui.panels.configuration_view import ConfigurationView
 from skylock.ui.panels.controls import ControlsPanel
 from skylock.ui.panels.gimbal_control import GimbalControlPanel
 from skylock.ui.panels.telemetry import TelemetryPanel
 from skylock.ui.settings import AppSettings
 from skylock.ui.web3d.view_3d import SpaceView3D
-from skylock.ui.panels.camera_feed_view import CameraFeedView
-from skylock.ui.widgets.camera_view import CameraView
 from skylock.ui.widgets.state_timeline import StateTimeline
 from skylock.ui.worker import SessionWorker
 
@@ -207,6 +200,7 @@ class MainWindow(QMainWindow):
         self._worker = SessionWorker(self.editor.config)
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.initialize)
+        self._worker_thread.started.connect(self._worker.start_running)
 
         # Manual steering event filter
         max_slew = self.editor.config.gimbal.slew_rate_deg_s
@@ -591,9 +585,8 @@ class MainWindow(QMainWindow):
         self.space_view_3d.pause_toggled.connect(self._on_pause_clock_sync)
         self.camera_view.pause_toggled.connect(self._on_pause_clock_sync)
 
-        # Push scaled orbit parameters to both 3D views when loaded
+        # Push scaled orbit parameters to 3D Space View when loaded
         self.space_view_3d.scene_ready.connect(self._push_orbits_to_views)
-        self.camera_view.gimbal_cam.scene_ready.connect(self._push_orbits_to_views)
 
     def _on_telemetry_frame(self, fv: Any) -> None:  # noqa: ANN401
         """Forward frame to telemetry panel only if worker is active."""
@@ -615,7 +608,11 @@ class MainWindow(QMainWindow):
             self.lbl_status_state.setText(state_name)
         elif hasattr(self, "_s1_orbit") and self._s1_orbit is not None:
             from skylock.core.geometry import angular_diff_deg
-            from skylock.core.los import calculate_look_angles, check_line_of_sight, orbit_position_at_time
+            from skylock.core.los import (
+                calculate_look_angles,
+                check_line_of_sight,
+                orbit_position_at_time,
+            )
             t_s = getattr(self, "_sim_time_s", 0.0)
             p1 = orbit_position_at_time(self._s1_orbit, t_s)
             p2 = orbit_position_at_time(self._s2_orbit, t_s)
@@ -813,6 +810,11 @@ class MainWindow(QMainWindow):
     def _on_running_changed(self, running: bool) -> None:
         state_str = "Running" if running else "Stopped"
         self.status_bar.showMessage(f"Session {state_str}")
+        self.controls_panel.set_running(running)
+        if hasattr(self, "act_start"):
+            self.act_start.setEnabled(not running)
+        if hasattr(self, "act_stop"):
+            self.act_stop.setEnabled(running)
 
     def _on_session_rebuilt(self, msg: str) -> None:
         """Show session rebuilt notification."""

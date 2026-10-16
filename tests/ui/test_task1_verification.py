@@ -302,7 +302,6 @@ def test_10_perspective_switching(qapp):
 
     feed.combo_observer.setCurrentIndex(1)
     assert feed.selected_satellite == "s2"
-    assert feed.btn_focus_target.text() == "Focus S-1"
     assert feed.lbl_id_badge.text() == "HOST: S-2  ➔  TARGET: S-1"
     assert feed.gimbal_3d_view.mount == "s2"
 
@@ -395,16 +394,17 @@ def test_15_all_controls_connected(qapp):
     assert gimbal_pnl.spn_tilt.maximum() == 90.0
     assert gimbal_pnl.spn_fov.value() == 16.0
 
-    # Camera feed view controls
+    # Camera feed view controls (redesigned 2D optical sensor view)
     feed = CameraFeedView()
-    assert hasattr(feed, "btn_focus_target")
+    assert hasattr(feed, "combo_observer")
+    assert hasattr(feed, "btn_auto")
     assert hasattr(feed, "btn_manual")
-    assert hasattr(feed, "btn_focus_earth")
-    assert hasattr(feed, "btn_view_camera")
-    assert hasattr(feed, "btn_view_sensor")
-    assert hasattr(feed, "cs_pan")
-    assert hasattr(feed, "cs_tilt")
-    assert hasattr(feed, "cs_los")
+    assert hasattr(feed, "btn_annotations")
+    assert hasattr(feed, "btn_reticle")
+    assert hasattr(feed, "lbl_state_badge")
+    assert hasattr(feed, "lbl_fov_badge")
+    assert hasattr(feed, "lbl_status_pan_tilt")
+    assert hasattr(feed, "lbl_status_los")
 
 
 # ============================================================================

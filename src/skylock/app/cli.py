@@ -84,8 +84,7 @@ def cli_main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command is None:
-        parser.print_help()
-        return 0
+        return _run_gui(argparse.Namespace(config=None))
 
     if args.command == "gui":
         return _run_gui(args)

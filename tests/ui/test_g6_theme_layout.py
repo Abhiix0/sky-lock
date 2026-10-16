@@ -34,6 +34,8 @@ def test_main_window_constructs_at_minimum_size(qapp: QApplication) -> None:
     assert window.minimumHeight() == 700
     assert window.width() >= 1100
     assert window.height() >= 700
+    window.close()
+    qapp.processEvents()
 
 
 def test_main_window_constructs_at_1920x1080(qapp: QApplication) -> None:
@@ -55,6 +57,8 @@ def test_main_window_constructs_at_1920x1080(qapp: QApplication) -> None:
     if controls_scroll and hasattr(controls_scroll, "sizeHint"):
         # Content should fit without excessive scrolling
         assert window.controls_panel.height() > 0
+    window.close()
+    qapp.processEvents()
 
 
 def test_layout_defaults_camera_dominant(qapp: QApplication) -> None:
@@ -72,6 +76,8 @@ def test_layout_defaults_camera_dominant(qapp: QApplication) -> None:
 
     # Camera area should be at least 55% of total
     assert camera_area_height >= total_height * 0.55
+    window.close()
+    qapp.processEvents()
 
 
 def test_settings_round_trip(qapp: QApplication, tmp_path: Path) -> None:
@@ -95,6 +101,9 @@ def test_settings_round_trip(qapp: QApplication, tmp_path: Path) -> None:
     settings.set_show_legend(True)
     settings.set_last_mp4_directory("/tmp/test")
     settings.set_last_config_directory("/tmp/config")
+
+    window1.close()
+    qapp.processEvents()
 
     # Create new settings instance and restore
     settings2 = AppSettings()
@@ -140,6 +149,8 @@ def test_menu_actions_exist_and_connected(qapp: QApplication) -> None:
     # Check Help menu
     help_actions = window.menuBar().actions()[3].menu().actions()
     assert len(help_actions) >= 2  # About, Shortcuts
+    window.close()
+    qapp.processEvents()
 
 
 def test_reset_action_triggers_signal(qapp: QApplication) -> None:
@@ -152,6 +163,8 @@ def test_reset_action_triggers_signal(qapp: QApplication) -> None:
     # Just verify the action exists and has a shortcut
     assert window.act_reset is not None
     assert window.act_reset.shortcut().toString() == "Ctrl+Shift+R"
+    window.close()
+    qapp.processEvents()
 
 
 def test_no_hex_colour_literals_outside_theme(tmp_path: Path) -> None:
@@ -206,6 +219,8 @@ def test_screenshot_generation(qapp: QApplication, tmp_path: Path) -> None:
 
     assert screenshot_path.exists()
     assert screenshot_path.stat().st_size > 0
+    window.close()
+    qapp.processEvents()
 
 
 def test_status_bar_permanent_widgets(qapp: QApplication) -> None:
@@ -225,6 +240,8 @@ def test_status_bar_permanent_widgets(qapp: QApplication) -> None:
     # Verify they're in the status bar
     status_bar = window.statusBar()
     assert window.lbl_status_state in status_bar.children()
+    window.close()
+    qapp.processEvents()
 
 
 def test_tab_widget_contains_benchmark(qapp: QApplication) -> None:
@@ -237,6 +254,8 @@ def test_tab_widget_contains_benchmark(qapp: QApplication) -> None:
     assert window.tab_widget.count() >= 1
     assert window.tab_widget.tabText(0) == "Benchmark"
     assert window.bench_panel is not None
+    window.close()
+    qapp.processEvents()
 
 
 def test_docks_are_closable_and_restorable(qapp: QApplication) -> None:
@@ -260,6 +279,8 @@ def test_docks_are_closable_and_restorable(qapp: QApplication) -> None:
     window.dock_controls.toggleViewAction().trigger()
     qapp.processEvents()
     assert window.dock_controls.isVisible()
+    window.close()
+    qapp.processEvents()
 
 
 def test_minimum_dock_widths(qapp: QApplication) -> None:
@@ -271,6 +292,8 @@ def test_minimum_dock_widths(qapp: QApplication) -> None:
 
     assert window.dock_controls.minimumWidth() == 340
     assert window.dock_telemetry.minimumWidth() == 280
+    window.close()
+    qapp.processEvents()
 
 
 def test_tooltips_on_controls(qapp: QApplication) -> None:
@@ -289,6 +312,8 @@ def test_tooltips_on_controls(qapp: QApplication) -> None:
     assert window.lbl_status_source.toolTip() != ""
     assert window.lbl_status_frame.toolTip() != ""
     assert window.lbl_status_fps.toolTip() != ""
+    window.close()
+    qapp.processEvents()
 
 
 if __name__ == "__main__":

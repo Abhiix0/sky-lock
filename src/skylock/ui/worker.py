@@ -544,39 +544,49 @@ class SessionWorker(QObject):
         fv_s1: FrameView | None = None
         fv_s2: FrameView | None = None
 
-        if res_s1 is not None:
-            self._latest_step_result_s1 = res_s1
-            if res_s1.output.latency_ms > 0:
-                self._latency_samples.append(res_s1.output.latency_ms)
-            fv_s1 = self._make_frame_view(res_s1, "s1")
-            self._latest_frame_view_s1 = fv_s1
-            self.frame_ready_s1.emit(fv_s1)
-            self.dual_frame_ready.emit("s1", fv_s1)
+        if self._shutdown_requested or not self._is_running:
+            return
 
-        if res_s2 is not None:
-            self._latest_step_result_s2 = res_s2
-            fv_s2 = self._make_frame_view(res_s2, "s2")
-            self._latest_frame_view_s2 = fv_s2
-            self.frame_ready_s2.emit(fv_s2)
-            self.dual_frame_ready.emit("s2", fv_s2)
+        try:
+            if res_s1 is not None:
+                self._latest_step_result_s1 = res_s1
+                if res_s1.output.latency_ms > 0:
+                    self._latency_samples.append(res_s1.output.latency_ms)
+                fv_s1 = self._make_frame_view(res_s1, "s1")
+                self._latest_frame_view_s1 = fv_s1
+                self.frame_ready_s1.emit(fv_s1)
+                self.dual_frame_ready.emit("s1", fv_s1)
 
-        # Back-pressure: skip emitting active frame_ready if UI is behind
-        skip_emit = self._pending_frames >= 2
-        if skip_emit:
-            self._dropped_ui_frames += 1
-        else:
-            active_fv = fv_s1 if self._active_sat == "s1" else fv_s2
-            if active_fv is not None:
-                self._pending_frames += 1
-                self.frame_ready.emit(active_fv)
+            if res_s2 is not None:
+                self._latest_step_result_s2 = res_s2
+                fv_s2 = self._make_frame_view(res_s2, "s2")
+                self._latest_frame_view_s2 = fv_s2
+                self.frame_ready_s2.emit(fv_s2)
+                self.dual_frame_ready.emit("s2", fv_s2)
+
+            # Back-pressure: skip emitting active frame_ready if UI is behind
+            skip_emit = self._pending_frames >= 2
+            if skip_emit:
+                self._dropped_ui_frames += 1
+            else:
+                active_fv = fv_s1 if self._active_sat == "s1" else fv_s2
+                if active_fv is not None:
+                    self._pending_frames += 1
+                    self.frame_ready.emit(active_fv)
+        except RuntimeError:
+            # Under fast UI test teardown, Qt signals or receiver objects may be deleted
+            return
 
         # Schedule next step with deadline-based pacing
         if self._is_running and not self._shutdown_requested:
             self._next_deadline += self._period_s / max(0.001, self.speed)
             delay_s = max(0.0, self._next_deadline - time.perf_counter())
             delay_ms = int(delay_s * 1000) if self.speed > 0 else 0
-            if self._timer is not None:
-                self._timer.start(delay_ms)
+            try:
+                if self._timer is not None and not self._shutdown_requested:
+                    self._timer.start(delay_ms)
+            except RuntimeError:
+                return
 
     def _make_frame_view(self, res: StepResult, sat_id: str = "s1") -> FrameView:
         """Convert a StepResult into an immutable UI FrameView."""

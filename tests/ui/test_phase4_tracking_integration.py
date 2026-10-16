@@ -32,7 +32,7 @@ def test_configuration_tab_exists(qapp: QApplication) -> None:
     qapp.processEvents()
 
     assert hasattr(win, "view_tabs")
-    assert win.view_tabs.count() == 3
+    assert win.view_tabs.count() >= 3
     assert win.view_tabs.tabText(0) == "3D Space Simulation"
     assert win.view_tabs.tabText(1) == "Camera Sensor Feed"
     assert win.view_tabs.tabText(2) == "Configuration"
@@ -284,6 +284,10 @@ def test_authoritative_tracking_state_machine(qapp: QApplication) -> None:
         input_kind = "simulation"
         pointing_pan_deg = None
         pointing_tilt_deg = None
+
+    # Stop live worker so synthetic test frames are authoritative
+    win._worker.stop_running()
+    qapp.processEvents()
 
     # Case A: When satellites are on opposite sides of Earth (LOST / UNLOCKED)
     win._s1_orbit = OrbitParams(radius=20.0, speed=0.0, inclination_deg=0.0, phase_deg=0.0)

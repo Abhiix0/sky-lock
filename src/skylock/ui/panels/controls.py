@@ -67,6 +67,7 @@ class ControlsPanel(QWidget):
     def __init__(self, editor: ConfigEditor, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.editor = editor
+        self._is_running = False
         self._block_signals = True
         self._mp4_probe_ok = False  # Track whether MP4 probe succeeded
         self._error_labels: dict[str, QLabel] = {}  # key-substring -> inline error label
@@ -97,6 +98,7 @@ class ControlsPanel(QWidget):
         self.btn_start.clicked.connect(self._on_start)
         self.btn_stop = QPushButton("Stop")
         self.btn_stop.setFixedHeight(28)
+        self.btn_stop.setEnabled(False)
         self.btn_stop.setStyleSheet(
             f"background-color: {theme.BUTTON_STOP_BG.name()}; color: white; font-weight: bold;"
         )
@@ -755,8 +757,25 @@ class ControlsPanel(QWidget):
             return True
         return any(lbl.isVisible() for lbl in self._error_labels.values())
 
+    def _on_start(self) -> None:
+        """Handle Start button click by emitting start_clicked."""
+        self.start_clicked.emit()
+
+    def set_running(self, running: bool) -> None:
+        """Update Start and Stop button states based on worker execution state."""
+        self._is_running = running
+        if running:
+            self.btn_start.setEnabled(False)
+            self.btn_stop.setEnabled(True)
+        else:
+            self.btn_stop.setEnabled(False)
+            self._update_start_enabled()
+
     def _update_start_enabled(self) -> None:
-        """Start = no violations AND (simulation OR probe ok)."""
+        """Start = no violations AND (simulation OR probe ok) AND not currently running."""
+        if getattr(self, "_is_running", False):
+            self.btn_start.setEnabled(False)
+            return
         has_errors = self._has_violations()
         is_mp4 = self.cmb_input.currentText() == "MP4 Video"
         can_start = not has_errors and (not is_mp4 or self._mp4_probe_ok)

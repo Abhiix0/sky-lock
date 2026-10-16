@@ -243,25 +243,31 @@ npm run build
 
 ---
 
-## Desktop Packaging (Electron)
+## Desktop Packaging & Windows Portable Release
 
-Sky Lock can be packaged as a standalone offline desktop application for Windows:
+SkyLock is packaged as a standalone portable Windows application:
 
+### Quick Run (Pre-built Release)
+1. Extract `dist/SkyLock-Portable.zip` or navigate to `dist/SkyLock-Portable/`.
+2. Double-click `SkyLock.exe` (or run `./dist/SkyLock-Portable/SkyLock.exe`).
+3. The 3D Space Simulation automatically starts running on launch.
+4. Use the central tabs to view the **3D Space Simulation** or the clean **2D Camera Sensor Feed**.
+5. Switch observer direction seamlessly via the primary selector:
+   - `S-1 observing S-2` (S-1 camera tracking S-2 beacon)
+   - `S-2 observing S-1` (S-2 camera tracking S-1 beacon)
+
+### Building the Executable from Source
 ```bash
-# Build Vite production bundle and package Windows installer + portable exe
-npm run dist
+python scripts/build_exe.py
 ```
+This builds:
+- Standalone portable directory: `dist/SkyLock-Portable/SkyLock.exe`
+- Distributable ZIP archive: `dist/SkyLock-Portable.zip`
 
-Executables will be generated in `release/`:
-- `release/Sky Lock Setup 1.0.0.exe` (NSIS Installer)
-- `release/Sky Lock 1.0.0.exe` (Portable Executable, ~111 MB)
-
-### Offline Execution & GPU Fallback
-If running on a system with outdated or incompatible GPU hardware acceleration drivers:
-```cmd
-set SKYLOCK_SOFTWARE_GL=1
-"Sky Lock 1.0.0.exe"
-```
+### Offline Execution & System Requirements
+- Windows 10 (1809+) or Windows 11 (64-bit).
+- No Python installation, Node.js, or external dev servers required.
+- Preferences, window layout, and logs are saved to user-writable `%LOCALAPPDATA%\SkyLock`.
 
 ---
 

@@ -6,7 +6,6 @@ import os
 import sys
 import numpy as np
 import pytest
-from PySide6.QtCore import QCoreApplication
 from PySide6.QtWidgets import QApplication
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -65,11 +64,9 @@ def test_camera_feed_view_defaults(qapp) -> None:
     feed = CameraFeedView()
     assert feed.selected_satellite == "s1"
     assert feed.combo_observer.currentIndex() == 0
-    assert feed.combo_observer.currentText() == "View S-2 from S-1"
-    assert feed.btn_focus_target.text() == "Focus S-2"
+    assert feed.combo_observer.currentText() == "S-1 observing S-2"
     # Initial mode starts in AUTO
-    assert feed.btn_focus_target.isChecked() is True
-    assert feed.btn_focus_earth.isChecked() is False
+    assert feed.btn_auto.isChecked() is True
     assert feed.btn_manual.isChecked() is False
 
     # Check status log initialized
@@ -89,7 +86,6 @@ def test_observer_switch_without_disturbing_sessions(qapp) -> None:
 
     # Initial view is S-1
     assert feed.selected_satellite == "s1"
-    assert feed.btn_focus_target.text() == "Focus S-2"
 
     # Step both sessions in worker
     worker._step()
@@ -99,7 +95,6 @@ def test_observer_switch_without_disturbing_sessions(qapp) -> None:
     # Switch observer to S-2
     feed.combo_observer.setCurrentIndex(1)
     assert feed.selected_satellite == "s2"
-    assert feed.btn_focus_target.text() == "Focus S-1"
     assert worker.active_satellite == "s2"
 
     # Step again
@@ -110,8 +105,8 @@ def test_observer_switch_without_disturbing_sessions(qapp) -> None:
     assert worker.session_s2.controller.current_time_s >= s2_t_before
 
 
-def test_focus_mode_controls_per_session(qapp) -> None:
-    """Verify Earth, AUTO, and MANUAL focus modes apply per-session independently."""
+def test_mode_controls_per_session(qapp) -> None:
+    """Verify AUTO and MANUAL modes apply per-session independently."""
     cfg = SkyLockConfig()
     worker = SessionWorker(cfg)
     worker._build_new_session(cfg)
@@ -120,16 +115,15 @@ def test_focus_mode_controls_per_session(qapp) -> None:
     steering_filter = ManualSteeringFilter()
     feed.set_worker(worker, steering_filter)
 
-    # 1. On S-1: Switch to Focus Earth
-    feed.btn_focus_earth.click()
-    assert worker.session_s1.controller.mode == ControlMode.EARTH
-    assert steering_filter.is_manual_mode is False
+    # 1. On S-1: Switch to Manual
+    feed.btn_manual.click()
+    assert worker.session_s1.controller.mode == ControlMode.MANUAL
+    assert steering_filter.is_manual_mode is True
 
     # 2. Switch observer to S-2 (starts in AUTO)
     feed.combo_observer.setCurrentIndex(1)
     assert feed.selected_satellite == "s2"
-    assert feed.btn_focus_target.text() == "Focus S-1"
-    assert feed.btn_focus_target.isChecked() is True
+    assert feed.btn_auto.isChecked() is True
     assert worker.session_s2.controller.mode == ControlMode.AUTO
 
     # 3. On S-2: Switch to Manual
@@ -140,11 +134,9 @@ def test_focus_mode_controls_per_session(qapp) -> None:
     # 4. Switch back to S-1
     feed.combo_observer.setCurrentIndex(0)
     assert feed.selected_satellite == "s1"
-    assert feed.btn_focus_target.text() == "Focus S-2"
-    # S-1's mode must be preserved as EARTH!
-    assert feed.btn_focus_earth.isChecked() is True
-    assert worker.session_s1.controller.mode == ControlMode.EARTH
-    assert steering_filter.is_manual_mode is False
+    # S-1's mode must be preserved as MANUAL
+    assert feed.btn_manual.isChecked() is True
+    assert worker.session_s1.controller.mode == ControlMode.MANUAL
 
 
 def test_status_feed_events_sequence(qapp) -> None:

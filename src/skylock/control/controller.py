@@ -145,6 +145,10 @@ class PointingController:
         self._manual_pan_rate = float(pan_rate_deg_s)
         self._manual_tilt_rate = float(tilt_rate_deg_s)
 
+    def set_manual_rates(self, pan_rate: float, tilt_rate: float) -> None:
+        """Alias for set_manual_rate with named pan_rate and tilt_rate parameters."""
+        self.set_manual_rate(pan_rate, tilt_rate)
+
     def reset(self) -> None:
         """Reset internal PID controllers, time, and manual rates."""
         self.pid_pan.reset()

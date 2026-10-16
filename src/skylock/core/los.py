@@ -51,13 +51,31 @@ def check_line_of_sight(
     p2: tuple[float, float, float],
     body_radius: float = EARTH_RADIUS,
     body_center: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    tolerance: float = 1e-6,
 ) -> bool:
     """Determine whether the direct optical line-of-sight between p1 and p2 is clear.
 
-    Returns True if the line segment between p1 and p2 does NOT intersect the occluding
-    body sphere. Returns False if occluded/blocked by the sphere.
+    Performs a deterministic, numerically stable finite segment vs sphere intersection test.
+    The occluding body (Earth) is centered at body_center with radius body_radius.
+
+    Tolerance semantics:
+    - If the minimum distance from body_center to the finite segment [p1, p2]
+      is >= body_radius - tolerance, the path is clear (including tangent or near-tangent cases).
+    - If the minimum distance is < body_radius - tolerance, the segment intersects the body
+      and the line of sight is blocked.
+    - Endpoints outside the sphere are not considered occluded if the intervening segment
+      does not intersect the sphere.
+
+    Args:
+        p1: Position of observer endpoint (x, y, z).
+        p2: Position of target endpoint (x, y, z).
+        body_radius: Radius of the occluding sphere (default EARTH_RADIUS = 10.0).
+        body_center: Center of the occluding sphere (default (0, 0, 0)).
+        tolerance: Numerical tolerance for tangent intersection boundary (default 1e-6).
+
+    Returns:
+        True if the line-of-sight segment is clear (unobstructed), False if blocked.
     """
-    # Relative positions with respect to body center
     x1 = p1[0] - body_center[0]
     y1 = p1[1] - body_center[1]
     z1 = p1[2] - body_center[2]
@@ -66,31 +84,29 @@ def check_line_of_sight(
     y2 = p2[1] - body_center[1]
     z2 = p2[2] - body_center[2]
 
-    # Segment vector D = p2 - p1
     dx = x2 - x1
     dy = y2 - y1
     dz = z2 - z1
     seg_len_sq = dx * dx + dy * dy + dz * dz
 
     if seg_len_sq < 1e-12:
-        # Endpoints coincide
-        return math.sqrt(x1 * x1 + y1 * y1 + z1 * z1) >= body_radius
+        dist_sq = x1 * x1 + y1 * y1 + z1 * z1
+        r_eff = max(0.0, body_radius - tolerance)
+        return dist_sq >= (r_eff * r_eff)
 
     # Parametric line: P(t) = P1 + t * D, t in [0, 1]
-    # Projection of origin onto infinite line:
-    # dot(P1 + t*D, D) = 0 => t = -dot(P1, D) / dot(D, D)
     dot_p1_d = x1 * dx + y1 * dy + z1 * dz
     t = -dot_p1_d / seg_len_sq
 
-    # Clamp t to segment [0, 1] to find closest point on segment
+    # Clamp t to finite segment [0, 1]
     t_clamped = max(0.0, min(1.0, t))
     cx = x1 + t_clamped * dx
     cy = y1 + t_clamped * dy
     cz = z1 + t_clamped * dz
 
     dist_sq = cx * cx + cy * cy + cz * cz
-    # Clear if distance to closest point is strictly greater than body radius
-    return dist_sq >= (body_radius * body_radius)
+    r_eff = max(0.0, body_radius - tolerance)
+    return dist_sq >= (r_eff * r_eff)
 
 
 def calculate_look_angles(

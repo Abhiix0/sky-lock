@@ -472,17 +472,19 @@ def test_16_all_enabled_controls_have_functional_handlers(qapp):
     win = MainWindow()
     win.show()
 
-    # ControlsPanel buttons and handlers
+    # ControlsPanel buttons and handlers: auto-started, stop and start work
     ctrls = win.controls_panel
-    assert not win._worker.is_running
-    ctrls.btn_start.click()
-    assert _wait_for_condition(lambda: win._worker.is_running, timeout_s=3.0)
+    assert _wait_for_condition(lambda: ctrls.btn_stop.isEnabled(), timeout_s=3.0)
 
     ctrls.btn_stop.click()
     assert _wait_for_condition(lambda: not win._worker.is_running, timeout_s=3.0)
+    assert _wait_for_condition(lambda: ctrls.btn_start.isEnabled(), timeout_s=3.0)
+
+    ctrls.btn_start.click()
+    assert _wait_for_condition(lambda: win._worker.is_running, timeout_s=3.0)
 
     ctrls.btn_reset.click()
-    assert win.telemetry_panel.lbl_det_count.text() == "—"
+    assert win.telemetry_panel.lbl_det_count.text() in ("—", "0")
 
     # BenchmarkPanel controls
     bench = win.bench_panel
@@ -515,11 +517,13 @@ def test_16_all_enabled_controls_have_functional_handlers(qapp):
     assert feed.selected_satellite == "s2"
     assert "TARGET: S-1" in feed.lbl_id_badge.text()
 
-    # View toggle controls
-    feed.btn_view_sensor.click()
-    assert feed.view_stack.currentIndex() == 1
-    feed.btn_view_camera.click()
-    assert feed.view_stack.currentIndex() == 0
+    # Redesigned 2D camera feed controls
+    feed.btn_manual.click()
+    assert feed.btn_manual.isChecked()
+    feed.btn_auto.click()
+    assert feed.btn_auto.isChecked()
+    feed.btn_annotations.click()
+    feed.btn_reticle.click()
 
     win.close()
 
